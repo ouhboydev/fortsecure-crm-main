@@ -116,7 +116,7 @@ export async function fetchTeamMetrics() {
     conversion,
     closedCount: closedMonth.length,
     pipelineCount: pipeline.length,
-    meetingsCount: (actsRes.data ?? []).filter(a => (a.metadata as any)?.log_subtype === 'meeting').length,
+    meetingsCount: (actsRes.data ?? []).filter((a: any) => a.metadata?.log_subtype === 'meeting').length,
     activitiesPending: (actsRes.data ?? []).filter((a) => a.status === "pendente").length,
     sellersCount: sellers.length,
     forecast: revenue + weighted,
