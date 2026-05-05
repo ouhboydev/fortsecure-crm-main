@@ -199,6 +199,56 @@ function Tracker() {
     a.description?.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Real Stats Calculation
+  const getTrend = () => {
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+    const thisWeek = activities.filter(a => new Date(a.due_date) >= oneWeekAgo).length;
+    const lastWeek = activities.filter(a => {
+      const d = new Date(a.due_date);
+      return d >= twoWeeksAgo && d < oneWeekAgo;
+    }).length;
+
+    if (lastWeek === 0) return thisWeek > 0 ? `+${thisWeek * 100}%` : "0%";
+    const diff = ((thisWeek - lastWeek) / lastWeek) * 100;
+    return `${diff >= 0 ? '+' : ''}${Math.round(diff)}% vs last week`;
+  };
+
+  const getProductivity = () => {
+    const count = activities.length;
+    if (count > 50) return { label: "Elite", trend: "Top 1%" };
+    if (count > 20) return { label: "Avançado", trend: "Top 15%" };
+    if (count > 5) return { label: "Operacional", trend: "Top 50%" };
+    return { label: "Iniciante", trend: "Em Treino" };
+  };
+
+  const prod = getProductivity();
+
+  const getDailyRhythm = () => {
+    const today = new Date().toLocaleDateString('pt-BR');
+    const todayCount = activities.filter(a => new Date(a.due_date).toLocaleDateString('pt-BR') === today).length;
+    
+    if (todayCount === 0) return "Silencioso";
+    if (todayCount < 3) return "Em Aquecimento";
+    if (todayCount < 6) return "Operacional";
+    if (todayCount < 10) return "Alta Performance";
+    return "Nível Elite";
+  };
+
+  const getTacticalInsight = () => {
+    const count = activities.length;
+    if (count === 0) return "Nenhum dado operacional detectado. Registre sua primeira atividade para iniciar a análise de inteligência.";
+    if (count < 10) return "Volume de dados insuficiente para projeção estatística. Continue registrando interações para gerar insights.";
+    
+    const visits = activities.filter(a => a.type === 'reuniao').length;
+    const calls = activities.filter(a => a.type === 'ligacao').length;
+    
+    if (visits > calls) return "Sua estratégia está focada em fechamento presencial. Mantenha o ritmo de visitas para acelerar o pipeline.";
+    return "Alto volume de prospecção via call detectado. Foque em converter essas chamadas em visitas técnicas para aumentar o win-rate.";
+  };
+
   return (
     <div className="p-8 md:p-12 lg:p-20 space-y-16 max-w-[1600px] mx-auto min-h-screen pb-40 relative">
       {/* Background Decor */}
@@ -207,108 +257,121 @@ function Tracker() {
          <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-500/5 blur-[150px] rounded-full -ml-32 -mb-32" />
       </div>
 
-      <PageHeader 
-        title="Performance Tracker" 
-        subtitle="Rastreamento tático de interações e produtividade em tempo real"
-      />
-
-      {/* Analytics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-         <StatCard label="Total de Interações" value={activities.length} icon={<History />} trend="+12% vs last week" />
-         <StatCard label="Ligações Realizadas" value={activities.filter(a => a.type === 'ligacao').length} icon={<PhoneCall />} />
-         <StatCard label="Visitas Técnicas" value={activities.filter(a => a.type === 'reuniao').length} icon={<MapPin />} />
-         <StatCard label="Produtividade" value="Elite" icon={<Zap className="text-primary" />} trend="Top 1%" />
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+        <PageHeader 
+          title="Performance Tracker" 
+          subtitle="Rastreamento tático de interações e produtividade em tempo real"
+        />
+        <div className="flex gap-4 w-full md:w-auto">
+          <Button 
+            onClick={() => { setLogType('call'); setEditingId(null); setIsModalOpen(true); }}
+            className="flex-1 md:flex-none h-14 px-8 bg-primary text-primary-foreground font-black uppercase tracking-widest text-[10px] rounded-2xl hover:scale-[1.05] active:scale-[0.95] transition-all shadow-xl shadow-primary/20 gap-3"
+          >
+            <Phone className="h-4 w-4" /> Registrar Call
+          </Button>
+          <Button 
+            onClick={() => { setLogType('visit'); setEditingId(null); setIsModalOpen(true); }}
+            className="flex-1 md:flex-none h-14 px-8 bg-secondary/50 border border-border text-foreground font-black uppercase tracking-widest text-[10px] rounded-2xl hover:bg-secondary transition-all gap-3"
+          >
+            <MapPin className="h-4 w-4 text-primary" /> Marcar Visita
+          </Button>
+        </div>
       </div>
 
-      {/* Control Center */}
-      <div className="flex flex-col lg:flex-row gap-10">
-         <div className="flex-1 space-y-10">
-            <div className="flex items-center justify-between gap-6">
-               <div className="relative flex-1 group">
-                  <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/30 group-focus-within:text-primary transition-all" />
-                  <Input 
-                    placeholder="Filtrar logs operacionais..." 
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    className="h-16 pl-14 pr-6 bg-card/40 backdrop-blur-md border-border rounded-2xl text-sm focus:ring-primary/20 transition-all outline-none"
-                  />
-               </div>
-               <div className="flex gap-4">
-                  <Button 
-                    onClick={() => { setLogType('call'); setEditingId(null); setIsModalOpen(true); }}
-                    className="h-16 px-8 bg-primary text-primary-foreground font-black uppercase tracking-widest text-[10px] rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-emerald-500/10 gap-3"
-                  >
-                    <Phone className="h-4 w-4" /> Registrar Call
-                  </Button>
-                  <Button 
-                    onClick={() => { setLogType('visit'); setEditingId(null); setIsModalOpen(true); }}
-                    className="h-16 px-8 bg-secondary/50 border-border text-foreground font-black uppercase tracking-widest text-[10px] rounded-2xl hover:bg-secondary transition-all gap-3"
-                  >
-                    <MapPin className="h-4 w-4 text-primary" /> Marcar Visita
-                  </Button>
-               </div>
+      {/* Analytics Row */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+         <StatCard label="Total de Interações" value={activities.length} icon={<History />} trend={getTrend()} />
+         <StatCard label="Ligações Realizadas" value={activities.filter(a => a.type === 'ligacao').length} icon={<PhoneCall />} />
+         <StatCard label="Visitas Técnicas" value={activities.filter(a => a.type === 'reuniao').length} icon={<MapPin />} />
+         <StatCard label="Produtividade" value={prod.label} icon={<Zap className="text-primary" />} trend={prod.trend} />
+      </div>
+
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+         {/* Left Side: Feed & Search */}
+         <div className="lg:col-span-8 space-y-8">
+            <div className="relative group max-w-2xl">
+               <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/30 group-focus-within:text-primary transition-all" />
+               <Input 
+                 placeholder="Filtrar logs operacionais por cliente ou descrição..." 
+                 value={search}
+                 onChange={e => setSearch(e.target.value)}
+                 className="h-14 pl-14 pr-6 bg-card/30 backdrop-blur-xl border-border/50 rounded-2xl text-xs focus:ring-primary/20 transition-all outline-none"
+               />
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-4">
                {loading ? (
                   <div className="py-40 text-center space-y-6">
                      <Loader2 className="h-10 w-10 animate-spin text-primary/40 mx-auto" />
-                     <div className="text-[10px] font-black text-muted-foreground/20 uppercase tracking-[0.5em]">Recuperando Logs Táticos...</div>
+                     <div className="text-[10px] font-black text-muted-foreground/20 uppercase tracking-[0.5em]">Sincronizando Logs...</div>
                   </div>
                ) : filtered.length === 0 ? (
                   <div className="py-40 text-center bg-card/20 border-2 border-dashed border-border rounded-[40px] space-y-8">
                      <div className="h-24 w-24 bg-background border border-border rounded-3xl flex items-center justify-center mx-auto opacity-10">
                         <History className="h-10 w-10" />
                      </div>
-                     <div className="text-[11px] font-black text-muted-foreground/20 uppercase tracking-[0.3em]">Silêncio operacional total no setor.</div>
+                     <div className="text-[11px] font-black text-muted-foreground/20 uppercase tracking-[0.3em]">Nenhum registro encontrado.</div>
                   </div>
                ) : (
-                  <div className="grid grid-cols-1 gap-6">
+                  <div className="grid grid-cols-1 gap-4">
                      {filtered.map((a, i) => (
                         <motion.div 
                           key={a.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: i * 0.05 }}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.03 }}
                         >
-                          <Card className="bg-card/40 backdrop-blur-md border-border rounded-[32px] p-8 group hover:border-primary/30 transition-all shadow-xl overflow-hidden relative border-none">
-                             <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl rounded-full -mr-16 -mt-16 opacity-0 group-hover:opacity-100 transition-opacity" />
-                             <div className="flex items-start justify-between relative z-10">
-                                <div className="flex items-start gap-8">
+                          <Card className="bg-card/40 backdrop-blur-xl border border-border/50 rounded-3xl p-6 group hover:border-primary/40 transition-all shadow-lg overflow-hidden relative">
+                             <div className="flex items-center justify-between relative z-10">
+                                <div className="flex items-center gap-6">
                                    <div className={cn(
-                                      "h-16 w-16 rounded-2xl border border-border flex items-center justify-center transition-all group-hover:scale-110 shadow-inner",
+                                      "h-14 w-14 rounded-2xl border border-border flex items-center justify-center transition-all group-hover:rotate-12 shadow-inner",
                                       a.type === 'ligacao' ? "text-primary bg-primary/5" : "text-blue-500 bg-blue-500/5"
                                    )}>
-                                      {a.type === 'ligacao' ? <PhoneCall className="h-7 w-7" /> : <MapPin className="h-7 w-7" />}
+                                      {a.type === 'ligacao' ? <PhoneCall className="h-6 w-6" /> : <MapPin className="h-6 w-6" />}
                                    </div>
-                                   <div className="space-y-3">
-                                      <div className="flex items-center gap-4">
-                                         <h4 className="text-xl font-black text-foreground uppercase tracking-tight italic group-hover:text-primary transition-colors leading-none">{a.title}</h4>
-                                         <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest bg-secondary/50 border-border px-3 py-1 rounded-full">
+                                   <div className="space-y-1">
+                                      <div className="flex items-center gap-3">
+                                         <h4 className="text-lg font-black text-foreground uppercase tracking-tight italic group-hover:text-primary transition-colors leading-none">{a.title}</h4>
+                                         <Badge className={cn(
+                                           "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md",
+                                           a.metadata?.priority === 'alta' ? "bg-red-500/10 text-red-500 border-red-500/20" : "bg-secondary text-muted-foreground"
+                                         )}>
                                             {a.metadata?.priority || 'Média'}
                                          </Badge>
                                       </div>
-                                      <div className="flex items-center gap-6">
-                                         <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">
+                                      <div className="flex items-center gap-4">
+                                         <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground/50 uppercase tracking-widest">
                                             <Calendar className="h-3 w-3" /> {new Date(a.due_date).toLocaleDateString('pt-BR')}
                                          </div>
-                                         <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">
+                                         <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground/50 uppercase tracking-widest">
                                             <Clock className="h-3 w-3" /> {new Date(a.due_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                          </div>
                                          {a.opportunities?.title && (
-                                            <div className="flex items-center gap-2 text-[10px] font-black text-primary/60 uppercase tracking-widest">
+                                            <div className="flex items-center gap-1.5 text-[9px] font-black text-primary/80 uppercase tracking-widest">
                                                <Target className="h-3 w-3" /> {a.opportunities.title}
                                             </div>
                                          )}
                                       </div>
-                                      {a.description && <p className="text-[11px] text-muted-foreground leading-relaxed font-medium mt-4 line-clamp-2 max-w-2xl">{a.description}</p>}
                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                                   <Button variant="ghost" size="icon" onClick={() => openEdit(a)} className="h-12 w-12 rounded-xl bg-secondary/50 border border-border hover:text-primary"><Edit3 className="h-4 w-4" /></Button>
-                                   <Button variant="ghost" size="icon" onClick={() => deleteActivity(a.id)} className="h-12 w-12 rounded-xl bg-secondary/50 border border-border hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                                <div className="flex items-center gap-4">
+                                   <div className="hidden md:block text-right pr-6 border-r border-border/50">
+                                      <div className="text-[10px] font-black text-foreground/40 uppercase tracking-widest mb-1">Resultado</div>
+                                      <div className="text-[11px] font-bold text-primary truncate max-w-[150px] italic">{a.metadata?.outcome || "Pendente"}</div>
+                                   </div>
+                                   <div className="flex items-center gap-1">
+                                      <Button variant="ghost" size="icon" onClick={() => openEdit(a)} className="h-10 w-10 rounded-xl hover:bg-primary/10 hover:text-primary transition-all"><Edit3 className="h-4 w-4" /></Button>
+                                      <Button variant="ghost" size="icon" onClick={() => deleteActivity(a.id)} className="h-10 w-10 rounded-xl hover:bg-destructive/10 hover:text-destructive transition-all"><Trash2 className="h-4 w-4" /></Button>
+                                   </div>
                                 </div>
                              </div>
+                             {a.description && (
+                               <div className="mt-4 pt-4 border-t border-border/20">
+                                 <p className="text-[11px] text-muted-foreground/70 leading-relaxed line-clamp-1">{a.description}</p>
+                               </div>
+                             )}
                           </Card>
                         </motion.div>
                      ))}
@@ -317,31 +380,39 @@ function Tracker() {
             </div>
          </div>
 
-         {/* Sidebar Stats */}
-         <div className="w-full lg:w-[400px] space-y-10">
-            <Card className="bg-primary/5 border border-primary/10 rounded-[40px] p-10 space-y-8 shadow-2xl relative overflow-hidden group">
-               <div className="absolute top-0 right-0 p-8 text-primary/5 group-hover:scale-125 transition-all duration-1000"><Zap className="h-40 w-40" /></div>
-               <div className="relative z-10 space-y-6">
-                  <div className="h-14 w-14 rounded-2xl bg-background border border-border flex items-center justify-center shadow-xl">
-                    <TrendingUp className="h-7 w-7 text-primary" />
+         {/* Right Side: Insights & Frequency */}
+         <div className="lg:col-span-4 space-y-6">
+            <Card className="bg-card/40 backdrop-blur-xl border border-border/50 rounded-[32px] p-8 space-y-8 shadow-xl">
+               <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shadow-inner">
+                    <BarChart2 className="h-5 w-5" />
                   </div>
-                  <div className="space-y-2">
-                     <h3 className="text-3xl font-black italic text-foreground uppercase tracking-tighter">Detalhes da Atividade</h3>
-                     <p className="text-[10px] text-muted-foreground/50 font-bold uppercase tracking-widest leading-relaxed">Seu ritmo operacional está 15% acima da média do setor Delta.</p>
-                  </div>
-                  <div className="pt-6 border-t border-primary/10">
-                     <Button className="w-full h-14 bg-primary text-primary-foreground font-black uppercase tracking-widest text-[10px] rounded-2xl gap-3">
-                        Ver Analítica Completa <ChevronRight className="h-4 w-4" />
-                     </Button>
+                  <h3 className="text-[11px] font-black text-foreground uppercase tracking-[0.4em]">Análise de Esforço</h3>
+               </div>
+               
+               <div className="space-y-8">
+                  <TypeFreq label="Ligações" count={activities.filter(a => a.type === 'ligacao').length} total={activities.length} color="bg-primary" icon={<Phone className="h-3 w-3" />} />
+                  <TypeFreq label="Visitas" count={activities.filter(a => a.type === 'reuniao').length} total={activities.length} color="bg-blue-500" icon={<MapPin className="h-3 w-3" />} />
+               </div>
+
+               <div className="pt-6 border-t border-border/30">
+                  <div className="flex justify-between items-center bg-secondary/30 rounded-2xl p-4 border border-border/50">
+                    <div className="space-y-1">
+                      <div className="text-[9px] font-black text-muted-foreground/40 uppercase tracking-widest">Ritmo Diário</div>
+                      <div className="text-sm font-black italic text-foreground uppercase">{getDailyRhythm()}</div>
+                    </div>
+                    <Zap className="h-5 w-5 text-primary" />
                   </div>
                </div>
             </Card>
 
-            <Card className="bg-card/40 backdrop-blur-md border-border rounded-[40px] p-10 space-y-10 shadow-xl border-none">
-               <h3 className="text-[11px] font-black text-muted-foreground/30 uppercase tracking-[0.4em]">Frequência por Tipo</h3>
-               <div className="space-y-8">
-                  <TypeFreq label="Ligações" count={activities.filter(a => a.type === 'ligacao').length} total={activities.length} color="bg-primary" />
-                  <TypeFreq label="Visitas" count={activities.filter(a => a.type === 'reuniao').length} total={activities.length} color="bg-blue-500" />
+            <Card className="bg-gradient-to-br from-primary/10 to-transparent border border-primary/20 rounded-[32px] p-8 space-y-6 shadow-xl relative overflow-hidden group">
+               <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-150 transition-transform duration-1000">
+                  <Target className="h-32 w-32" />
+               </div>
+               <div className="relative z-10 space-y-4">
+                  <h3 className="text-[10px] font-black text-primary uppercase tracking-[0.3em]">Insights Táticos</h3>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed italic">"{getTacticalInsight()}"</p>
                </div>
             </Card>
          </div>
@@ -565,15 +636,18 @@ function StatCard({ label, value, icon, trend }: any) {
   );
 }
 
-function TypeFreq({ label, count, total, color }: any) {
+function TypeFreq({ label, count, total, color, icon }: any) {
   const pct = total > 0 ? (count / total) * 100 : 0;
   return (
     <div className="space-y-3">
        <div className="flex justify-between items-end">
-          <span className="text-[10px] font-black text-foreground uppercase tracking-tight italic">{label}</span>
+          <div className="flex items-center gap-2">
+            <div className={cn("h-6 w-6 rounded-lg flex items-center justify-center text-white shadow-sm", color)}>{icon}</div>
+            <span className="text-[10px] font-black text-foreground uppercase tracking-tight italic">{label}</span>
+          </div>
           <span className="text-xs font-mono font-bold text-foreground/40">{count}</span>
        </div>
-       <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden shadow-inner">
+       <div className="h-2 w-full bg-secondary/50 rounded-full overflow-hidden shadow-inner border border-border/20">
           <motion.div 
             initial={{ width: 0 }}
             animate={{ width: `${pct}%` }}
