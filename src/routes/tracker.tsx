@@ -63,7 +63,7 @@ function Tracker() {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Form states
-  const [logType, setLogType] = useState<'call' | 'visit'>('call');
+  const [logType, setLogType] = useState<'call' | 'visit' | 'meeting'>('call');
   const [clientName, setClientName] = useState("");
   const [description, setDescription] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
@@ -121,7 +121,7 @@ function Tracker() {
     try {
       const payload = {
         owner_id: user.id,
-        title: `${logType === 'call' ? 'Call' : 'Visita'}: ${clientName}`,
+        title: `${logType === 'call' ? 'Call' : logType === 'meeting' ? 'Reunião' : 'Visita'}: ${clientName}`,
         type: logType === 'call' ? 'ligacao' : 'reuniao',
         due_date: scheduledTime ? new Date(scheduledTime).toISOString() : new Date().toISOString(),
         description: description,
@@ -130,10 +130,14 @@ function Tracker() {
         metadata: {
           priority,
           outcome,
+          log_subtype: logType,
           // Call specific
           ...(logType === 'call' ? {
             call_type: callType,
             duration: callDuration
+          } : logType === 'meeting' ? {
+            // Meeting specific
+            meeting_type: 'online', // default
           } : {
             // Visit specific
             location: visitLocation,
@@ -146,7 +150,19 @@ function Tracker() {
         await supabase.from("activities").update(payload as any).eq("id", editingId);
         toast.success("Registro atualizado");
       } else {
-        await supabase.from("activities").insert(payload as any);
+        const { error: actError } = await supabase.from("activities").insert(payload as any);
+        
+        if (!actError && logType === 'visit') {
+          // Sync with formal meetings table for dashboard visibility
+          await supabase.from("meetings").insert({
+            owner_id: user.id,
+            client_name: clientName,
+            scheduled_at: scheduledTime ? new Date(scheduledTime).toISOString() : new Date().toISOString(),
+            notes: description,
+            opportunity_id: relatedOpportunity || null
+          });
+        }
+        
         toast.success("Atividade registrada");
       }
       setIsModalOpen(false); 
@@ -262,7 +278,7 @@ function Tracker() {
           title="Performance Tracker" 
           subtitle="Rastreamento tático de interações e produtividade em tempo real"
         />
-        <div className="flex gap-4 w-full md:w-auto">
+        <div className="flex flex-wrap gap-4 w-full md:w-auto">
           <Button 
             onClick={() => { setLogType('call'); setEditingId(null); setIsModalOpen(true); }}
             className="flex-1 md:flex-none h-14 px-8 bg-primary text-primary-foreground font-black uppercase tracking-widest text-[10px] rounded-2xl hover:scale-[1.05] active:scale-[0.95] transition-all shadow-xl shadow-primary/20 gap-3"
@@ -270,19 +286,26 @@ function Tracker() {
             <Phone className="h-4 w-4" /> Registrar Call
           </Button>
           <Button 
+            onClick={() => { setLogType('meeting'); setEditingId(null); setIsModalOpen(true); }}
+            className="flex-1 md:flex-none h-14 px-8 bg-indigo-600 text-white font-black uppercase tracking-widest text-[10px] rounded-2xl hover:scale-[1.05] active:scale-[0.95] transition-all shadow-xl shadow-indigo-500/20 gap-3 border-none"
+          >
+            <Calendar className="h-4 w-4" /> Agendar Reunião
+          </Button>
+          <Button 
             onClick={() => { setLogType('visit'); setEditingId(null); setIsModalOpen(true); }}
             className="flex-1 md:flex-none h-14 px-8 bg-secondary/50 border border-border text-foreground font-black uppercase tracking-widest text-[10px] rounded-2xl hover:bg-secondary transition-all gap-3"
           >
-            <MapPin className="h-4 w-4 text-primary" /> Marcar Visita
+            <MapPin className="h-4 w-4 text-primary" /> Registrar Visita
           </Button>
         </div>
       </div>
 
       {/* Analytics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
          <StatCard label="Total de Interações" value={activities.length} icon={<History />} trend={getTrend()} />
-         <StatCard label="Ligações Realizadas" value={activities.filter(a => a.type === 'ligacao').length} icon={<PhoneCall />} />
-         <StatCard label="Visitas Técnicas" value={activities.filter(a => a.type === 'reuniao').length} icon={<MapPin />} />
+         <StatCard label="Ligações" value={activities.filter(a => a.type === 'ligacao').length} icon={<PhoneCall />} />
+         <StatCard label="Reuniões" value={activities.filter(a => a.metadata?.log_subtype === 'meeting').length} icon={<Calendar className="text-indigo-500" />} />
+         <StatCard label="Visitas Técnicas" value={activities.filter(a => a.metadata?.log_subtype === 'visit').length} icon={<MapPin className="text-amber-500" />} />
          <StatCard label="Produtividade" value={prod.label} icon={<Zap className="text-primary" />} trend={prod.trend} />
       </div>
 
@@ -327,9 +350,13 @@ function Tracker() {
                                 <div className="flex items-center gap-6">
                                    <div className={cn(
                                       "h-14 w-14 rounded-2xl border border-border flex items-center justify-center transition-all group-hover:rotate-12 shadow-inner",
-                                      a.type === 'ligacao' ? "text-primary bg-primary/5" : "text-blue-500 bg-blue-500/5"
+                                      a.metadata?.log_subtype === 'call' || a.type === 'ligacao' ? "text-primary bg-primary/5" : 
+                                      a.metadata?.log_subtype === 'meeting' ? "text-indigo-500 bg-indigo-500/5" :
+                                      "text-amber-500 bg-amber-500/5"
                                    )}>
-                                      {a.type === 'ligacao' ? <PhoneCall className="h-6 w-6" /> : <MapPin className="h-6 w-6" />}
+                                      {a.metadata?.log_subtype === 'meeting' ? <Calendar className="h-6 w-6" /> : 
+                                       a.metadata?.log_subtype === 'visit' ? <MapPin className="h-6 w-6" /> :
+                                       <PhoneCall className="h-6 w-6" />}
                                    </div>
                                    <div className="space-y-1">
                                       <div className="flex items-center gap-3">
@@ -391,8 +418,9 @@ function Tracker() {
                </div>
                
                <div className="space-y-8">
-                  <TypeFreq label="Ligações" count={activities.filter(a => a.type === 'ligacao').length} total={activities.length} color="bg-primary" icon={<Phone className="h-3 w-3" />} />
-                  <TypeFreq label="Visitas" count={activities.filter(a => a.type === 'reuniao').length} total={activities.length} color="bg-blue-500" icon={<MapPin className="h-3 w-3" />} />
+                  <TypeFreq label="Ligações" count={activities.filter(a => a.metadata?.log_subtype === 'call').length} total={activities.length} color="bg-primary" icon={<Phone className="h-3 w-3" />} />
+                  <TypeFreq label="Reuniões" count={activities.filter(a => a.metadata?.log_subtype === 'meeting').length} total={activities.length} color="bg-indigo-500" icon={<Calendar className="h-3 w-3" />} />
+                  <TypeFreq label="Visitas" count={activities.filter(a => a.metadata?.log_subtype === 'visit').length} total={activities.length} color="bg-amber-500" icon={<MapPin className="h-3 w-3" />} />
                </div>
 
                <div className="pt-6 border-t border-border/30">
@@ -425,11 +453,11 @@ function Tracker() {
                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-blue-500/5" />
                <div className="relative z-10 space-y-10">
                   <div className="h-20 w-20 bg-background border border-border rounded-[24px] flex items-center justify-center text-primary shadow-2xl group-hover:scale-110 transition-transform duration-500">
-                    {logType === 'call' ? <Phone className="h-10 w-10" /> : <MapPin className="h-10 w-10" />}
+                    {logType === 'call' ? <Phone className="h-10 w-10" /> : logType === 'meeting' ? <Calendar className="h-10 w-10" /> : <MapPin className="h-10 w-10" />}
                   </div>
                   <div className="space-y-3">
                     <h3 className="text-4xl font-black tracking-tighter uppercase italic text-foreground leading-none">
-                       {logType === 'call' ? 'Call' : 'Visita'}
+                       {logType === 'call' ? 'Call' : logType === 'meeting' ? 'Reunião' : 'Visita'}
                     </h3>
                     <div className="flex items-center gap-2">
                       <div className="h-1 w-6 bg-primary rounded-full" />
@@ -539,7 +567,23 @@ function Tracker() {
                           />
                         </div>
                      </div>
-                   ) : (
+                   ) : logType === 'meeting' ? (
+                      <div className="space-y-8 animate-in fade-in slide-in-from-top-4">
+                        <div className="space-y-3">
+                          <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 ml-1">Formato da Reunião</Label>
+                          <Select defaultValue="online">
+                            <SelectTrigger className="h-14 bg-secondary/40 border-border rounded-2xl text-[10px] font-black uppercase tracking-widest px-6">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-card border-border">
+                              <SelectItem value="online">Remota (Google Meet / Zoom)</SelectItem>
+                              <SelectItem value="presencial">Presencial (Escritório Cliente)</SelectItem>
+                              <SelectItem value="cafe">Café de Negócios</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    ) : (
                      <div className="space-y-8 animate-in fade-in slide-in-from-top-4">
                         <div className="grid grid-cols-2 gap-6">
                           <div className="space-y-3">

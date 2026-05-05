@@ -135,7 +135,7 @@ function Dashboard() {
             return {
                name: d.toLocaleString('pt-BR', { month: 'short' }),
                real: mOpps.reduce((sum, o) => sum + Number(o.value), 0),
-               meta: realMeta / 12
+               meta: realMeta
             };
          });
          setTrendData(trend);

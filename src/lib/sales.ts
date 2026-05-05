@@ -105,7 +105,7 @@ export async function fetchTeamMetrics() {
   
   const settings = await fetchAppSettings();
   const hqGoal = Number(settings.global_revenue_goal);
-  const goal = (goalsRes.data ?? []).reduce((s, g) => s + Number(g.target_amount), 0) || hqGoal;
+  const goal = hqGoal || (goalsRes.data ?? []).reduce((s, g) => s + Number(g.target_amount), 0);
 
   const totalEntered = closedMonth.length + lost.length;
   const conversion = totalEntered > 0 ? (closedMonth.length / totalEntered) * 100 : 0;
@@ -116,6 +116,7 @@ export async function fetchTeamMetrics() {
     conversion,
     closedCount: closedMonth.length,
     pipelineCount: pipeline.length,
+    meetingsCount: (actsRes.data ?? []).filter(a => (a.metadata as any)?.log_subtype === 'meeting').length,
     activitiesPending: (actsRes.data ?? []).filter((a) => a.status === "pendente").length,
     sellersCount: sellers.length,
     forecast: revenue + weighted,

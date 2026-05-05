@@ -34,20 +34,17 @@ function ExecutiveDashboard() {
   const [evolutionData, setEvolutionData] = useState<any[]>([]);
   const [stageData, setStageData] = useState<any[]>([]);
   const [productData, setProductData] = useState<any[]>([]);
-  const [meetingsCount, setMeetingsCount] = useState(0);
 
   useEffect(() => {
     async function load() {
-      const [m, r, oppsRes, meetRes] = await Promise.all([
+      const [m, r, oppsRes] = await Promise.all([
         fetchTeamMetrics(),
         fetchRanking(),
-        supabase.from("opportunities").select("*"),
-        supabase.from("meetings").select("*", { count: 'exact', head: true }).gte("scheduled_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
+        supabase.from("opportunities").select("*")
       ]);
 
       setMetrics(m);
       setRanking(r.slice(0, 8));
-      setMeetingsCount(meetRes.count || 0);
 
       const opps = oppsRes.data ?? [];
       const funnel = STAGES.map(s => {
@@ -64,7 +61,7 @@ function ExecutiveDashboard() {
         const day = i + 1;
         const dayRevenue = opps.filter(o => o.stage === 'ganho' && o.closed_at && new Date(o.closed_at).getDate() === day).reduce((sum, o) => sum + Number(o.value), 0);
         cumulative += dayRevenue;
-        return { day: `${day}/${new Date().getMonth() + 1}`, realizado: cumulative, meta: (m.goal / daysInMonth) * day };
+        return { day: `${day}/${new Date().getMonth() + 1}`, realizado: cumulative, meta: Math.round((m.goal / daysInMonth) * day) };
       });
       setEvolutionData(evolution);
 
@@ -200,6 +197,7 @@ function ExecutiveDashboard() {
                         contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "16px" }} 
                         itemStyle={{ color: '#fff', fontWeight: 'bold' }}
                         labelStyle={{ color: '#fff', fontWeight: 'bold' }}
+                        formatter={(value: any) => [formatCurrency(value), ""]}
                       />
                       <Area type="monotone" dataKey="realizado" name="Valor Realizado" stroke="#10b981" strokeWidth={3} fill="url(#execGrad)" />
                       <Area type="monotone" dataKey="meta" name="Valor Meta" stroke="#71717a" strokeDasharray="6 6" fill="none" strokeWidth={2} />
@@ -369,7 +367,7 @@ function ExecutiveDashboard() {
                 <CardContent className="p-8 flex items-center justify-between">
                   <div>
                     <CardDescription className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-2 group-hover:text-primary transition-colors">Reuniões Agendadas</CardDescription>
-                    <div className="text-4xl font-black font-mono text-foreground tracking-tighter">{meetingsCount}</div>
+                    <div className="text-4xl font-black font-mono text-foreground tracking-tighter">{metrics.meetingsCount}</div>
                   </div>
                   <div className="h-16 w-16 rounded-2xl bg-secondary border border-border flex items-center justify-center transition-all group-hover:border-primary/50 shadow-sm">
                      <Calendar className="h-8 w-8 text-primary opacity-30" />

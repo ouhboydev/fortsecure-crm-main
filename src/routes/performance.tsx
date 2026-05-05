@@ -121,6 +121,7 @@ function PerformanceAnalytics() {
                   contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px' }} 
                   itemStyle={{ color: '#fff', fontWeight: 'bold', fontSize: '12px' }}
                   labelStyle={{ color: '#fff', fontWeight: 'bold', fontSize: '12px' }}
+                  formatter={(value: any) => [formatCurrency(value), ""]}
                 />
                 <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--foreground)' }} />
                 <Bar dataKey="vendas" name="Vendido" fill="#10b981" radius={[4, 4, 0, 0]} barSize={24} />

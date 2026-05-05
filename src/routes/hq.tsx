@@ -41,6 +41,8 @@ function HQ() {
     commission_rate: 15,
     tax_rate: 18,
     global_target: 2000000,
+    daily_revenue_goal: 5000,
+    daily_activity_goal: 15,
     retention_goal: 85,
     operational_buffer: 20,
     enable_ai: true,
@@ -170,49 +172,47 @@ function HQ() {
           </div>
         </header>
 
-        <div className="grid lg:grid-cols-[320px_1fr] gap-20 items-start">
-           {/* Tactical Navigation */}
-           <div className="space-y-10 sticky top-20">
-              <div className="space-y-4">
-                 <h3 className="text-[10px] font-black text-muted-foreground/30 uppercase tracking-[0.4em] px-4">Módulos de Comando</h3>
-                 <nav className="space-y-2">
-                    <TabButton active={activeTab === "finance"} onClick={() => setActiveTab("finance")} icon={<Coins />} label="Financeiro" />
-                    <TabButton active={activeTab === "targets"} onClick={() => setActiveTab("targets")} icon={<Target />} label="Metas Globais" />
-                    <TabButton active={activeTab === "operational"} onClick={() => setActiveTab("operational")} icon={<Zap />} label="Operacional" />
-                    <TabButton active={activeTab === "company"} onClick={() => setActiveTab("company")} icon={<Globe />} label="Institucional" />
-                 </nav>
+        <div className="space-y-16">
+           {/* Primary Targets Section */}
+           <section className="space-y-10">
+              <div className="flex items-center gap-4">
+                 <div className="h-1 w-12 bg-primary rounded-full" />
+                 <h2 className="text-2xl font-black uppercase tracking-tighter italic">Alvos Estratégicos</h2>
               </div>
+              <TargetsView configs={configs} setConfigs={setConfigs} saveConfig={saveConfig} busy={busy} />
+           </section>
 
-              <Card className="bg-primary/5 border-primary/10 p-8 rounded-[32px] space-y-6">
-                 <div className="flex items-center gap-4 text-primary">
-                    <Shield className="h-5 w-5" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Estado do Sistema</span>
+           <Separator className="bg-border/30" />
+
+           {/* Finance & Operational Grid */}
+           <div className="grid lg:grid-cols-2 gap-10">
+              <section className="space-y-10">
+                 <div className="flex items-center gap-4">
+                    <div className="h-1 w-8 bg-amber-500 rounded-full" />
+                    <h2 className="text-xl font-black uppercase tracking-tighter italic">Engenharia Financeira</h2>
                  </div>
-                 <div className="space-y-4">
-                    <SystemStat label="Sync Database" status="Ativo" color="emerald" />
-                    <SystemStat label="Assistente Virtual" status={configs.enable_ai ? "On" : "Off"} color={configs.enable_ai ? "emerald" : "zinc"} />
-                    <SystemStat label="Audit Tracking" status="Live" color="emerald" />
+                 <FinanceView configs={configs} setConfigs={setConfigs} saveConfig={saveConfig} busy={busy} />
+              </section>
+
+              <section className="space-y-10">
+                 <div className="flex items-center gap-4">
+                    <div className="h-1 w-8 bg-indigo-500 rounded-full" />
+                    <h2 className="text-xl font-black uppercase tracking-tighter italic">Controles Operacionais</h2>
                  </div>
-              </Card>
+                 <OperationalView configs={configs} setConfigs={setConfigs} saveConfig={saveConfig} busy={busy} />
+              </section>
            </div>
 
-           {/* Command Viewports */}
-           <main className="min-h-[600px]">
-              <AnimatePresence mode="wait">
-                 <motion.div
-                   key={activeTab}
-                   initial={{ opacity: 0, x: 20 }}
-                   animate={{ opacity: 1, x: 0 }}
-                   exit={{ opacity: 0, x: -20 }}
-                   transition={{ duration: 0.4, ease: "circOut" }}
-                 >
-                    {activeTab === 'finance' && <FinanceView configs={configs} setConfigs={setConfigs} saveConfig={saveConfig} busy={busy} />}
-                    {activeTab === 'targets' && <TargetsView configs={configs} setConfigs={setConfigs} saveConfig={saveConfig} busy={busy} />}
-                    {activeTab === 'operational' && <OperationalView configs={configs} setConfigs={setConfigs} saveConfig={saveConfig} busy={busy} />}
-                    {activeTab === 'company' && <CompanyView configs={configs} setConfigs={setConfigs} saveConfig={saveConfig} busy={busy} />}
-                 </motion.div>
-              </AnimatePresence>
-           </main>
+           <Separator className="bg-border/30" />
+
+           {/* Institutional Section */}
+           <section className="space-y-10">
+              <div className="flex items-center gap-4">
+                 <div className="h-1 w-8 bg-muted-foreground/30 rounded-full" />
+                 <h2 className="text-xl font-black uppercase tracking-tighter italic">Identidade de Comando</h2>
+              </div>
+              <CompanyView configs={configs} setConfigs={setConfigs} saveConfig={saveConfig} busy={busy} />
+           </section>
         </div>
       </div>
     </div>
@@ -355,6 +355,34 @@ function TargetsView({ configs, setConfigs, saveConfig, busy }: any) {
          </HQCard>
 
          <div className="grid md:grid-cols-2 gap-10">
+            <HQCard title="Meta Diária (Receita)" sub="Alvo de faturamento por dia" icon={<TrendingUp />}>
+               <div className="space-y-8 py-6">
+                  <div className="relative">
+                    <span className="absolute left-6 top-1/2 -translate-y-1/2 text-xl font-black text-muted-foreground/20 italic">{configs.currency}</span>
+                    <Input 
+                      type="number"
+                      value={configs.daily_revenue_goal} 
+                      onChange={(e) => setConfigs({...configs, daily_revenue_goal: parseInt(e.target.value)})}
+                      className="h-16 pl-20 rounded-2xl bg-secondary/50 border-border text-2xl font-black focus:ring-primary/20 shadow-inner"
+                    />
+                  </div>
+                  <Button onClick={() => saveConfig('daily_revenue_goal', configs.daily_revenue_goal.toString())} disabled={busy} className="w-full h-12 bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all font-black uppercase tracking-widest text-[10px] rounded-xl">Persistir Meta Diária</Button>
+               </div>
+            </HQCard>
+
+            <HQCard title="Meta de Atividades" sub="Logs diários por agente" icon={<Zap />}>
+               <div className="space-y-8 py-6">
+                  <div className="text-8xl font-black font-mono text-primary leading-none tracking-tighter italic">{configs.daily_activity_goal}</div>
+                  <Slider 
+                    value={[configs.daily_activity_goal]} 
+                    max={50} min={1} step={1} 
+                    onValueChange={(v) => setConfigs({...configs, daily_activity_goal: v[0]})}
+                    onValueCommit={(v) => saveConfig('daily_activity_goal', v[0])}
+                  />
+                  <p className="text-[9px] text-muted-foreground/40 font-bold uppercase tracking-[0.2em] text-center italic">Volume sugerido de interações (Calls/Visitas) por dia.</p>
+               </div>
+            </HQCard>
+
             <HQCard title="Meta de Retenção" sub="Benchmark de Churn" icon={<Briefcase />}>
                <div className="space-y-10 py-6">
                   <div className="text-8xl font-black font-mono text-blue-500 leading-none tracking-tighter italic">{configs.retention_goal}%</div>
