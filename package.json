@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "powershell -Command \"$env:TANSTACK_START_TARGET='node'; vite build\"",
+    "build": "vite build",
     "start": "node server.mjs",
     "deploy": "firebase deploy --only hosting",
     "build:dev": "vite build --mode development",
