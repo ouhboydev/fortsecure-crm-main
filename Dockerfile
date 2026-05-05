@@ -17,7 +17,7 @@ RUN npm install @hono/node-server hono
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server.mjs ./server.mjs
 
-ENV PORT=3000
-EXPOSE 3000
+ENV PORT=3113
+EXPOSE 3113
 
 CMD ["node", "server.mjs"]
