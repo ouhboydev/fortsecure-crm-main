@@ -1,0 +1,4 @@
+project_id = "ybduagyrtugesdlznttc"
+
+[functions.sales-insights]
+verify_jwt = false

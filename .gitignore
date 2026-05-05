@@ -1,0 +1,48 @@
+# Dependencies
+node_modules
+.pnpm-store
+bun.lockb
+
+# Build outputs
+dist
+dist-ssr
+*.local
+
+# Environment variables (CRITICAL: Do not remove)
+.env
+.env*.local
+.env.development
+.env.production
+
+# TanStack Start / Router
+.tanstack
+routeTree.gen.ts
+
+# Firebase
+.firebase
+active-hosting.txt
+firebase-debug.log*
+firestore-debug.log*
+pubsub-debug.log*
+ui-debug.log*
+functions/dist
+
+# IDEs and OS files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Docker
+.dockerignore
+Dockerfile.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
