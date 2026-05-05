@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader, formatCurrency } from "@/components/ui-kit/PageHeader";
 import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { fetchRanking, type RankingRow } from "@/lib/sales";
 import {
   Trophy, Star, Crown,

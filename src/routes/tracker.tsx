@@ -70,6 +70,14 @@ function Tracker() {
   const [priority, setPriority] = useState<'baixa' | 'media' | 'alta'>('media');
   const [outcome, setOutcome] = useState("");
   const [relatedOpportunity, setRelatedOpportunity] = useState("");
+  
+  // Specific fields
+  const [callType, setCallType] = useState("follow-up");
+  const [callDuration, setCallDuration] = useState("");
+  const [visitLocation, setVisitLocation] = useState("");
+  const [visitContact, setVisitContact] = useState("");
+  const [visitObjective, setVisitObjective] = useState("demonstracao");
+  
   const [opps, setOpps] = useState<any[]>([]);
 
   useEffect(() => {
@@ -121,7 +129,17 @@ function Tracker() {
         opportunity_id: relatedOpportunity || null,
         metadata: {
           priority,
-          outcome
+          outcome,
+          // Call specific
+          ...(logType === 'call' ? {
+            call_type: callType,
+            duration: callDuration
+          } : {
+            // Visit specific
+            location: visitLocation,
+            contact_person: visitContact,
+            objective: visitObjective
+          })
         }
       };
       if (editingId) {
@@ -155,6 +173,14 @@ function Tracker() {
     setPriority(a.metadata?.priority || 'media');
     setOutcome(a.metadata?.outcome || "");
     setRelatedOpportunity(a.opportunity_id || "");
+    
+    // Specific fields
+    setCallType(a.metadata?.call_type || "follow-up");
+    setCallDuration(a.metadata?.duration || "");
+    setVisitLocation(a.metadata?.location || "");
+    setVisitContact(a.metadata?.contact_person || "");
+    setVisitObjective(a.metadata?.objective || "demonstracao");
+    
     setIsModalOpen(true);
   };
 
@@ -321,22 +347,23 @@ function Tracker() {
          </div>
       </div>
 
-      {/* Registration Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="bg-background border border-border/50 rounded-[48px] p-0 overflow-hidden max-w-2xl shadow-[0_0_100px_rgba(0,0,0,0.5)] border-none">
-          <div className="flex h-[800px]">
-            {/* Left Decor Side */}
-            <div className="w-[30%] bg-secondary/30 border-r border-border/50 p-12 flex flex-col justify-between relative overflow-hidden">
-               <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-primary/5 to-transparent" />
-               <div className="relative z-10 space-y-8">
-                  <div className="h-16 w-16 bg-background border border-border rounded-2xl flex items-center justify-center text-primary shadow-xl">
-                    {logType === 'call' ? <Phone className="h-7 w-7" /> : <MapPin className="h-7 w-7" />}
+        <DialogContent className="bg-background/95 backdrop-blur-2xl border border-border/50 rounded-[40px] p-0 overflow-hidden max-w-3xl shadow-[0_0_120px_rgba(0,0,0,0.6)] border-none max-h-[90vh] flex flex-col">
+          <div className="flex flex-1 flex-col md:flex-row overflow-hidden min-h-0">
+            <div className="w-full md:w-[280px] bg-secondary/30 border-r border-border/50 p-10 flex flex-col justify-between relative overflow-hidden hidden md:flex">
+               <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-blue-500/5" />
+               <div className="relative z-10 space-y-10">
+                  <div className="h-20 w-20 bg-background border border-border rounded-[24px] flex items-center justify-center text-primary shadow-2xl group-hover:scale-110 transition-transform duration-500">
+                    {logType === 'call' ? <Phone className="h-10 w-10" /> : <MapPin className="h-10 w-10" />}
                   </div>
-                  <div className="space-y-2">
-                    <h3 className="text-2xl font-black tracking-tighter uppercase italic text-foreground leading-none">
+                  <div className="space-y-3">
+                    <h3 className="text-4xl font-black tracking-tighter uppercase italic text-foreground leading-none">
                        {logType === 'call' ? 'Call' : 'Visita'}
                     </h3>
-                    <p className="text-[9px] text-muted-foreground/40 font-bold uppercase tracking-[0.3em] leading-relaxed">Novo Registro</p>
+                    <div className="flex items-center gap-2">
+                      <div className="h-1 w-6 bg-primary rounded-full" />
+                      <p className="text-[10px] text-muted-foreground/40 font-bold uppercase tracking-[0.4em]">Log Operacional</p>
+                    </div>
                   </div>
                </div>
 
@@ -349,41 +376,43 @@ function Tracker() {
                </div>
             </div>
 
-            {/* Right Form Side */}
-            <div className="flex-1 p-12 overflow-y-auto no-scrollbar bg-card/20 backdrop-blur-3xl relative">
-              <div className="absolute top-0 right-0 p-8">
-              </div>
-
-              <form onSubmit={saveActivity} className="space-y-10 pt-4">
-                <div className="space-y-6">
-                   <div className="space-y-3">
-                     <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 ml-1">Identificação do Ativo</Label>
-                     <div className="relative group">
-                       <UserIcon className="absolute left-5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/20 group-focus-within:text-primary transition-colors" />
-                       <Input 
-                         required 
-                         placeholder="Nome do cliente ou empresa..." 
-                         value={clientName} 
-                         onChange={e => setClientName(e.target.value)} 
-                         className="h-16 pl-14 bg-secondary/50 border-border rounded-2xl text-sm text-foreground focus:ring-primary/20 transition-all outline-none" 
-                       />
+            <div className="flex-1 p-10 md:p-14 overflow-y-auto relative bg-transparent scrollbar-thin scrollbar-thumb-primary/10">
+              <form onSubmit={saveActivity} className="space-y-10">
+                <div className="space-y-8">
+                   <div className="space-y-4">
+                     <div className="flex items-center gap-3">
+                        <div className="h-1 w-8 bg-primary/30 rounded-full" />
+                        <h4 className="text-[10px] font-black text-muted-foreground/40 uppercase tracking-[0.3em]">Dados Principais</h4>
+                     </div>
+                     <div className="space-y-3">
+                       <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 ml-1">Identificação do Cliente / Empresa</Label>
+                       <div className="relative group">
+                         <UserIcon className="absolute left-5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/20 group-focus-within:text-primary transition-colors" />
+                         <Input 
+                           required 
+                           placeholder="Ex: FortSecure Corp..." 
+                           value={clientName} 
+                           onChange={e => setClientName(e.target.value)} 
+                           className="h-14 pl-14 bg-secondary/40 border-border rounded-2xl text-sm text-foreground focus:ring-primary/20 transition-all outline-none" 
+                         />
+                       </div>
                      </div>
                    </div>
 
                    <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-3">
-                        <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 ml-1">Data da Operação</Label>
+                        <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 ml-1">Data & Hora</Label>
                         <Input 
                           type="datetime-local" 
                           value={scheduledTime} 
                           onChange={e => setScheduledTime(e.target.value)} 
-                          className="h-16 px-6 bg-secondary/50 border-border rounded-2xl text-sm text-foreground focus:ring-primary/20 transition-all outline-none" 
+                          className="h-14 px-6 bg-secondary/40 border-border rounded-2xl text-[13px] text-foreground focus:ring-primary/20 transition-all outline-none" 
                         />
                       </div>
                       <div className="space-y-3">
-                        <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 ml-1">Prioridade Estratégica</Label>
+                        <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 ml-1">Prioridade</Label>
                         <Select value={priority} onValueChange={(v: any) => setPriority(v)}>
-                          <SelectTrigger className="h-16 bg-secondary/50 border-border rounded-2xl text-xs font-bold uppercase tracking-widest px-6">
+                          <SelectTrigger className="h-14 bg-secondary/40 border-border rounded-2xl text-[10px] font-black uppercase tracking-widest px-6">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="bg-card border-border">
@@ -396,10 +425,10 @@ function Tracker() {
                    </div>
 
                    <div className="space-y-3">
-                      <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 ml-1">Oportunidade Vinculada</Label>
+                      <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 ml-1">Negócio Vinculado</Label>
                       <Select value={relatedOpportunity} onValueChange={setRelatedOpportunity}>
-                        <SelectTrigger className="h-16 bg-secondary/50 border-border rounded-2xl text-xs font-bold uppercase tracking-widest px-6">
-                          <SelectValue placeholder="Selecione um negócio (Opcional)" />
+                        <SelectTrigger className="h-14 bg-secondary/40 border-border rounded-2xl text-[10px] font-black uppercase tracking-widest px-6">
+                          <SelectValue placeholder="SELECIONE UMA OPORTUNIDADE (OPCIONAL)" />
                         </SelectTrigger>
                         <SelectContent className="bg-card border-border">
                           {opps.map(o => (
@@ -410,37 +439,105 @@ function Tracker() {
                    </div>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-8">
+                   {logType === 'call' ? (
+                     <div className="grid grid-cols-2 gap-6 animate-in fade-in slide-in-from-top-4">
+                        <div className="space-y-3">
+                          <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 ml-1">Tipo de Chamada</Label>
+                          <Select value={callType} onValueChange={setCallType}>
+                            <SelectTrigger className="h-14 bg-secondary/40 border-border rounded-2xl text-[10px] font-black uppercase tracking-widest px-6">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-card border-border">
+                              <SelectItem value="cold-call">Cold Call</SelectItem>
+                              <SelectItem value="follow-up">Follow-up</SelectItem>
+                              <SelectItem value="apresentacao">Apresentação</SelectItem>
+                              <SelectItem value="fechamento">Fechamento</SelectItem>
+                              <SelectItem value="suporte">Suporte Tático</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-3">
+                          <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 ml-1">Duração (Minutos)</Label>
+                          <Input 
+                            type="number"
+                            placeholder="Ex: 15" 
+                            value={callDuration} 
+                            onChange={e => setCallDuration(e.target.value)} 
+                            className="h-14 px-6 bg-secondary/40 border-border rounded-2xl text-sm text-foreground focus:ring-primary/20 transition-all outline-none" 
+                          />
+                        </div>
+                     </div>
+                   ) : (
+                     <div className="space-y-8 animate-in fade-in slide-in-from-top-4">
+                        <div className="grid grid-cols-2 gap-6">
+                          <div className="space-y-3">
+                            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 ml-1">Local da Visita</Label>
+                            <Input 
+                              placeholder="Ex: Escritório Central" 
+                              value={visitLocation} 
+                              onChange={e => setVisitLocation(e.target.value)} 
+                              className="h-14 px-6 bg-secondary/40 border-border rounded-2xl text-sm text-foreground focus:ring-primary/20 transition-all outline-none" 
+                            />
+                          </div>
+                          <div className="space-y-3">
+                            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 ml-1">Interlocutor</Label>
+                            <Input 
+                              placeholder="Nome do contato..." 
+                              value={visitContact} 
+                              onChange={e => setVisitContact(e.target.value)} 
+                              className="h-14 px-6 bg-secondary/40 border-border rounded-2xl text-sm text-foreground focus:ring-primary/20 transition-all outline-none" 
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-3">
+                          <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 ml-1">Objetivo Estratégico</Label>
+                          <Select value={visitObjective} onValueChange={setVisitObjective}>
+                            <SelectTrigger className="h-14 bg-secondary/40 border-border rounded-2xl text-[10px] font-black uppercase tracking-widest px-6">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-card border-border">
+                              <SelectItem value="prospeccao">Prospecção de Campo</SelectItem>
+                              <SelectItem value="demonstracao">Demonstração Técnica</SelectItem>
+                              <SelectItem value="entrega">Entrega / Kick-off</SelectItem>
+                              <SelectItem value="cortesia">Visita de Cortesia</SelectItem>
+                              <SelectItem value="reuniao-diretoria">Reunião de Diretoria</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                     </div>
+                   )}
+
                    <div className="space-y-3">
                       <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 ml-1">Desfecho / Resultado</Label>
                       <Input 
                         placeholder="Ex: Proposta enviada, follow-up agendado..." 
                         value={outcome} 
                         onChange={e => setOutcome(e.target.value)} 
-                        className="h-16 px-6 bg-secondary/50 border-border rounded-2xl text-sm text-foreground focus:ring-primary/20 transition-all outline-none" 
+                        className="h-14 px-6 bg-secondary/40 border-border rounded-2xl text-sm text-foreground focus:ring-primary/20 transition-all outline-none" 
                       />
                    </div>
 
-                   <div className="space-y-3">
-                     <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 ml-1">Resumo Executivo (Notas)</Label>
+                   <div className="space-y-3 pb-4">
+                     <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 ml-1">Resumo Executivo & Notas</Label>
                      <Textarea 
                        placeholder="Detalhes técnicos, objeções e próximos passos..." 
                        value={description} 
                        onChange={e => setDescription(e.target.value)} 
-                       className="bg-secondary/50 border-border rounded-3xl p-6 text-sm text-foreground min-h-[160px] focus:ring-primary/20 outline-none transition-all resize-none shadow-inner" 
+                       className="bg-secondary/40 border-border rounded-3xl p-6 text-sm text-foreground min-h-[140px] focus:ring-primary/20 outline-none transition-all resize-none shadow-inner" 
                      />
                    </div>
                 </div>
 
-                <div className="pt-6 flex gap-4">
-                  <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="flex-1 py-8 rounded-2xl border-border font-black uppercase tracking-widest text-[11px] hover:bg-secondary/50 transition-all text-muted-foreground/40">Abortar</Button>
+                <div className="sticky bottom-0 pt-8 pb-4 bg-gradient-to-t from-background via-background to-transparent flex gap-4 mt-12 z-20">
+                  <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="flex-1 py-7 rounded-2xl border-border font-black uppercase tracking-widest text-[10px] hover:bg-secondary/50 transition-all text-muted-foreground/40">Abortar</Button>
                   <Button 
                     type="submit" 
                     disabled={busy || !clientName}
-                    className="flex-[2] py-8 rounded-2xl bg-primary text-primary-foreground font-black uppercase tracking-widest text-[11px] hover:scale-[1.02] active:scale-[0.98] transition-all shadow-2xl shadow-emerald-500/20 gap-3"
+                    className="flex-[2.5] py-7 rounded-2xl bg-primary text-primary-foreground font-black uppercase tracking-widest text-[10px] hover:scale-[1.02] active:scale-[0.98] transition-all shadow-2xl shadow-primary/20 gap-3"
                   >
                     {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : editingId ? <RefreshCw className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
-                    Confirmar Registro Operacional
+                    Finalizar Registro Tático
                   </Button>
                 </div>
               </form>

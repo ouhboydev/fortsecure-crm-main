@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -155,6 +156,30 @@ function SalesPipeline() {
       description: o.description || ""
     });
     setIsModalOpen(true);
+  };
+
+  const handleStageChange = (newStage: string) => {
+    let prob = form.probability;
+    switch (newStage) {
+      case 'prospect': prob = 20; break;
+      case 'qualificado': prob = 40; break;
+      case 'proposta': prob = 60; break;
+      case 'negociacao': prob = 80; break;
+      case 'ganho': prob = 100; break;
+      case 'perdido': prob = 0; break;
+    }
+    setForm(prev => ({ ...prev, stage: newStage, probability: prob }));
+  };
+
+  const handleProbabilityChange = (prob: number) => {
+    let stage = form.stage;
+    if (prob >= 100) stage = 'ganho';
+    else if (prob >= 80) stage = 'negociacao';
+    else if (prob >= 60) stage = 'proposta';
+    else if (prob >= 40) stage = 'qualificado';
+    else if (prob >= 5) stage = 'prospect';
+    else if (prob <= 0) stage = 'perdido';
+    setForm(prev => ({ ...prev, probability: prob, stage }));
   };
 
   async function onDragEnd(result: any) {
@@ -453,28 +478,28 @@ function SalesPipeline() {
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="space-y-3">
                         <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/40 ml-1">Estágio no Funil</Label>
-                        <Select value={form.stage} onValueChange={v => setForm({...form, stage: v})}>
-                          <SelectTrigger className="h-16 bg-secondary/40 border-border rounded-[20px] text-xs font-black uppercase tracking-widest px-6">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card border-border">
-                            {STAGES.map(s => (
-                               <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-3">
-                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/40 ml-1">Probabilidade Estimada (%)</Label>
-                        <Input 
-                           type="number"
-                           min="0" max="100"
-                           value={form.probability}
-                           onChange={e => setForm({...form, probability: Number(e.target.value)})}
-                           className="h-16 px-6 bg-secondary/40 border-border rounded-[20px] text-lg font-mono font-bold focus:ring-primary/20 transition-all outline-none"
-                        />
-                      </div>
-                   </div>
+                         <Select value={form.stage} onValueChange={handleStageChange}>
+                           <SelectTrigger className="h-16 bg-secondary/40 border-border rounded-[20px] text-xs font-black uppercase tracking-widest px-6">
+                             <SelectValue />
+                           </SelectTrigger>
+                           <SelectContent className="bg-card border-border">
+                             {STAGES.map(s => (
+                                <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>
+                             ))}
+                           </SelectContent>
+                         </Select>
+                       </div>
+                       <div className="space-y-3">
+                         <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/40 ml-1">Probabilidade Estimada (%)</Label>
+                         <Input 
+                            type="number"
+                            min="0" max="100"
+                            value={form.probability}
+                            onChange={e => handleProbabilityChange(Number(e.target.value))}
+                            className="h-16 px-6 bg-secondary/40 border-border rounded-[20px] text-lg font-mono font-bold focus:ring-primary/20 transition-all outline-none"
+                         />
+                       </div>
+                    </div>
                 </section>
 
                 <section className="space-y-8 pt-8 border-t border-border/30">
