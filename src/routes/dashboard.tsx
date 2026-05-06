@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   TrendingUp, DollarSign, Activity, Users as UsersIcon,
   RefreshCw, PhoneCall, PieChart as PieChartIcon,
-  Calendar, User, Target, ArrowUpRight, Zap
+  Calendar, User, Target, ArrowUpRight, MapPin, Users
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -62,6 +62,7 @@ function Dashboard() {
   const [selectedSeller, setSelectedSeller] = useState("all");
   const [sellers, setSellers] = useState<any[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState(new Date().getMonth().toString());
+  const [fieldActivities, setFieldActivities] = useState<any[]>([]);
 
   async function load() {
     setIsSyncing(true);
@@ -71,12 +72,13 @@ function Dashboard() {
       const firstDay = new Date(now.getFullYear(), month, 1).toISOString();
       const lastDay = new Date(now.getFullYear(), month + 1, 0, 23, 59, 59).toISOString();
 
-      const [oppsRes, profilesRes, goalsRes, meetingsRes, settingsRes] = await Promise.all([
+      const [oppsRes, profilesRes, goalsRes, meetingsRes, settingsRes, activitiesRes] = await Promise.all([
         supabase.from("opportunities").select("*"),
         supabase.from("profiles").select("id, full_name"),
         supabase.from("goals").select("target_amount, user_id, month").in("month", [month + 1, month + 2, month + 3]).eq("year", now.getFullYear()),
         supabase.from("meetings").select("id", { count: "exact", head: true }).gte("scheduled_at", firstDay).lte("scheduled_at", lastDay),
         supabase.from("app_settings").select("*").eq("key", "global_revenue_goal").single(),
+        supabase.from("activities").select("*, profiles(full_name)").in("type", ["reuniao"]).gte("due_date", firstDay).lte("due_date", lastDay).order("due_date", { ascending: false }),
       ]);
 
       if (oppsRes.error) throw oppsRes.error;
@@ -101,6 +103,11 @@ function Dashboard() {
 
       setMetrics({ revenue, pipelineValue, pipelineCount, weighted, goal: realMeta, attainment: Math.round((revenue / realMeta) * 100) });
       setMeetingCount(meetingsRes.count || 0);
+
+      // Field activities (reuniões & visitas from tracker)
+      const acts = (activitiesRes.data || []);
+      const filteredActs = selectedSeller !== "all" ? acts.filter((a: any) => a.owner_id === selectedSeller) : acts;
+      setFieldActivities(filteredActs);
 
       const proposalCount = opps.filter(o => ["proposta", "negociacao", "ganho", "perdido"].includes(o.stage)).length;
       const winCount = opps.filter(o => o.stage === "ganho").length;
@@ -199,11 +206,12 @@ function Dashboard() {
       </div>
 
       {/* ── KPI Row ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <DashKpi label="Receita (Real)" value={formatCurrency(metrics.revenue)} hint={`Meta: ${formatCurrency(metrics.goal)}`} icon={<DollarSign className="h-4 w-4" />} trend={metrics.attainment} accent featured />
         <DashKpi label="Forecast Ponderado" value={formatCurrency(metrics.weighted)} hint="Pipeline probabilístico" icon={<Activity className="h-4 w-4" />} />
         <DashKpi label="Oportunidades" value={metrics.pipelineCount} hint={formatCurrency(metrics.pipelineValue)} icon={<TrendingUp className="h-4 w-4" />} />
-        <DashKpi label="Reuniões" value={meetingCount} hint="Agendamentos no período" icon={<PhoneCall className="h-4 w-4" />} />
+        <DashKpi label="Reuniões" value={meetingCount + fieldActivities.filter((a: any) => a.metadata?.log_subtype === 'meeting').length} hint="Calendário + Tracker" icon={<PhoneCall className="h-4 w-4" />} />
+        <DashKpi label="Visitas" value={fieldActivities.filter((a: any) => a.metadata?.log_subtype === 'visit').length} hint="Registradas no Tracker" icon={<MapPin className="h-4 w-4" />} />
         <DashKpi label="Conversão" value={`${conversionRate.toFixed(1)}%`} hint="Proposta → Fechado" icon={<PieChartIcon className="h-4 w-4" />} />
       </div>
 
@@ -269,7 +277,7 @@ function Dashboard() {
       </div>
 
       {/* ── Bottom Row ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
         {/* Ranking */}
         <div className="bg-card border border-border rounded-lg overflow-hidden">
           <div className="px-5 py-4 border-b border-border">
@@ -341,6 +349,51 @@ function Dashboard() {
           <div className="px-5 pb-4 flex justify-between text-[10px] text-muted-foreground">
             <span>Realizado: <span className="text-foreground font-mono">{formatCurrency(metrics.revenue)}</span></span>
             <span>Meta: <span className="text-foreground font-mono">{formatCurrency(metrics.goal)}</span></span>
+          </div>
+        </div>
+
+        {/* Field Activities — Atividades de Campo */}
+        <div className="bg-card border border-border rounded-lg overflow-hidden">
+          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+            <h2 className="text-sm font-medium text-foreground">Atividades de Campo</h2>
+            <span className="text-[10px] text-muted-foreground font-mono">{fieldActivities.length} no período</span>
+          </div>
+          <div className="p-4 space-y-2 overflow-y-auto max-h-[230px]">
+            {fieldActivities.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-6">Nenhuma atividade registrada.</p>
+            ) : (
+              fieldActivities.map((a: any) => {
+                const isVisit = a.metadata?.log_subtype === 'visit';
+                const sellerName = a.profiles?.full_name
+                  ? a.profiles.full_name.split(' ').slice(0, 2).join(' ')
+                  : 'Vendedor';
+                return (
+                  <div key={a.id} className="flex items-center gap-3 p-2.5 rounded-md bg-secondary/40 border border-border/40">
+                    <div className={cn(
+                      "h-7 w-7 rounded flex items-center justify-center shrink-0",
+                      isVisit ? "bg-[#1eaedb]/10 text-[#1eaedb]" : "bg-[#f59e0b]/10 text-[#f59e0b]"
+                    )}>
+                      {isVisit ? <MapPin className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-foreground truncate">{a.title.split(': ')[1] || a.title}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-muted-foreground">{sellerName}</span>
+                        <span className="text-[10px] text-muted-foreground">·</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {new Date(a.due_date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                          {' '}{new Date(a.due_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    </div>
+                    <span className={cn(
+                      "text-[9px] font-semibold uppercase tracking-wider shrink-0",
+                      isVisit ? "text-[#1eaedb]" : "text-[#f59e0b]"
+                    )}>{isVisit ? 'Visita' : 'Reunião'}</span>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
 

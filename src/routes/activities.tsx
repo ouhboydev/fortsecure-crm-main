@@ -333,14 +333,17 @@ function ActivityRow({ a, onComplete, onRemove, currentUserId }: { a: any; onCom
 }
 
 function CalendarView({ items, selectedDate, onSelect, onNew }: { items: any[]; selectedDate: Date; onSelect: any; onNew: any }) {
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const daysInMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate();
   const firstDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1).getDay();
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const blanks = Array.from({ length: firstDay }, (_, i) => i);
   const monthName = selectedDate.toLocaleString("pt-BR", { month: "long", year: "numeric" });
 
-  const prevMonth = () => onSelect(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1));
-  const nextMonth = () => onSelect(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1));
+  const prevMonth = () => { setSelectedDay(null); onSelect(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1)); };
+  const nextMonth = () => { setSelectedDay(null); onSelect(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1)); };
+
+  const selectedDayItems = selectedDay ? items.filter(i => i.due_date?.startsWith(selectedDay)) : [];
 
   return (
     <div className="space-y-4">
@@ -375,22 +378,39 @@ function CalendarView({ items, selectedDate, onSelect, onNew }: { items: any[]; 
             const isToday = new Date().toISOString().split("T")[0] === dateStr;
 
             return (
-              <div key={d} className={cn(
-                "min-h-[100px] p-2 border-r border-b border-border/50 hover:bg-accent/20 transition-colors",
-                isToday && "bg-[#3ecf8e]/5"
-              )}>
-                <span className={cn("text-xs font-medium", isToday ? "text-[#3ecf8e]" : "text-muted-foreground")}>
+              <div
+                key={d}
+                onClick={() => setSelectedDay(dateStr === selectedDay ? null : dateStr)}
+                className={cn(
+                  "min-h-[110px] p-2 border-r border-b border-border/50 hover:bg-accent/20 transition-colors cursor-pointer",
+                  isToday && "bg-[#3ecf8e]/5",
+                  selectedDay === dateStr && "ring-1 ring-inset ring-[#3ecf8e]/40 bg-[#3ecf8e]/5"
+                )}>
+                <span className={cn("text-xs font-medium", isToday ? "text-[#3ecf8e] font-bold" : "text-muted-foreground")}>
                   {d}
                 </span>
                 <div className="mt-1 space-y-0.5">
-                  {dayItems.slice(0, 3).map(it => (
-                    <div key={it.id} className={cn(
-                      "text-[9px] px-1.5 py-0.5 rounded truncate font-medium",
-                      it.status === "concluida" ? "bg-secondary text-muted-foreground" : "bg-[#3ecf8e]/15 text-[#3ecf8e]"
-                    )}>
-                      {it.title}
-                    </div>
-                  ))}
+                  {dayItems.slice(0, 3).map(it => {
+                    const cfg = TYPE_CONFIG[it.type] || TYPE_CONFIG.tarefa;
+                    const [iconColor, bgColor] = cfg.color.split(" ");
+                    const timeStr = new Date(it.due_date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+                    const authorName = it.profiles?.full_name
+                      ? it.profiles.full_name.split(" ")[0]
+                      : null;
+                    return (
+                      <div
+                        key={it.id}
+                        title={`${cfg.label} · ${it.title}${authorName ? ` · ${it.profiles.full_name}` : ''} · ${timeStr}`}
+                        className={cn(
+                          "flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium truncate",
+                          it.status === "concluida" ? "bg-secondary text-muted-foreground line-through opacity-60" : bgColor + " " + iconColor
+                        )}
+                      >
+                        <cfg.icon className="h-2.5 w-2.5 shrink-0" />
+                        <span className="truncate">{it.title}</span>
+                      </div>
+                    );
+                  })}
                   {dayItems.length > 3 && (
                     <div className="text-[9px] text-muted-foreground px-1">+{dayItems.length - 3}</div>
                   )}
@@ -400,6 +420,58 @@ function CalendarView({ items, selectedDate, onSelect, onNew }: { items: any[]; 
           })}
         </div>
       </div>
+
+      {/* Selected Day Detail Panel */}
+      {selectedDay && (
+        <div className="bg-card border border-border rounded-lg overflow-hidden">
+          <div className="px-5 py-3 border-b border-border flex items-center justify-between">
+            <h3 className="text-sm font-medium text-foreground">
+              {new Date(selectedDay + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </h3>
+            <span className="text-[10px] text-muted-foreground">{selectedDayItems.length} atividade{selectedDayItems.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="p-4 space-y-2">
+            {selectedDayItems.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">Nenhuma atividade neste dia.</p>
+            ) : (
+              selectedDayItems.map(it => {
+                const cfg = TYPE_CONFIG[it.type] || TYPE_CONFIG.tarefa;
+                const [iconColor] = cfg.color.split(" ");
+                const timeStr = new Date(it.due_date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+                const isDone = it.status === "concluida";
+                const authorName = it.profiles?.full_name || null;
+                return (
+                  <div key={it.id} className={cn(
+                    "flex items-center gap-4 p-3 bg-secondary/50 border border-border/60 rounded-lg",
+                    isDone && "opacity-60"
+                  )}>
+                    <div className={cn("h-8 w-8 rounded-md flex items-center justify-center shrink-0", cfg.color.split(" ")[1], iconColor)}>
+                      <cfg.icon className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn("text-sm font-medium truncate", isDone && "line-through text-muted-foreground")}>{it.title}</p>
+                      <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                          <Clock className="h-3 w-3" /> {timeStr}
+                        </span>
+                        {authorName && (
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <Users className="h-3 w-3" /> {authorName}
+                          </span>
+                        )}
+                        <span className={cn("text-[10px] font-semibold uppercase tracking-wider",
+                          cfg.color.split(" ")[0]
+                        )}>{cfg.label}</span>
+                      </div>
+                    </div>
+                    {isDone && <CheckCircle2 className="h-4 w-4 text-[#3ecf8e] shrink-0" />}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

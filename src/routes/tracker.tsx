@@ -7,12 +7,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
   Phone, Users, Plus, History,
-  Calendar, CheckCircle2, TrendingUp,
-  PhoneCall, MapPin, Search, Filter,
-  Clock, ArrowUpRight, Target, X,
-  Loader2, Sparkles, ChevronRight, Zap,
-  MousePointerClick, Trash2, Edit3,
-  BarChart2, RefreshCw, Download,
+  Calendar as CalendarIcon, CheckCircle2, TrendingUp,
+  PhoneCall, MapPin, Search,
+  Clock, Target,
+  Loader2, ChevronRight,
+  Trash2,
   User as UserIcon, DollarSign
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -167,7 +166,7 @@ function Tracker() {
          <StatCard label="Total de Logs" value={activities.length} icon={<History className="h-4 w-4" />} />
          <StatCard label="Ligações" value={activities.filter(a => a.type === 'ligacao').length} accent="info" icon={<PhoneCall className="h-4 w-4" />} />
          <StatCard label="Reuniões / Visitas" value={activities.filter(a => a.type === 'reuniao').length} accent="primary" icon={<MapPin className="h-4 w-4" />} />
-         <StatCard label="Ritmo" value={activities.length > 20 ? "Alta" : "Operacional"} accent="success" icon={<Zap className="h-4 w-4" />} />
+         <StatCard label="Taxa de Conversão" value={activities.length > 0 ? `${Math.round((activities.filter(a => a.metadata?.outcome && a.metadata.outcome.length > 0).length / activities.length) * 100)}%` : "—"} accent="success" icon={<Target className="h-4 w-4" />} />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
@@ -191,7 +190,7 @@ function Tracker() {
                               <div className="min-w-0">
                                  <h4 className="text-sm font-semibold truncate group-hover:text-[#3ecf8e] transition-colors">{a.title}</h4>
                                  <div className="flex items-center gap-3 mt-0.5">
-                                    <span className="text-[10px] text-muted-foreground flex items-center gap-1"><Calendar className="h-2.5 w-2.5" /> {new Date(a.due_date).toLocaleDateString('pt-BR')}</span>
+                                    <span className="text-[10px] text-muted-foreground flex items-center gap-1"><CalendarIcon className="h-2.5 w-2.5" /> {new Date(a.due_date).toLocaleDateString('pt-BR')}</span>
                                     {a.opportunities?.title && <span className="text-[10px] text-[#3ecf8e] font-bold uppercase tracking-wider truncate">#{a.opportunities.title}</span>}
                                  </div>
                               </div>
@@ -211,11 +210,39 @@ function Tracker() {
                   <ActivityMetric label="Visitas/Reuniões" count={activities.filter(a => a.type === 'reuniao').length} total={activities.length} color="#1eaedb" />
                </div>
             </Section>
-            <Card className="bg-gradient-to-br from-[#3ecf8e]/5 to-transparent border border-[#3ecf8e]/10 p-6 rounded-lg">
-               <h4 className="text-[10px] font-bold text-[#3ecf8e] uppercase tracking-widest mb-2 flex items-center gap-2"><Sparkles className="h-3 w-3" /> Insight do Dia</h4>
-               <p className="text-xs text-muted-foreground leading-relaxed italic">
-                  {activities.length > 5 ? "Bom ritmo operacional detectado. Foque em converter as ligações em reuniões de decisão." : "Inicie o dia com prospecção ativa para alimentar o topo do funil."}
-               </p>
+            <Card className="bg-card border border-border rounded-lg overflow-hidden">
+               <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+                  <h4 className="text-[10px] font-bold text-foreground uppercase tracking-widest flex items-center gap-2"><CalendarIcon className="h-3 w-3 text-[#3ecf8e]" /> Próximas Reuniões</h4>
+               </div>
+               <div className="p-4 space-y-2">
+                  {activities
+                     .filter(a => (a.metadata?.log_subtype === 'meeting' || a.metadata?.log_subtype === 'visit') && new Date(a.due_date) >= new Date(new Date().setHours(0,0,0,0)))
+                     .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+                     .slice(0, 4)
+                     .map(a => {
+                        const isVisit = a.metadata?.log_subtype === 'visit';
+                        return (
+                           <div key={a.id} className="flex items-start gap-3 p-3 rounded-md bg-secondary/50 border border-border/50">
+                              <div className={cn("h-7 w-7 rounded flex items-center justify-center shrink-0 mt-0.5", isVisit ? "bg-[#1eaedb]/10 text-[#1eaedb]" : "bg-[#f59e0b]/10 text-[#f59e0b]")}>
+                                 {isVisit ? <MapPin className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                 <p className="text-xs font-medium text-foreground truncate">{a.title.split(': ')[1] || a.title}</p>
+                                 <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                       <Clock className="h-2.5 w-2.5" />
+                                       {new Date(a.due_date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} · {new Date(a.due_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                 </div>
+                              </div>
+                              <Badge variant="outline" className={cn("text-[9px] shrink-0", isVisit ? "border-[#1eaedb]/30 text-[#1eaedb]" : "border-[#f59e0b]/30 text-[#f59e0b]")}>{isVisit ? "Visita" : "Reunião"}</Badge>
+                           </div>
+                        );
+                     })}
+                  {activities.filter(a => (a.metadata?.log_subtype === 'meeting' || a.metadata?.log_subtype === 'visit') && new Date(a.due_date) >= new Date(new Date().setHours(0,0,0,0))).length === 0 && (
+                     <p className="text-xs text-muted-foreground text-center py-4">Nenhuma reunião ou visita agendada.</p>
+                  )}
+               </div>
             </Card>
          </div>
       </div>
