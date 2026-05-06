@@ -5,22 +5,19 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  User, Camera, Shield, Mail,
-  MapPin, Hash, Sparkles, Trophy,
-  Save, LogOut, CheckCircle2, BadgeCheck,
-  Zap, Github, Linkedin, Twitter, Plus, X,
+  User, Camera, Shield, MapPin,
+  Save, BadgeCheck, Zap, Plus, X,
   Loader2, ChevronRight
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatDisplayName } from "@/lib/utils";
 import { toast } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
 
 // Shadcn UI Imports
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -40,10 +37,8 @@ function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState("perfil");
-  
   const [realRank, setRealRank] = useState<number | string>("--");
   const [realXP, setRealXP] = useState<number>(0);
-
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [tags, setTags] = useState<string[]>([]);
@@ -53,9 +48,8 @@ function ProfilePage() {
 
   useEffect(() => {
     if (isAdmin) {
-      toast.error("Administradores não possuem perfil de agente.");
+      toast.error("Administradores não possuem perfil de vendedor.");
       navigate({ to: "/dashboard" });
-      return;
     }
   }, [isAdmin]);
 
@@ -73,17 +67,16 @@ function ProfilePage() {
         setProfile(data);
         setName(data.full_name || "");
         setBio(data.bio || "");
-        setTags(data.tags || ["Cybersecurity", "Closer", "XDR Specialist"]);
+        setTags(data.tags || []);
         setAvatarUrl(data.avatar_url);
       }
 
       if (rankRes.data) {
         const ranking = rankRes.data as any[];
         const myIndex = ranking.findIndex(r => r.user_id === user.id);
-        const myData = ranking[myIndex];
         if (myIndex !== -1) {
           setRealRank(`#${(myIndex + 1).toString().padStart(2, '0')}`);
-          setRealXP(Math.floor((myData.closed_value || 0) / 10));
+          setRealXP(Math.floor((ranking[myIndex].closed_value || 0) / 10));
         }
       }
       setBadges(badgesRes.data ?? []);
@@ -91,8 +84,6 @@ function ProfilePage() {
     }
     load();
   }, [user]);
-
-  async function handleAvatarClick() { fileInputRef.current?.click(); }
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -104,16 +95,15 @@ function ProfilePage() {
       const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
       if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
-      const { error: updateError } = await supabase.from("profiles").update({ avatar_url: publicUrl }).eq('id', user.id);
-      if (updateError) throw updateError;
+      await supabase.from("profiles").update({ avatar_url: publicUrl }).eq('id', user.id);
       setAvatarUrl(publicUrl);
       toast.success("Foto atualizada!");
-    } catch (error: any) { toast.error(error.message || "Erro no upload"); } finally { setUploading(false); }
+    } catch (error: any) { toast.error(error.message); } finally { setUploading(false); }
   }
 
   async function handleSave() {
     setSaving(true);
-    const { error } = await supabase.from("profiles").update({ full_name: name, bio: bio, tags: tags }).eq("id", user!.id);
+    const { error } = await supabase.from("profiles").update({ full_name: formatDisplayName(name), bio, tags }).eq("id", user!.id);
     if (error) toast.error(error.message); else toast.success("Perfil atualizado");
     setSaving(false);
   }
@@ -122,135 +112,118 @@ function ProfilePage() {
   const removeTag = (t: string) => { setTags(tags.filter(tag => tag !== t)); };
 
   if (loading) return (
-    <div className="h-[80vh] flex flex-col items-center justify-center space-y-6">
-      <Loader2 className="h-10 w-10 animate-spin text-primary/50" />
-      <span className="text-[10px] font-bold text-muted-foreground/30 uppercase tracking-[0.4em]">Sincronizando Identidade...</span>
+    <div className="h-[80vh] flex flex-col items-center justify-center gap-4">
+      <Loader2 className="h-8 w-8 animate-spin text-[#3ecf8e]" />
+      <span className="text-xs font-medium text-muted-foreground uppercase tracking-widest">Carregando perfil...</span>
     </div>
   );
 
   return (
-    <div className="p-8 md:p-12 max-w-[1400px] mx-auto min-h-screen space-y-10 pb-20">
+    <div className="flex flex-col gap-6 p-6 lg:p-8 max-w-[1200px] mx-auto pb-20">
       <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
 
-      {/* Hero Section */}
-      <Card className="bg-card/50 backdrop-blur-md rounded-[40px] border-border overflow-hidden shadow-2xl">
-        <div className="h-48 bg-secondary/50 border-b border-border relative">
-          <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'radial-gradient(#10b981 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background/80" />
-        </div>
-        <div className="px-10 pb-10 flex flex-col md:flex-row items-center md:items-end gap-10 -mt-16 relative z-10">
-          <div className="relative cursor-pointer group" onClick={handleAvatarClick}>
-            <Avatar className="h-40 w-40 rounded-3xl border-[6px] border-background shadow-2xl overflow-hidden transition-transform group-hover:scale-[1.02]">
+      {/* Profile Hero */}
+      <Card className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
+        <div className="h-32 bg-gradient-to-r from-[#3ecf8e]/10 via-transparent to-[#1eaedb]/5 border-b border-border" />
+        <div className="px-8 pb-8 flex flex-col md:flex-row items-center md:items-end gap-6 -mt-12">
+          <div className="relative cursor-pointer group" onClick={() => fileInputRef.current?.click()}>
+            <Avatar className="h-24 w-24 rounded-xl border-4 border-background shadow-lg overflow-hidden">
               <AvatarImage src={avatarUrl || undefined} className="object-cover" />
-              <AvatarFallback className="bg-secondary">
-                <User className="h-16 w-16 text-muted-foreground/30" />
-              </AvatarFallback>
-              <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center backdrop-blur-sm">
-                <Camera className="h-8 w-8 text-foreground mb-2" />
-                <span className="text-[10px] font-bold text-foreground uppercase tracking-widest">Atualizar Foto</span>
+              <AvatarFallback className="bg-secondary"><User className="h-10 w-10 text-muted-foreground" /></AvatarFallback>
+              <div className="absolute inset-0 bg-background/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center">
+                <Camera className="h-5 w-5 text-foreground mb-1" />
+                <span className="text-[9px] font-bold text-foreground uppercase">Trocar</span>
               </div>
-              {uploading && <div className="absolute inset-0 flex items-center justify-center bg-background/40 backdrop-blur-md"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>}
+              {uploading && <div className="absolute inset-0 flex items-center justify-center bg-background/50"><Loader2 className="h-6 w-6 text-[#3ecf8e] animate-spin" /></div>}
             </Avatar>
-            <div className="absolute bottom-3 right-3 h-5 w-5 rounded-full bg-emerald-500 border-4 border-background shadow-lg" />
+            <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-[#3ecf8e] border-2 border-background" />
           </div>
 
           <div className="flex-1 text-center md:text-left">
-            <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
-              <h1 className="text-3xl font-bold text-foreground tracking-tight">{name || "Novo Agente"}</h1>
-              <BadgeCheck className="h-6 w-6 text-primary" />
+            <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
+              <h1 className="text-xl font-semibold text-foreground">{formatDisplayName(name) || "Vendedor"}</h1>
+              <BadgeCheck className="h-5 w-5 text-[#3ecf8e]" />
             </div>
-            <div className="flex flex-wrap justify-center md:justify-start gap-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/30">
-               <Badge variant="outline" className="px-3 py-1.5 rounded-xl bg-secondary border-border text-primary">
-                 <Shield className="h-3.5 w-3.5 mr-2" /> {profile?.role}
-               </Badge>
-               <Badge variant="outline" className="px-3 py-1.5 rounded-xl bg-secondary border-border text-muted-foreground/30">
-                 <MapPin className="h-3.5 w-3.5 mr-2" /> Base de Operações, BR
-               </Badge>
+            <div className="flex flex-wrap justify-center md:justify-start gap-2">
+              <Badge variant="outline" className="text-[10px] bg-secondary border-border text-[#3ecf8e]">
+                <Shield className="h-3 w-3 mr-1" /> {profile?.role || "vendedor"}
+              </Badge>
+              <Badge variant="outline" className="text-[10px] bg-secondary border-border text-muted-foreground">
+                <MapPin className="h-3 w-3 mr-1" /> Brasil
+              </Badge>
             </div>
           </div>
 
-          <Button 
-            onClick={handleSave} 
-            disabled={saving || uploading}
-            className="px-10 py-7 rounded-xl bg-primary text-primary-foreground font-bold text-xs uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-emerald-500/10"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-3" /> : <Save className="h-4 w-4 mr-3" />} Salvar Perfil
-          </Button>
+          <div className="flex items-center gap-4">
+            <div className="text-center px-4 py-2 bg-secondary border border-border rounded-md">
+              <div className="text-lg font-bold font-mono text-foreground">{realRank}</div>
+              <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Ranking</div>
+            </div>
+            <div className="text-center px-4 py-2 bg-[#3ecf8e]/5 border border-[#3ecf8e]/20 rounded-md">
+              <div className="text-lg font-bold font-mono text-[#3ecf8e]">{realXP}</div>
+              <div className="text-[9px] text-muted-foreground uppercase tracking-wider">XP Total</div>
+            </div>
+            <Button onClick={handleSave} disabled={saving || uploading} className="h-9 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-[#000] font-semibold text-xs rounded-md px-5 shadow-sm">
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-2" />}
+              {saving ? "Salvando..." : "Salvar"}
+            </Button>
+          </div>
         </div>
       </Card>
 
-      <Tabs defaultValue="perfil" onValueChange={setActiveTab} className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-10">
-        <div className="space-y-8">
-          <TabsList className="flex flex-col h-auto bg-card/50 backdrop-blur-md rounded-3xl border border-border p-2 space-y-1 shadow-xl">
-            {["perfil", "conquistas", "segurança", "preferências"].map(tab => (
-              <TabsTrigger 
-                key={tab} 
-                value={tab}
-                className={cn(
-                  "w-full justify-between px-6 py-4 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-all group border border-transparent",
-                  "data-[state=active]:bg-secondary data-[state=active]:text-foreground data-[state=active]:border-border data-[state=active]:shadow-inner",
-                  "text-muted-foreground/30 hover:text-muted-foreground/50"
-                )}
-              >
-                {tab} <ChevronRight className={cn("h-4 w-4 transition-transform", activeTab === tab ? "opacity-100 translate-x-1 text-primary" : "opacity-30")} />
-              </TabsTrigger>
-            ))}
-          </TabsList>
+      {/* Tabs */}
+      <Tabs defaultValue="perfil" onValueChange={setActiveTab} className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-6">
+        <TabsList className="flex flex-col h-auto bg-card border border-border rounded-lg p-2 gap-1 shadow-sm">
+          {["perfil", "conquistas", "segurança", "preferências"].map(tab => (
+            <TabsTrigger
+              key={tab}
+              value={tab}
+              className={cn(
+                "w-full justify-between px-4 py-2.5 rounded-md text-[11px] font-medium uppercase tracking-wider transition-all",
+                "data-[state=active]:bg-accent data-[state=active]:text-foreground",
+                "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {tab}
+              <ChevronRight className={cn("h-3.5 w-3.5 transition-all", activeTab === tab ? "text-[#3ecf8e] translate-x-0.5" : "opacity-30")} />
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-          <Card className="bg-card/50 backdrop-blur-md rounded-3xl border-border p-8 text-center shadow-xl">
-            <CardHeader className="p-0 mb-8">
-              <CardTitle className="text-[10px] text-muted-foreground/30 uppercase font-bold tracking-[0.3em]">ScoreCard do Agente</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="flex items-center justify-around gap-4">
-                 <div>
-                    <div className="text-3xl font-black font-mono text-foreground tracking-tighter">{realRank}</div>
-                    <div className="text-[10px] text-muted-foreground/20 font-bold uppercase mt-2 tracking-widest">Ranking</div>
-                 </div>
-                 <Separator orientation="vertical" className="h-10 bg-border" />
-                 <div>
-                    <div className="text-3xl font-black font-mono text-primary tracking-tighter">{realXP}</div>
-                    <div className="text-[10px] text-muted-foreground/20 font-bold uppercase mt-2 tracking-widest">XP Total</div>
-                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <div>
+          <TabsContent value="perfil" className="m-0">
+            <Card className="bg-card border border-border rounded-lg shadow-sm">
+              <CardContent className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-muted-foreground">Nome Completo</Label>
+                    <Input value={name} onChange={e => setName(e.target.value)} className="h-9 bg-background border-border text-sm" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-muted-foreground">Email</Label>
+                    <Input value={user?.email} readOnly className="h-9 bg-background border-border text-sm text-muted-foreground cursor-not-allowed font-mono" />
+                  </div>
+                </div>
 
-        <div className="space-y-8">
-          <TabsContent value="perfil" className="m-0 focus-visible:ring-0">
-            <Card className="bg-card/50 backdrop-blur-md rounded-3xl border-border p-10 shadow-xl">
-              <CardContent className="p-0 space-y-10">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-3">
-                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Identificação Completa</Label>
-                    <Input value={name} onChange={e => setName(e.target.value)}
-                      className="h-14 bg-secondary/50 border-border rounded-xl px-5 text-sm text-foreground focus:ring-1 focus:ring-primary/50 outline-none transition-all placeholder:text-muted-foreground/20" />
-                  </div>
-                  <div className="space-y-3">
-                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Comunicação Criptografada</Label>
-                    <Input value={user?.email} readOnly className="h-14 bg-background border-border rounded-xl px-5 text-sm text-muted-foreground/30 outline-none cursor-not-allowed font-mono" />
-                  </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Bio / Especialidades</Label>
+                  <Textarea value={bio} onChange={e => setBio(e.target.value)} rows={4} placeholder="Descreva sua atuação..."
+                    className="bg-background border-border text-sm leading-relaxed resize-none" />
                 </div>
 
                 <div className="space-y-3">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Bio Estratégica / Especialidades</Label>
-                  <Textarea value={bio} onChange={e => setBio(e.target.value)} rows={5} placeholder="Descreva sua atuação no ecossistema..."
-                    className="bg-secondary/50 border-border rounded-xl p-5 text-sm text-foreground focus:ring-1 focus:ring-primary/50 outline-none resize-none transition-all placeholder:text-muted-foreground/20 leading-relaxed" />
-                </div>
-
-                <div className="space-y-4">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Core Capabilities</Label>
-                  <div className="flex flex-wrap gap-3">
+                  <Label className="text-xs font-medium text-muted-foreground">Tags / Competências</Label>
+                  <div className="flex flex-wrap gap-2">
                     {tags.map(t => (
-                      <Badge key={t} variant="outline" className="px-4 py-2 rounded-xl bg-secondary border-border text-muted-foreground text-[10px] font-bold uppercase tracking-widest flex items-center gap-3 group/tag hover:border-primary/50 transition-all">
-                        {t} <X onClick={() => removeTag(t)} className="h-3.5 w-3.5 cursor-pointer text-muted-foreground/20 hover:text-destructive transition-colors" />
+                      <Badge key={t} variant="outline" className="px-3 py-1 bg-secondary border-border text-muted-foreground text-xs flex items-center gap-2">
+                        {t}
+                        <X onClick={() => removeTag(t)} className="h-3 w-3 cursor-pointer hover:text-destructive transition-colors" />
                       </Badge>
                     ))}
-                    <div className="flex items-center gap-3 bg-secondary/50 rounded-xl border border-border px-4 focus-within:border-border/60 transition-all group/input">
-                      <input value={newTag} onChange={e => setNewTag(e.target.value)} onKeyPress={e => e.key === 'Enter' && addTag()} placeholder="NOVA TAG..."
-                        className="bg-transparent h-11 w-28 text-[10px] font-bold uppercase outline-none text-foreground placeholder:text-muted-foreground/20 tracking-widest" />
-                      <Plus onClick={addTag} className="h-4 w-4 text-muted-foreground/20 group-focus-within/input:text-primary cursor-pointer hover:scale-110 transition-all" />
+                    <div className="flex items-center gap-2 bg-secondary border border-border rounded-md px-3 h-7">
+                      <input value={newTag} onChange={e => setNewTag(e.target.value)} onKeyDown={e => e.key === 'Enter' && addTag()} placeholder="Nova tag..."
+                        className="bg-transparent text-xs outline-none text-foreground placeholder:text-muted-foreground w-24" />
+                      <Plus onClick={addTag} className="h-3.5 w-3.5 text-muted-foreground hover:text-[#3ecf8e] cursor-pointer transition-colors" />
                     </div>
                   </div>
                 </div>
@@ -258,47 +231,54 @@ function ProfilePage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="conquistas" className="m-0 focus-visible:ring-0">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <TabsContent value="conquistas" className="m-0">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {badges.map(b => (
-                <Card key={b.id} className="bg-card/50 backdrop-blur-md rounded-3xl p-8 border-border flex flex-col items-center text-center hover:border-primary/30 transition-all group shadow-lg overflow-hidden">
-                  <div className="text-5xl mb-6 group-hover:scale-110 transition-transform">{b.icon || "🏅"}</div>
-                  <div className="text-sm font-bold text-foreground mb-2 tracking-tight group-hover:text-primary transition-colors">{b.title}</div>
-                  <div className="text-[10px] text-muted-foreground/30 font-bold uppercase tracking-widest leading-relaxed">{b.description}</div>
+                <Card key={b.id} className="bg-card border border-border rounded-lg p-6 flex flex-col items-center text-center hover:border-[#3ecf8e]/30 transition-all group shadow-sm">
+                  <div className="text-4xl mb-4 group-hover:scale-110 transition-transform">{b.icon || "🏅"}</div>
+                  <div className="text-sm font-semibold text-foreground mb-1">{b.title}</div>
+                  <div className="text-[10px] text-muted-foreground leading-relaxed">{b.description}</div>
                 </Card>
               ))}
-              {badges.length === 0 && <div className="col-span-full py-32 text-center border border-dashed border-border rounded-[40px] text-muted-foreground/20 text-[10px] font-bold uppercase tracking-[0.4em]">Zero Conquistas Detectadas</div>}
+              {badges.length === 0 && (
+                <div className="col-span-full py-20 text-center border border-dashed border-border rounded-lg text-muted-foreground text-xs font-medium uppercase tracking-widest">
+                  Nenhuma conquista desbloqueada
+                </div>
+              )}
             </div>
           </TabsContent>
 
-          <TabsContent value="segurança" className="m-0 focus-visible:ring-0">
-            <Card className="bg-card/50 backdrop-blur-md rounded-3xl border-border p-10 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-500">
-              <CardHeader className="p-0 mb-8">
-                <CardTitle className="text-sm font-bold flex items-center gap-3 text-foreground uppercase tracking-widest"><Shield className="h-5 w-5 text-primary" /> Credenciais de Acesso</CardTitle>
+          <TabsContent value="segurança" className="m-0">
+            <Card className="bg-card border border-border rounded-lg shadow-sm">
+              <CardHeader className="px-6 py-4 border-b border-border">
+                <CardTitle className="text-sm font-medium flex items-center gap-2"><Shield className="h-4 w-4 text-[#3ecf8e]" /> Credenciais de Acesso</CardTitle>
               </CardHeader>
-              <CardContent className="p-0 space-y-8">
-                <div className="space-y-6 max-w-md">
-                  <div className="space-y-3">
-                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Nova Senha de Acesso</Label>
-                    <Input type="password" placeholder="Mínimo 12 caracteres" className="h-14 bg-secondary/50 border-border rounded-xl px-5 text-sm outline-none focus:ring-1 focus:ring-primary/50 transition-all placeholder:text-muted-foreground/20" />
-                  </div>
-                  <Button variant="outline" className="w-full py-7 rounded-xl bg-secondary border-border text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-foreground hover:text-background transition-all shadow-sm">Atualizar Senha</Button>
+              <CardContent className="p-6 space-y-4 max-w-md">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Nova Senha</Label>
+                  <Input type="password" placeholder="Mínimo 12 caracteres" className="h-9 bg-background border-border text-sm" />
                 </div>
+                <Button variant="outline" className="h-9 border-border bg-secondary text-xs font-medium hover:bg-accent transition-all">
+                  Atualizar Senha
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="preferências" className="m-0 focus-visible:ring-0">
-            <Card className="bg-card/50 backdrop-blur-md rounded-3xl border-border p-10 space-y-4 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-500">
-              <CardContent className="p-0 space-y-4">
-                <div className="flex items-center justify-between p-6 rounded-2xl bg-secondary/50 border border-border group hover:border-border transition-all">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-foreground/80 group-hover:text-foreground transition-colors">Notificações em Tempo Real</div>
-                  <div className="h-6 w-12 rounded-full bg-primary/10 border border-primary/30 relative cursor-pointer"><div className="absolute top-1 right-1 h-3.5 w-3.5 rounded-full bg-primary shadow-[0_0_8px_rgba(16,185,129,0.5)]" /></div>
-                </div>
-                <div className="flex items-center justify-between p-6 rounded-2xl bg-secondary/50 border border-border group hover:border-border transition-all">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-foreground/80 group-hover:text-foreground transition-colors">Modo de Alta Performance</div>
-                  <div className="h-6 w-12 rounded-full bg-background border border-border relative cursor-pointer"><div className="absolute top-1 left-1 h-3.5 w-3.5 rounded-full bg-muted-foreground/30" /></div>
-                </div>
+          <TabsContent value="preferências" className="m-0">
+            <Card className="bg-card border border-border rounded-lg shadow-sm">
+              <CardContent className="p-6 space-y-3">
+                {[
+                  { label: "Notificações em Tempo Real", enabled: true },
+                  { label: "Modo de Alta Performance", enabled: false },
+                ].map(pref => (
+                  <div key={pref.label} className="flex items-center justify-between p-4 rounded-md bg-secondary border border-border hover:border-[#3ecf8e]/20 transition-all">
+                    <span className="text-sm font-medium text-foreground">{pref.label}</span>
+                    <div className={cn("h-5 w-10 rounded-full relative cursor-pointer transition-colors", pref.enabled ? "bg-[#3ecf8e]/20 border border-[#3ecf8e]/30" : "bg-muted border border-border")}>
+                      <div className={cn("absolute top-0.5 h-4 w-4 rounded-full transition-all", pref.enabled ? "right-0.5 bg-[#3ecf8e]" : "left-0.5 bg-muted-foreground")} />
+                    </div>
+                  </div>
+                ))}
               </CardContent>
             </Card>
           </TabsContent>
@@ -307,3 +287,4 @@ function ProfilePage() {
     </div>
   );
 }
+

@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   Zap, ArrowRight, Tv, BarChart3, Target,
   Kanban, Trophy, Brain, Monitor, ShieldCheck,
-  ChevronRight, Sparkles, Activity
+  ChevronRight, Sparkles, Activity, Database, Key, Server
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { BackgroundEffects } from "@/components/layout/BackgroundEffects";
-import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import logo from "../../public/logo.png";
 
 export const Route = createFileRoute("/")({
   component: Landing,
@@ -28,172 +28,102 @@ function Landing() {
   }, [user, loading, nav]);
 
   const features = [
-    { icon: Kanban, title: "Pipeline", desc: "Gestão visual de oportunidades em tempo real.", color: "emerald" },
-    { icon: Trophy, title: "Gamificação", desc: "Leaderboards e conquistas automatizadas.", color: "amber" },
-    { icon: Tv, title: "Modo TV", desc: "Transmissão war-room para salas comerciais.", color: "blue" },
-    { icon: Brain, title: "IA Insights", desc: "Forecast preditivo e análise de riscos.", color: "indigo" },
+    { icon: Kanban, title: "Pipeline Management", desc: "Gestão visual de oportunidades com fluxos customizáveis.", color: "emerald" },
+    { icon: BarChart3, title: "Analytics Real-time", desc: "Dashboards de performance atualizados a cada transação.", color: "blue" },
+    { icon: Key, title: "Segurança de Elite", desc: "Controle de acesso granular e auditoria de atividades.", color: "indigo" },
+    { icon: Database, title: "Infraestrutura Robusta", desc: "Sincronização imediata com o banco de dados Supabase.", color: "emerald" },
   ];
 
   return (
-    <div className="min-h-screen bg-background text-foreground relative overflow-hidden font-sans selection:bg-primary selection:text-primary-foreground">
+    <div className="min-h-screen bg-background text-foreground relative overflow-hidden font-sans">
       <BackgroundEffects />
 
-      {/* Top Navigation - Dashboard Style */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-background/50 backdrop-blur-xl border-b border-border/50">
-        <div className="max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="h-10 w-10 bg-primary/10 border border-primary/20 rounded-xl flex items-center justify-center">
-              <Zap className="h-6 w-6 text-primary" />
+      {/* Top Navigation */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 bg-[#3ecf8e] rounded-lg flex items-center justify-center shadow-sm">
+              <img src={logo} alt="FortSecure" className="h-5 w-5 object-contain" />
             </div>
-            <div>
-              <span className="font-black text-xl tracking-tighter uppercase italic">FortSecure</span>
-              <p className="text-[8px] font-bold text-muted-foreground/40 uppercase tracking-[0.3em]">Command Center v1.0</p>
-            </div>
+            <span className="font-semibold text-lg tracking-tight">FortSecure</span>
           </div>
 
-          <div className="flex items-center gap-4">
-            <ThemeToggle />
+          <nav className="hidden md:flex items-center gap-8">
+            <Link to="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">Produto</Link>
+            <Link to="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">Desenvolvedores</Link>
+            <Link to="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">Preços</Link>
+          </nav>
+
+          <div className="flex items-center gap-3">
             <Link to="/auth">
-              <Button className="rounded-2xl bg-primary text-primary-foreground font-black uppercase tracking-widest text-[10px] px-8 h-10 hover:scale-105 transition-all shadow-xl shadow-primary/20">
-                Entrar no Cockpit
+              <Button variant="ghost" className="text-sm font-medium h-9 px-4 hover:bg-accent">
+                Entrar
+              </Button>
+            </Link>
+            <Link to="/auth">
+              <Button className="bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-[#000] font-semibold text-sm h-9 px-4 rounded-md shadow-sm">
+                Iniciar Agora
               </Button>
             </Link>
           </div>
         </div>
       </header>
 
-      <main className="max-w-[1600px] mx-auto px-6 pt-32 pb-20">
-        {/* Hero Section - App Cockpit Look */}
-        <section className="grid lg:grid-cols-12 gap-8 items-start">
-          <div className="lg:col-span-7 space-y-10 py-10">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5 }}
-            >
-              <Badge className="bg-primary/10 border border-primary/20 text-primary text-[10px] font-black uppercase tracking-[0.3em] px-4 py-2 rounded-full">
-                <Sparkles className="h-3 w-3 mr-2 animate-pulse" /> Operação de Alta Performance
-              </Badge>
-            </motion.div>
+      <main className="max-w-7xl mx-auto px-6 pt-32 pb-20">
+        {/* Hero Section */}
+        <section className="flex flex-col items-center text-center py-10 md:py-20 space-y-8">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <Badge variant="outline" className="border-[#3ecf8e]/30 bg-[#3ecf8e]/5 text-[#3ecf8e] text-xs font-medium px-4 py-1 rounded-full">
+              CRM de Próxima Geração para Vendas
+            </Badge>
+          </motion.div>
 
-            <motion.h1
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-              className="text-6xl md:text-8xl lg:text-[100px] font-black tracking-tighter leading-[0.9] uppercase italic"
-            >
-              Acelerando sua <br />
-              <span className="text-primary not-italic">Máquina de</span> <br />
-              Vendas.
-            </motion.h1>
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight leading-[1.1]"
+          >
+            A infraestrutura de <br />
+            <span className="text-[#3ecf8e]">vendas para times</span> <br />
+            de alta performance.
+          </motion.h1>
 
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4, duration: 1 }}
-              className="text-lg md:text-xl text-muted-foreground/60 max-w-2xl leading-relaxed font-medium uppercase tracking-tight"
-            >
-              A plataforma definitiva para times que operam em escala.
-              <span className="text-foreground block mt-2">Visibilidade total, gamificação bruta e inteligência preditiva.</span>
-            </motion.p>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4, duration: 1 }}
+            className="text-lg md:text-xl text-muted-foreground max-w-2xl font-medium"
+          >
+            FortSecure une a simplicidade das ferramentas modernas de dev com a potência necessária para gerenciar pipelines complexos.
+          </motion.p>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6, duration: 0.5 }}
-              className="flex flex-wrap gap-4 pt-4"
-            >
-              <Link to="/auth">
-                <Button className="h-16 px-10 rounded-[20px] bg-primary text-primary-foreground font-black uppercase tracking-widest text-xs hover:scale-[1.02] active:scale-95 transition-all shadow-2xl shadow-primary/30 group">
-                  Iniciar Operação
-                  <ArrowRight className="h-4 w-4 ml-3 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
-              <Link to="/tv">
-                <Button variant="outline" className="h-16 px-10 rounded-[20px] bg-card/40 backdrop-blur-md border-border/50 text-foreground font-black uppercase tracking-widest text-xs hover:bg-foreground hover:text-background transition-all">
-                  <Monitor className="h-4 w-4 mr-3" /> Ver Modo War-Room
-                </Button>
-              </Link>
-            </motion.div>
-          </div>
-
-          {/* Right Side - Mock Dashboard Preview */}
-          <div className="lg:col-span-5 relative hidden lg:block">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, rotate: 2 }}
-              animate={{ opacity: 1, scale: 1, rotate: 0 }}
-              transition={{ delay: 0.4, duration: 1 }}
-              className="relative z-10 bg-card/40 backdrop-blur-2xl border border-border/50 rounded-[40px] p-8 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] border-dashed"
-            >
-              <div className="flex items-center justify-between mb-8">
-                <div className="flex gap-2">
-                  <div className="h-2 w-2 rounded-full bg-red-500/50" />
-                  <div className="h-2 w-2 rounded-full bg-amber-500/50" />
-                  <div className="h-2 w-2 rounded-full bg-emerald-500/50" />
-                </div>
-                <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/30 italic">Live Dashboard Preview</div>
-              </div>
-
-              <div className="space-y-6">
-                {/* Mock KPI Cards */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-secondary/30 p-4 rounded-3xl border border-border/50 space-y-2">
-                    <p className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">Receita (Mês)</p>
-                    <p className="text-xl font-black italic tracking-tight">R$ 1.2M</p>
-                    <div className="h-1 w-full bg-primary/20 rounded-full overflow-hidden">
-                      <div className="h-full bg-primary w-[75%]" />
-                    </div>
-                  </div>
-                  <div className="bg-secondary/30 p-4 rounded-3xl border border-border/50 space-y-2">
-                    <p className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">Atingimento</p>
-                    <p className="text-xl font-black italic tracking-tight text-primary">92%</p>
-                    <div className="flex gap-1">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <div key={i} className={`h-1 flex-1 rounded-full ${i < 4 ? 'bg-primary' : 'bg-primary/20'}`} />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Mock Chart Area */}
-                <div className="bg-secondary/20 h-40 rounded-3xl border border-border/50 flex items-end p-4 gap-2">
-                  {[40, 70, 45, 90, 65, 80, 100].map((h, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ height: 0 }}
-                      animate={{ height: `${h}%` }}
-                      transition={{ delay: 1 + (i * 0.1), duration: 0.5 }}
-                      className="flex-1 bg-gradient-to-t from-primary/40 to-primary/10 rounded-t-lg border-t border-primary/30"
-                    />
-                  ))}
-                </div>
-
-                {/* Mock Activity */}
-                <div className="space-y-3">
-                  <p className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">Atividade Recente</p>
-                  {[1, 2].map((i) => (
-                    <div key={i} className="flex items-center gap-3 bg-secondary/10 p-3 rounded-2xl border border-border/20">
-                      <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Activity className="h-4 w-4 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="h-1.5 w-24 bg-foreground/10 rounded-full mb-1" />
-                        <div className="h-1 w-16 bg-muted-foreground/10 rounded-full" />
-                      </div>
-                      <ArrowRight className="h-3 w-3 text-muted-foreground/20" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Decorative background glow */}
-            <div className="absolute -inset-10 bg-primary/10 blur-[100px] -z-10 rounded-full opacity-50" />
-          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6, duration: 0.5 }}
+            className="flex flex-wrap items-center justify-center gap-4 pt-4"
+          >
+            <Link to="/auth">
+              <Button className="h-12 px-8 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-[#000] font-semibold text-base rounded-md shadow-lg shadow-[#3ecf8e]/10 group">
+                Iniciar Operação
+                <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </Link>
+            <Link to="/auth">
+              <Button variant="outline" className="h-12 px-8 border-border bg-background hover:bg-accent text-foreground font-medium text-base rounded-md">
+                Documentação
+              </Button>
+            </Link>
+          </motion.div>
         </section>
 
-        {/* Feature Grid - Executive Style */}
-        <section className="mt-40 grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Feature Grid */}
+        <section className="mt-32 grid md:grid-cols-2 lg:grid-cols-4 gap-4">
           {features.map((f, idx) => {
             const Icon = f.icon;
             return (
@@ -204,56 +134,90 @@ function Landing() {
                 viewport={{ once: true }}
                 transition={{ delay: idx * 0.1 }}
               >
-                <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-[32px] p-8 hover:border-primary/50 transition-all group h-full">
-                  <div className={`h-14 w-14 rounded-2xl bg-secondary/50 border border-border/50 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform group-hover:bg-primary/10 group-hover:border-primary/30`}>
-                    <Icon className="h-7 w-7 text-primary" />
+                <div className="bg-card border border-border rounded-xl p-8 hover:border-[#3ecf8e]/30 transition-all group h-full">
+                  <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center mb-6 group-hover:bg-[#3ecf8e]/10 group-hover:text-[#3ecf8e] transition-colors">
+                    <Icon className="h-5 w-5" />
                   </div>
-                  <h3 className="text-xl font-black italic uppercase tracking-tighter mb-3">{f.title}</h3>
-                  <p className="text-sm text-muted-foreground/60 leading-relaxed font-medium uppercase tracking-tight">{f.desc}</p>
-                </Card>
+                  <h3 className="text-lg font-semibold mb-3 tracking-tight">{f.title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
+                </div>
               </motion.div>
             );
           })}
         </section>
 
-        {/* Call to Action Banner */}
+        {/* Platform Preview */}
         <section className="mt-40">
-          <motion.div
-            whileInView={{ opacity: 1, scale: 1 }}
-            initial={{ opacity: 0, scale: 0.95 }}
-            className="bg-primary p-12 md:p-20 rounded-[40px] text-primary-foreground relative overflow-hidden group shadow-2xl shadow-primary/20"
-          >
-            <div className="relative z-10 max-w-3xl">
-              <h2 className="text-4xl md:text-7xl font-black italic uppercase tracking-tighter leading-none mb-8">
-                Pronto para o Próximo Nível?
-              </h2>
-              <p className="text-primary-foreground/70 text-lg md:text-xl font-bold uppercase tracking-tight mb-12">
-                Junte-se a dezenas de operações que já aceleraram seus resultados com o cockpit definitivo.
-              </p>
+           <motion.div 
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="bg-card border border-border rounded-2xl p-4 md:p-8 shadow-2xl relative overflow-hidden"
+           >
+              <div className="flex items-center gap-2 mb-6 px-2">
+                 <div className="h-2.5 w-2.5 rounded-full bg-red-500/20" />
+                 <div className="h-2.5 w-2.5 rounded-full bg-amber-500/20" />
+                 <div className="h-2.5 w-2.5 rounded-full bg-emerald-500/20" />
+                 <div className="ml-4 h-4 w-64 bg-secondary/50 rounded-full" />
+              </div>
+              <div className="grid md:grid-cols-12 gap-8">
+                 <div className="md:col-span-8 bg-background border border-border rounded-lg h-80 flex flex-col items-center justify-center p-8 text-center space-y-4">
+                    <BarChart3 className="h-12 w-12 text-[#3ecf8e] opacity-20" />
+                    <div className="space-y-2">
+                       <p className="text-sm font-medium">Dashboard Operacional em Tempo Real</p>
+                       <p className="text-xs text-muted-foreground">Monitore cada estágio do funil com atualizações automáticas via Supabase Realtime.</p>
+                    </div>
+                 </div>
+                 <div className="md:col-span-4 space-y-4">
+                    <div className="bg-background border border-border rounded-lg h-[152px] p-6 space-y-3">
+                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pipeline Health</p>
+                       <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                          <div className="h-full bg-[#3ecf8e] w-[85%]" />
+                       </div>
+                       <p className="text-2xl font-bold tracking-tight">85%</p>
+                    </div>
+                    <div className="bg-background border border-border rounded-lg h-[152px] p-6 space-y-3">
+                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sellers Active</p>
+                       <div className="flex -space-x-2">
+                          {[1,2,3,4].map(i => (
+                             <div key={i} className="h-8 w-8 rounded-full bg-secondary border-2 border-background" />
+                          ))}
+                       </div>
+                       <p className="text-lg font-semibold tracking-tight">+12 Vendedores</p>
+                    </div>
+                 </div>
+              </div>
+           </motion.div>
+        </section>
+
+        {/* CTA */}
+        <section className="mt-40 text-center space-y-8">
+           <h2 className="text-4xl md:text-5xl font-bold tracking-tight">Comece a vender agora.</h2>
+           <p className="text-lg text-muted-foreground max-w-xl mx-auto">Tudo que você precisa para escalar sua operação comercial com a melhor tecnologia do mercado.</p>
+           <div className="flex items-center justify-center gap-4">
               <Link to="/auth">
-                <Button className="h-16 px-12 rounded-[20px] bg-foreground text-background font-black uppercase tracking-widest text-xs hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-black/20">
-                  Acessar Plataforma <Zap className="h-4 w-4 ml-3 fill-current" />
+                <Button className="h-12 px-8 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-[#000] font-semibold text-base rounded-md">
+                   Criar Minha Conta
                 </Button>
               </Link>
-            </div>
-
-            {/* Large background icon */}
-            <Zap className="absolute -right-20 -bottom-20 h-[500px] w-[500px] opacity-10 -rotate-12 group-hover:scale-110 transition-transform duration-1000" />
-          </motion.div>
+           </div>
         </section>
       </main>
 
-      <footer className="max-w-[1600px] mx-auto px-6 py-20 border-t border-border/50 flex flex-col md:flex-row justify-between items-center gap-8">
-        <div className="flex items-center gap-4 opacity-40">
-          <Zap className="h-5 w-5 text-primary" />
-          <span className="text-[10px] font-black uppercase tracking-[0.4em]">© 2026 FortSecure // OS Comercial</span>
+      <footer className="max-w-7xl mx-auto px-6 py-20 border-t border-border flex flex-col md:flex-row justify-between items-center gap-8">
+        <div className="flex items-center gap-3">
+          <div className="h-6 w-6 bg-secondary rounded-md flex items-center justify-center">
+            <img src={logo} alt="FortSecure" className="h-3 w-3 object-contain opacity-50" />
+          </div>
+          <span className="text-xs font-semibold text-muted-foreground">© 2026 FortSecure. Todos os direitos reservados.</span>
         </div>
-        <div className="flex gap-10 text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">
-          <span className="cursor-pointer hover:text-primary transition-colors">Infraestrutura</span>
-          <span className="cursor-pointer hover:text-primary transition-colors">Segurança</span>
-          <span className="cursor-pointer hover:text-primary transition-colors">Termos</span>
+        <div className="flex gap-10 text-xs font-medium text-muted-foreground">
+          <span className="hover:text-[#3ecf8e] cursor-pointer transition-colors">Segurança</span>
+          <span className="hover:text-[#3ecf8e] cursor-pointer transition-colors">Status</span>
+          <span className="hover:text-[#3ecf8e] cursor-pointer transition-colors">Termos de Uso</span>
         </div>
       </footer>
     </div>
   );
 }
+

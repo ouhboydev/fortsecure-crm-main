@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/layout/AppShell";
-import { PageHeader, formatCurrency } from "@/components/ui-kit/PageHeader";
+import { PageHeader, formatCurrency, Section } from "@/components/ui-kit/PageHeader";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { STAGES, fetchRanking } from "@/lib/sales";
+import { STAGES } from "@/lib/sales";
 import {
   Plus, Search, Filter, MoreVertical,
   Clock, AlertCircle, CheckCircle2,
@@ -45,11 +45,10 @@ import {
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 
 export const Route = createFileRoute("/pipeline")({
-  head: () => ({ meta: [{ title: "Pipeline de Vendas — FortSecure" }] }),
+  head: () => ({ meta: [{ title: "Pipeline — FortSecure" }] }),
   component: () => <AppShell><SalesPipeline /></AppShell>,
 });
 
@@ -116,11 +115,11 @@ function SalesPipeline() {
       if (editingId) {
         const { error } = await supabase.from("opportunities").update(payload).eq("id", editingId);
         if (error) throw error;
-        toast.success("Oportunidade atualizada");
+        toast.success("Negócio atualizado");
       } else {
         const { error } = await supabase.from("opportunities").insert(payload);
         if (error) throw error;
-        toast.success("Oportunidade criada");
+        toast.success("Negócio registrado");
       }
 
       setIsModalOpen(false);
@@ -171,23 +170,11 @@ function SalesPipeline() {
     setForm(prev => ({ ...prev, stage: newStage, probability: prob }));
   };
 
-  const handleProbabilityChange = (prob: number) => {
-    let stage = form.stage;
-    if (prob >= 100) stage = 'ganho';
-    else if (prob >= 80) stage = 'negociacao';
-    else if (prob >= 60) stage = 'proposta';
-    else if (prob >= 40) stage = 'qualificado';
-    else if (prob >= 5) stage = 'prospect';
-    else if (prob <= 0) stage = 'perdido';
-    setForm(prev => ({ ...prev, probability: prob, stage }));
-  };
-
   async function onDragEnd(result: any) {
     if (!result.destination) return;
     const { draggableId, destination } = result;
     const newStage = destination.droppableId;
 
-    // Define probability and closed_at based on stage
     const now = new Date().toISOString();
     let probability = 0;
     let closedAt = null;
@@ -201,85 +188,61 @@ function SalesPipeline() {
       case 'perdido': probability = 0; closedAt = now; break;
     }
 
-    // Optimistic update
     const updated = opps.map(o => o.id === draggableId ? { ...o, stage: newStage, probability, closed_at: closedAt } : o);
     setOpps(updated);
 
-    const { error } = await supabase
-      .from("opportunities")
-      .update({ 
-        stage: newStage,
-        probability,
-        closed_at: closedAt
-      })
-      .eq("id", draggableId);
-
-    if (error) {
-      toast.error("Erro ao mover oportunidade");
-      load(); // Rollback
-    } else {
-      toast.success(newStage === 'ganho' ? "Negócio FECHADO! Receita atualizada." : "Estágio atualizado");
-    }
+    const { error } = await supabase.from("opportunities").update({ stage: newStage, probability, closed_at: closedAt }).eq("id", draggableId);
+    if (error) { toast.error("Erro ao mover negócio"); load(); }
   }
 
   async function deleteOpp(id: string) {
-    if (!confirm("Excluir esta oportunidade permanentemente?")) return;
+    if (!confirm("Excluir negócio?")) return;
     const { error } = await supabase.from("opportunities").delete().eq("id", id);
     if (error) toast.error("Erro ao excluir");
-    else {
-      toast.success("Oportunidade removida");
-      load();
-    }
+    else { toast.success("Removido"); load(); }
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background">
-      <div className="p-8 md:p-10 border-b border-border bg-card/20 backdrop-blur-md">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 max-w-[1800px] mx-auto">
-          <PageHeader title="Pipeline de Vendas" subtitle="Gerencie e acompanhe oportunidades através do funil de vendas" />
-          <div className="flex items-center gap-4">
-            <div className="relative group">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground transition-colors group-focus-within:text-primary z-10" />
-              <Input
-                placeholder="Filtrar negócios..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-11 pr-4 py-6 bg-secondary/50 border-border rounded-xl text-sm text-foreground focus:ring-primary focus:border-primary/50 transition-all w-72 placeholder:text-muted-foreground"
-              />
-            </div>
-            <div className="flex bg-secondary border border-border p-1 rounded-xl">
-              <Button
-                variant={view === 'kanban' ? 'secondary' : 'ghost'}
-                size="icon"
-                onClick={() => setView('kanban')}
-                className={cn("rounded-lg", view === 'kanban' && "bg-card text-foreground")}
-              >
-                <Kanban className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={view === 'list' ? 'secondary' : 'ghost'}
-                size="icon"
-                onClick={() => setView('list')}
-                className={cn("rounded-lg", view === 'list' && "bg-card text-foreground")}
-              >
-                <List className="h-4 w-4" />
-              </Button>
-            </div>
-            <Button onClick={openNew} className="h-14 px-8 bg-primary text-primary-foreground font-black uppercase tracking-widest text-[11px] rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-primary/20 flex items-center gap-3">
-              <Plus className="h-5 w-5" /> Registrar Negócio
-            </Button>
-          </div>
-        </div>
+    <div className="flex flex-col h-screen max-w-[1600px] mx-auto overflow-hidden">
+      <div className="p-6 lg:p-8 shrink-0">
+        <PageHeader 
+           title="Pipeline de Vendas" 
+           subtitle="Gerencie suas oportunidades comerciais."
+           actions={
+             <div className="flex items-center gap-3">
+                <div className="relative">
+                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                   <Input 
+                      placeholder="Pesquisar..." 
+                      value={search} 
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="h-9 pl-9 w-48 bg-card border-border text-xs"
+                   />
+                </div>
+                <div className="flex bg-secondary border border-border p-1 rounded-md">
+                   <Button variant={view === 'kanban' ? 'secondary' : 'ghost'} size="icon" onClick={() => setView('kanban')} className="h-7 w-7 rounded-sm">
+                      <Kanban className="h-3.5 w-3.5" />
+                   </Button>
+                   <Button variant={view === 'list' ? 'secondary' : 'ghost'} size="icon" onClick={() => setView('list')} className="h-7 w-7 rounded-sm">
+                      <List className="h-3.5 w-3.5" />
+                   </Button>
+                </div>
+                <Button onClick={openNew} className="h-9 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-[#000] font-semibold text-xs rounded-md shadow-sm">
+                   <Plus className="h-3.5 w-3.5 mr-2" /> Novo Negócio
+                </Button>
+             </div>
+           }
+        />
       </div>
 
-      <div className="flex-1 overflow-hidden p-8 md:p-10 max-w-[1800px] mx-auto w-full">
+      <div className="flex-1 overflow-hidden px-6 lg:px-8 pb-8">
         {loading ? (
           <div className="h-full flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
+            <Loader2 className="h-6 w-6 animate-spin text-[#3ecf8e]" />
           </div>
         ) : view === 'kanban' ? (
           <DragDropContext onDragEnd={onDragEnd}>
-            <div className="flex gap-6 h-full overflow-x-auto pb-6 no-scrollbar">
+            <div className="flex gap-4 h-full overflow-x-auto pb-4 no-scrollbar">
               {STAGES.map((s) => (
                 <Droppable key={s.key} droppableId={s.key}>
                   {(provided, snapshot) => (
@@ -287,20 +250,18 @@ function SalesPipeline() {
                       {...provided.droppableProps}
                       ref={provided.innerRef}
                       className={cn(
-                        "w-80 shrink-0 flex flex-col bg-secondary/30 border border-border/50 rounded-2xl overflow-hidden shadow-sm transition-colors",
-                        snapshot.isDraggingOver && "bg-secondary/50 border-primary/20"
+                        "w-72 shrink-0 flex flex-col bg-card/40 border border-border rounded-lg overflow-hidden",
+                        snapshot.isDraggingOver && "bg-[#3ecf8e]/5"
                       )}
                     >
-                      <div className="p-5 border-b border-border/80 flex items-center justify-between bg-secondary/10">
-                        <div className="flex items-center gap-3">
-                          <div className="h-2 w-2 rounded-full shadow-[0_0_8px_currentColor]" style={{ backgroundColor: s.color, color: s.color }} />
-                          <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{s.label}</h3>
+                      <div className="p-4 border-b border-border flex items-center justify-between bg-card/80">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
+                          <h3 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{s.label}</h3>
                         </div>
-                        <Badge variant="outline" className="text-[10px] bg-secondary border-border text-muted-foreground px-2 py-0.5">
-                          {filtered.filter(o => o.stage === s.key).length}
-                        </Badge>
+                        <span className="text-[10px] font-medium text-muted-foreground">{filtered.filter(o => o.stage === s.key).length}</span>
                       </div>
-                      <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
+                      <div className="flex-1 overflow-y-auto p-3 space-y-3 no-scrollbar">
                         {filtered.filter(o => o.stage === s.key).map((o, index) => (
                           <Draggable key={o.id} draggableId={o.id} index={index}>
                             {(provided, snapshot) => (
@@ -308,40 +269,67 @@ function SalesPipeline() {
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
                                 {...provided.dragHandleProps}
+                                onClick={() => openEdit(o)}
                                 className={cn(
-                                  "bg-card/40 backdrop-blur-sm border border-border p-5 rounded-xl hover:border-primary/50 hover:bg-card/60 transition-all cursor-pointer group shadow-sm relative",
-                                  snapshot.isDragging && "border-primary/50 bg-card shadow-2xl scale-[1.02] z-50 rotate-1"
+                                  "bg-background border border-border rounded-lg hover:border-[#3ecf8e]/40 transition-all cursor-pointer group shadow-sm overflow-hidden flex flex-col",
+                                  snapshot.isDragging && "shadow-xl border-[#3ecf8e]/50 rotate-1"
                                 )}
                               >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1.5 truncate">{o.client_name}</div>
-                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                                    <button onClick={(e) => { e.stopPropagation(); openEdit(o); }} className="p-1 hover:text-foreground text-muted-foreground/60 transition-colors">
-                                      <MoreVertical className="h-3 w-3" />
-                                    </button>
-                                    <button onClick={(e) => { e.stopPropagation(); deleteOpp(o.id); }} className="p-1 hover:text-red-500 text-muted-foreground/60 transition-colors">
+                                {/* Color Tag (Top bar) */}
+                                <div className="h-1 w-full" style={{ backgroundColor: s.color }} />
+                                
+                                <div className="p-4 flex flex-col gap-3">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex flex-col gap-1 min-w-0">
+                                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] truncate">
+                                        {o.client_name}
+                                      </span>
+                                      <p className="text-sm font-bold text-foreground leading-snug line-clamp-2">
+                                        {o.title}
+                                      </p>
+                                    </div>
+                                    <button 
+                                      onClick={(e) => { e.stopPropagation(); deleteOpp(o.id); }} 
+                                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-muted-foreground hover:text-destructive rounded-md hover:bg-destructive/10"
+                                    >
                                       <X className="h-3 w-3" />
                                     </button>
                                   </div>
-                                </div>
-                                <div onClick={() => openEdit(o)} className="text-[15px] font-bold text-foreground mb-4 leading-tight group-hover:text-primary transition-colors">{o.title}</div>
-                                
-                                <div className="mb-5 space-y-2">
-                                  <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-muted-foreground/40">
-                                    <span>Probabilidade</span>
-                                    <span className="text-primary">{o.probability || 0}%</span>
-                                  </div>
-                                  <Progress value={o.probability || 0} className="h-1 bg-secondary shadow-inner" />
-                                </div>
 
-                                <div className="flex items-center justify-between">
-                                  <div className="flex flex-col">
-                                    <div className="text-[10px] font-bold text-muted-foreground/30 uppercase tracking-widest">Valor</div>
-                                    <div className="text-sm font-black text-foreground font-mono">{formatCurrency(o.value)}</div>
+                                  {/* Info Tags */}
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {o.metadata?.expected_closing && (
+                                      <Badge variant="outline" className="h-5 px-1.5 text-[9px] bg-secondary/50 border-border font-medium gap-1 text-muted-foreground">
+                                        <Clock className="h-2.5 w-2.5" />
+                                        {new Date(o.metadata.expected_closing).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                                      </Badge>
+                                    )}
+                                    {o.metadata?.source && (
+                                      <Badge variant="outline" className="h-5 px-1.5 text-[9px] bg-primary/5 border-primary/20 font-bold text-[#3ecf8e] uppercase tracking-wider">
+                                        {o.metadata.source}
+                                      </Badge>
+                                    )}
                                   </div>
-                                  <div className="flex -space-x-2">
-                                    <div className="h-7 w-7 rounded-full bg-secondary border-2 border-background flex items-center justify-center text-[10px] font-bold text-muted-foreground group-hover:border-primary/20 transition-all shadow-md">
-                                      {o.profiles?.full_name?.[0] || 'A'}
+
+                                  <div className="space-y-1.5">
+                                    <div className="flex justify-between text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
+                                       <span>Sucesso</span>
+                                       <span>{o.probability || 0}%</span>
+                                    </div>
+                                    <div className="h-1 w-full bg-secondary rounded-full overflow-hidden">
+                                       <div className="h-full bg-[#3ecf8e] transition-all duration-500 shadow-[0_0_8px_rgba(62,207,142,0.3)]" style={{ width: `${o.probability || 0}%` }} />
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center justify-between pt-3 border-t border-border mt-1">
+                                    <div className="flex flex-col">
+                                      <span className="text-[10px] text-muted-foreground font-medium">Valor Estimado</span>
+                                      <span className="text-sm font-black text-foreground font-mono tabular-nums">
+                                        {formatCurrency(o.value)}
+                                      </span>
+                                    </div>
+                                    <div className="h-7 w-7 rounded-lg bg-secondary border border-border flex items-center justify-center text-[10px] font-bold text-foreground shadow-inner">
+                                       {o.profiles?.full_name?.[0] || 'A'}
                                     </div>
                                   </div>
                                 </div>
@@ -350,19 +338,6 @@ function SalesPipeline() {
                           </Draggable>
                         ))}
                         {provided.placeholder}
-                        {filtered.filter(o => o.stage === s.key).length === 0 && (
-                          <div className="h-32 border border-dashed border-border rounded-xl flex items-center justify-center text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest">Estágio Vazio</div>
-                        )}
-                      </div>
-                      <div className="p-5 border-t border-border/80 bg-secondary/20 space-y-3">
-                        <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center justify-between">
-                          <span className="opacity-40">Total Bruto</span>
-                          <span className="text-foreground/80 font-mono">{formatCurrency(filtered.filter(o => o.stage === s.key).reduce((sum, o) => sum + Number(o.value), 0))}</span>
-                        </div>
-                        <div className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center justify-between">
-                          <span>Ponderado</span>
-                          <span className="font-mono">{formatCurrency(filtered.filter(o => o.stage === s.key).reduce((sum, o) => sum + (Number(o.value) * (Number(o.probability || 0) / 100)), 0))}</span>
-                        </div>
                       </div>
                     </div>
                   )}
@@ -371,32 +346,30 @@ function SalesPipeline() {
             </div>
           </DragDropContext>
         ) : (
-          <div className="bg-card/30 border border-border rounded-2xl overflow-hidden shadow-xl">
+          <div className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
             <Table>
-              <TableHeader className="bg-secondary/50">
+              <TableHeader className="bg-muted/50">
                 <TableRow className="border-border">
-                  <TableHead className="px-8 py-5 text-xs font-bold uppercase tracking-widest text-muted-foreground">Cliente</TableHead>
-                  <TableHead className="px-8 py-5 text-xs font-bold uppercase tracking-widest text-muted-foreground">Oportunidade</TableHead>
-                  <TableHead className="px-8 py-5 text-xs font-bold uppercase tracking-widest text-muted-foreground">Estágio</TableHead>
-                  <TableHead className="px-8 py-5 text-xs font-bold uppercase tracking-widest text-muted-foreground">Valor</TableHead>
-                  <TableHead className="px-8 py-5 text-xs font-bold uppercase tracking-widest text-muted-foreground">Responsável</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase text-muted-foreground">Cliente</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase text-muted-foreground">Negócio</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase text-muted-foreground">Estágio</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase text-muted-foreground">Valor</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase text-muted-foreground">Responsável</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map(o => (
-                  <TableRow key={o.id} onClick={() => openEdit(o)} className="border-border/50 hover:bg-secondary/40 cursor-pointer group">
-                    <TableCell className="px-8 py-5 text-sm font-bold text-foreground group-hover:text-primary transition-colors">{o.client_name}</TableCell>
-                    <TableCell className="px-8 py-5 text-sm text-muted-foreground font-medium">{o.title}</TableCell>
-                    <TableCell className="px-8 py-5">
-                      <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-widest bg-secondary border-border text-muted-foreground">
-                        {STAGES.find(s => s.key === o.stage)?.label}
-                      </Badge>
+                  <TableRow key={o.id} onClick={() => openEdit(o)} className="border-border hover:bg-accent cursor-pointer group">
+                    <TableCell className="text-sm font-semibold text-foreground">{o.client_name}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{o.title}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="text-[10px] font-bold bg-secondary border-none">{STAGES.find(s => s.key === o.stage)?.label}</Badge>
                     </TableCell>
-                    <TableCell className="px-8 py-5 text-sm font-bold text-foreground tabular-nums">{formatCurrency(o.value)}</TableCell>
-                    <TableCell className="px-8 py-5">
-                      <div className="flex items-center gap-3">
-                        <div className="h-6 w-6 rounded-full bg-secondary flex items-center justify-center text-[10px] font-bold text-muted-foreground uppercase">{o.profiles?.full_name[0]}</div>
-                        <span className="text-sm text-muted-foreground font-medium">{o.profiles?.full_name}</span>
+                    <TableCell className="text-sm font-bold font-mono">{formatCurrency(o.value)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-full bg-secondary flex items-center justify-center text-[10px] font-bold uppercase">{o.profiles?.full_name[0]}</div>
+                        <span className="text-xs text-muted-foreground font-medium">{o.profiles?.full_name}</span>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -408,187 +381,68 @@ function SalesPipeline() {
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="bg-background border border-border/50 rounded-[48px] p-0 overflow-hidden max-w-5xl shadow-[0_0_120px_rgba(0,0,0,0.6)] border-none">
-          <div className="flex h-[850px] md:h-[800px] flex-col md:flex-row">
-            {/* Left Strategic Side */}
-            <div className="w-full md:w-[320px] bg-secondary/30 border-r border-border/50 p-12 flex flex-col justify-between relative hidden md:flex">
-               <div className="absolute inset-0 bg-gradient-to-b from-primary/10 to-transparent pointer-events-none" />
-               <div className="relative z-10 space-y-12">
-                  <div className="h-20 w-20 bg-background border border-border rounded-3xl flex items-center justify-center text-primary shadow-2xl">
-                    <Kanban className="h-10 w-10" />
-                  </div>
-                  <div className="space-y-4">
-                    <h3 className="text-3xl font-black tracking-tighter uppercase italic text-foreground leading-tight">
-                       Cadastro de <span className="text-primary">Negócio</span>
-                    </h3>
-                    <p className="text-[10px] text-muted-foreground/40 font-bold uppercase tracking-[0.4em] leading-relaxed">Registro Delta-Prime // Pipeline v4.0</p>
-                  </div>
-                  
-                  <div className="space-y-6 pt-10 border-t border-border/30">
-                     <div className="flex items-center gap-4 text-primary">
-                        <Target className="h-5 w-5" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Painel de Oportunidade</span>
-                     </div>
-                     <p className="text-[10px] text-muted-foreground/30 leading-relaxed uppercase font-black tracking-widest italic">O valor do negócio impacta diretamente as projeções de meta de receita no Comando HQ.</p>
-                  </div>
-               </div>
+        <DialogContent className="max-w-2xl bg-card border-border p-0 overflow-hidden rounded-xl">
+           <DialogHeader className="p-6 border-b border-border bg-muted/50">
+              <DialogTitle className="text-lg font-semibold">{editingId ? "Editar Negócio" : "Registrar Oportunidade"}</DialogTitle>
+              <DialogDescription className="text-xs">Preencha os dados técnicos da oportunidade comercial.</DialogDescription>
+           </DialogHeader>
 
-               <div className="relative z-10 flex items-center gap-4">
-                  <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981]" />
-                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/20 italic">Sincronização Ativa</span>
-               </div>
-            </div>
-
-            {/* Main Form Body */}
-            <div className="flex-1 p-10 md:p-16 overflow-y-auto no-scrollbar bg-card/10 backdrop-blur-3xl relative">
-              <div className="absolute top-0 right-0 p-8 md:p-10 flex items-center gap-4 hidden md:flex">
-                 <Badge variant="outline" className="bg-secondary/50 border-border text-[9px] font-black uppercase tracking-widest px-4 py-2 rounded-full">Informações Base</Badge>
-              </div>
-
-              <form onSubmit={handleSubmit} className="space-y-12 mt-6 md:mt-0">
-                <section className="space-y-8">
-                   <div className="flex items-center gap-4 mb-10">
-                      <div className="h-1 w-12 bg-primary rounded-full shadow-[0_0_10px_#10b981]" />
-                      <h4 className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.4em]">Dados do Cliente</h4>
-                   </div>
-                   
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="space-y-3">
-                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/40 ml-1">Empresa / Lead</Label>
-                        <Input 
-                           required 
-                           placeholder="Nome do cliente"
-                           value={form.client_name}
-                           onChange={e => setForm({...form, client_name: e.target.value})}
-                           className="h-16 px-6 bg-secondary/40 border-border rounded-[20px] text-lg font-black italic tracking-tight focus:ring-primary/20 transition-all outline-none"
-                        />
-                      </div>
-                      <div className="space-y-3">
-                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/40 ml-1">Título do Negócio</Label>
-                        <Input 
-                           required 
-                           placeholder="Ex: Licenciamento Anual"
-                           value={form.title}
-                           onChange={e => setForm({...form, title: e.target.value})}
-                           className="h-16 px-6 bg-secondary/40 border-border rounded-[20px] text-sm font-bold focus:ring-primary/20 transition-all outline-none"
-                        />
-                      </div>
-                   </div>
-
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="space-y-3">
-                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/40 ml-1">Estágio no Funil</Label>
-                         <Select value={form.stage} onValueChange={handleStageChange}>
-                           <SelectTrigger className="h-16 bg-secondary/40 border-border rounded-[20px] text-xs font-black uppercase tracking-widest px-6">
-                             <SelectValue />
-                           </SelectTrigger>
-                           <SelectContent className="bg-card border-border">
-                             {STAGES.map(s => (
-                                <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>
-                             ))}
-                           </SelectContent>
-                         </Select>
-                       </div>
-                       <div className="space-y-3">
-                         <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/40 ml-1">Probabilidade Estimada (%)</Label>
-                         <Input 
-                            type="number"
-                            min="0" max="100"
-                            value={form.probability}
-                            onChange={e => handleProbabilityChange(Number(e.target.value))}
-                            className="h-16 px-6 bg-secondary/40 border-border rounded-[20px] text-lg font-mono font-bold focus:ring-primary/20 transition-all outline-none"
-                         />
-                       </div>
+           <div className="p-6 overflow-y-auto max-h-[70vh] no-scrollbar">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                       <Label className="text-xs font-medium text-muted-foreground">Cliente / Empresa</Label>
+                       <Input required value={form.client_name} onChange={e => setForm({...form, client_name: e.target.value})} className="h-9 bg-background border-border text-sm" />
                     </div>
-                </section>
+                    <div className="space-y-2">
+                       <Label className="text-xs font-medium text-muted-foreground">Título do Negócio</Label>
+                       <Input required value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="h-9 bg-background border-border text-sm" />
+                    </div>
+                 </div>
 
-                <section className="space-y-8 pt-8 border-t border-border/30">
-                   <div className="flex items-center gap-4 mb-10">
-                      <div className="h-1 w-12 bg-blue-500 rounded-full shadow-[0_0_10px_#3b82f6]" />
-                      <h4 className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.4em]">Financeiro & Metadados</h4>
-                   </div>
-
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="space-y-3">
-                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/40 ml-1">Valor Projetado (Net)</Label>
-                        <div className="relative group">
-                           <span className="absolute left-6 top-1/2 -translate-y-1/2 text-lg font-black text-muted-foreground/20 italic group-focus-within:text-primary transition-colors">R$</span>
-                           <Input 
-                              required 
-                              type="number"
-                              placeholder="0,00"
-                              value={form.value}
-                              onChange={e => setForm({...form, value: e.target.value})}
-                              className="h-18 pl-16 bg-secondary/40 border-border rounded-[24px] text-2xl font-black font-mono focus:ring-primary/20 transition-all outline-none"
-                           />
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/40 ml-1">Data de Fechamento (P70)</Label>
-                        <Input 
-                           type="date"
-                           value={form.expected_closing}
-                           onChange={e => setForm({...form, expected_closing: e.target.value})}
-                           className="h-18 px-6 bg-secondary/40 border-border rounded-[24px] text-sm font-bold focus:ring-blue-500/20 transition-all outline-none"
-                        />
-                      </div>
-                   </div>
-
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="space-y-3">
-                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/40 ml-1">Origem do Lead</Label>
-                        <Select value={form.source} onValueChange={v => setForm({...form, source: v})}>
-                          <SelectTrigger className="h-16 bg-secondary/40 border-border rounded-[20px] text-xs font-black uppercase tracking-widest px-6">
-                            <SelectValue />
-                          </SelectTrigger>
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                       <Label className="text-xs font-medium text-muted-foreground">Estágio</Label>
+                       <Select value={form.stage} onValueChange={handleStageChange}>
+                          <SelectTrigger className="h-9 bg-background border-border text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent className="bg-card border-border">
-                            <SelectItem value="Inbound">Inbound Marketing</SelectItem>
-                            <SelectItem value="Outbound">Outbound (SDR)</SelectItem>
-                            <SelectItem value="Indicacao">Indicação / Parceiro</SelectItem>
-                            <SelectItem value="Evento">Evento / Feira</SelectItem>
-                            <SelectItem value="Direto">Contato Direto</SelectItem>
+                             {STAGES.map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
                           </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-3">
-                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/40 ml-1">E-mail do Decisor</Label>
-                        <Input 
-                           type="email"
-                           placeholder="ceo@empresa.com"
-                           value={form.contact_email}
-                           onChange={e => setForm({...form, contact_email: e.target.value})}
-                           className="h-16 px-6 bg-secondary/40 border-border rounded-[20px] text-sm font-medium focus:ring-blue-500/20 transition-all outline-none"
-                        />
-                      </div>
-                   </div>
-                </section>
+                       </Select>
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-xs font-medium text-muted-foreground">Probabilidade (%)</Label>
+                       <Input type="number" value={form.probability} onChange={e => setForm({...form, probability: Number(e.target.value)})} className="h-9 bg-background border-border text-sm" />
+                    </div>
+                 </div>
 
-                <section className="space-y-6 pt-8 border-t border-border/30">
-                   <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/40 ml-1">Observações e Destaques</Label>
-                   <Textarea 
-                     placeholder="Detalhes críticos do negócio, objeções enfrentadas e plano de ação..."
-                     value={form.description}
-                     onChange={e => setForm({...form, description: e.target.value})}
-                     className="bg-secondary/40 border-border rounded-[32px] p-8 text-sm font-medium leading-relaxed min-h-[140px] focus:ring-primary/20 transition-all outline-none resize-none shadow-inner"
-                   />
-                </section>
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                       <Label className="text-xs font-medium text-muted-foreground">Valor (BRL)</Label>
+                       <Input required type="number" value={form.value} onChange={e => setForm({...form, value: e.target.value})} className="h-9 bg-background border-border text-sm font-mono" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-xs font-medium text-muted-foreground">Previsão de Fechamento</Label>
+                       <Input type="date" value={form.expected_closing} onChange={e => setForm({...form, expected_closing: e.target.value})} className="h-9 bg-background border-border text-sm" />
+                    </div>
+                 </div>
 
-                <div className="pt-10 flex gap-6">
-                   <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="flex-1 h-20 rounded-[24px] border-border text-[11px] font-black uppercase tracking-widest hover:bg-secondary transition-all text-muted-foreground/30">Cancelar</Button>
-                   <Button 
-                    type="submit" 
-                    disabled={busy}
-                    className="flex-[2] h-20 bg-primary text-primary-foreground rounded-[24px] font-black uppercase tracking-[0.2em] text-sm shadow-2xl shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all gap-4"
-                   >
-                     {busy ? <Loader2 className="h-6 w-6 animate-spin" /> : editingId ? <RefreshCw className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
-                     {editingId ? 'Sincronizar Atualização' : 'Efetivar Oportunidade'}
-                   </Button>
-                </div>
+                 <div className="space-y-2">
+                    <Label className="text-xs font-medium text-muted-foreground">Observações Técnicas</Label>
+                    <Textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="bg-background border-border text-sm min-h-[100px]" />
+                 </div>
+
+                 <div className="flex justify-end gap-3 pt-4">
+                    <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)} className="text-xs">Cancelar</Button>
+                    <Button type="submit" disabled={busy} className="bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-[#000] font-semibold text-xs px-6">
+                       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? "Salvar Alterações" : "Efetivar Negócio"}
+                    </Button>
+                 </div>
               </form>
-            </div>
-          </div>
+           </div>
         </DialogContent>
       </Dialog>
     </div>
   );
 }
+

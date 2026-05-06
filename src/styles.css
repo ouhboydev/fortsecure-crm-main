@@ -1,4 +1,4 @@
-@import "tailwindcss" source(none);
+@import "tailwindcss";
 @source "../src";
 @plugin "@tailwindcss/typography";
 
@@ -44,153 +44,230 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  /* Supabase brand green */
+  --color-neon: #3ecf8e;
+  --color-neon-2: #1eaedb;
 }
 
+/* ─── LIGHT MODE ────────────────────────────────── */
 :root {
-  --radius: 8px;
-  
-  /* LIGHT MODE (Default) */
-  --background: #f3f4f6;
-  --foreground: #111827;
+  --radius: 6px;
+
+  /* Supabase light palette */
+  --background: #f8f8f8;
+  --foreground: #171717;
   --card: #ffffff;
-  --card-foreground: #111827;
+  --card-foreground: #171717;
   --popover: #ffffff;
-  --popover-foreground: #111827;
-  --primary: #10b981;
-  --primary-foreground: #ffffff;
-  --secondary: #e5e7eb;
-  --secondary-foreground: #1f2937;
-  --muted: #e5e7eb;
-  --muted-foreground: #6b7280;
-  --accent: #e5e7eb;
-  --accent-foreground: #1f2937;
-  --destructive: #ef4444;
+  --popover-foreground: #171717;
+
+  /* Supabase Green */
+  --primary: #3ecf8e;
+  --primary-foreground: #0a0a0a;
+
+  --secondary: #f0f0f0;
+  --secondary-foreground: #404040;
+  --muted: #f0f0f0;
+  --muted-foreground: #737373;
+  --accent: #e8e8e8;
+  --accent-foreground: #262626;
+
+  --destructive: #e53e3e;
   --destructive-foreground: #ffffff;
-  --border: #d1d5db;
+
+  --border: #e2e2e2;
   --input: #ffffff;
-  --ring: #10b981;
-  --success: #10b981;
-  --success-foreground: #ffffff;
-  --warning: #f59e0b;
-  --warning-foreground: #ffffff;
-  --info: #3b82f6;
+  --ring: #3ecf8e;
+
+  --success: #3ecf8e;
+  --success-foreground: #0a0a0a;
+  --warning: #f6ad55;
+  --warning-foreground: #0a0a0a;
+  --info: #4299e1;
   --info-foreground: #ffffff;
-  
-  --sidebar: #f9fafb;
-  --sidebar-foreground: #111827;
-  --sidebar-primary: #10b981;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e5e7eb;
-  --sidebar-accent-foreground: #1f2937;
-  --sidebar-border: #d1d5db;
-  --sidebar-ring: #10b981;
-  
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #171717;
+  --sidebar-primary: #3ecf8e;
+  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-accent: #f0f0f0;
+  --sidebar-accent-foreground: #262626;
+  --sidebar-border: #e2e2e2;
+  --sidebar-ring: #3ecf8e;
+
   --grid-color: rgba(0, 0, 0, 0.04);
 }
 
+/* ─── DARK MODE (Supabase aesthetic) ──────────────── */
 .dark {
-  --background: #000000;
-  --foreground: #ffffff;
-  --card: #0a0a0a;
-  --card-foreground: #ffffff;
-  --popover: #0a0a0a;
-  --popover-foreground: #ffffff;
-  --primary: #10b981;
-  --primary-foreground: #000000;
-  --secondary: #171717;
-  --secondary-foreground: #ffffff;
-  --muted: #171717;
+  /* Supabase uses #0f0f0f (not pure black) */
+  --background: #0f0f0f;
+  --foreground: #ededed;
+  --card: #171717;
+  --card-foreground: #ededed;
+  --popover: #1a1a1a;
+  --popover-foreground: #ededed;
+
+  /* Supabase signature green */
+  --primary: #3ecf8e;
+  --primary-foreground: #0a0a0a;
+
+  --secondary: #1f1f1f;
+  --secondary-foreground: #a3a3a3;
+  --muted: #1a1a1a;
   --muted-foreground: #a3a3a3;
-  --accent: #171717;
-  --accent-foreground: #ffffff;
-  --destructive: #ef4444;
+  --accent: #252525;
+  --accent-foreground: #ededed;
+
+  --destructive: #e53e3e;
   --destructive-foreground: #ffffff;
-  --border: #262626;
-  --input: #0a0a0a;
-  --ring: #10b981;
-  --success: #10b981;
-  --success-foreground: #000000;
-  --warning: #f59e0b;
-  --warning-foreground: #000000;
-  --info: #3b82f6;
+
+  /* Supabase border is very subtle */
+  --border: #2e2e2e;
+  --input: #1a1a1a;
+  --ring: #3ecf8e;
+
+  --success: #3ecf8e;
+  --success-foreground: #0a0a0a;
+  --warning: #f6ad55;
+  --warning-foreground: #0a0a0a;
+  --info: #4299e1;
   --info-foreground: #ffffff;
-  
-  --sidebar: #000000;
-  --sidebar-foreground: #ffffff;
-  --sidebar-primary: #10b981;
-  --sidebar-primary-foreground: #000000;
-  --sidebar-accent: #171717;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #262626;
-  --sidebar-ring: #10b981;
-  
-  --grid-color: rgba(255, 255, 255, 0.02);
+
+  /* Sidebar — same dark as page, just a hairline border */
+  --sidebar: #0f0f0f;
+  --sidebar-foreground: #a3a3a3;
+  --sidebar-primary: #3ecf8e;
+  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-accent: #1f1f1f;
+  --sidebar-accent-foreground: #ededed;
+  --sidebar-border: #1f1f1f;
+  --sidebar-ring: #3ecf8e;
+
+  --grid-color: rgba(255, 255, 255, 0.025);
 }
 
+/* ─── BASE ──────────────────────────────────────── */
 @layer base {
   * {
     border-color: var(--border);
   }
 
-  html,
-  body {
+  html, body {
     font-family: var(--font-display);
     background-color: var(--background);
     color: var(--foreground);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-
-    /* Elegant Background: Pure Black with subtle radial light + thin grid */
-    background-image:
-      radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.05) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.05) 0px, transparent 50%),
-      linear-gradient(var(--grid-color) 1px, transparent 1px),
-      linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
-    background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
-    background-attachment: fixed;
+    font-size: 14px;
+    line-height: 1.6;
   }
 }
 
+/* ─── COMPONENTS ────────────────────────────────── */
 @layer components {
+  /* Supabase-style card: very subtle elevation */
   .glass {
-    @apply bg-card/80 backdrop-blur-md border border-border;
+    background-color: var(--card);
+    border: 1px solid var(--border);
     border-radius: var(--radius);
   }
 
+  /* Green text gradient — used in headings */
   .text-gradient {
-    @apply bg-gradient-to-br from-foreground to-muted-foreground bg-clip-text text-transparent font-bold;
+    background: linear-gradient(135deg, #3ecf8e 0%, #1eaedb 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 700;
   }
 
+  /* Status dot */
   .pulse-dot {
-    @apply w-2 h-2 rounded-full bg-success;
-    box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+    @apply w-2 h-2 rounded-full;
+    background-color: #3ecf8e;
+    box-shadow: 0 0 0 3px rgba(62, 207, 142, 0.15);
+  }
+
+  /* Supabase green glow button effect */
+  .btn-primary-glow {
+    box-shadow: 0 0 20px rgba(62, 207, 142, 0.3);
+  }
+
+  /* Supabase-style input */
+  .sb-input {
+    background-color: var(--input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--foreground);
+    font-size: 13px;
+    padding: 6px 12px;
+    transition: border-color 0.15s ease;
+  }
+  .sb-input:focus {
+    outline: none;
+    border-color: #3ecf8e;
+    box-shadow: 0 0 0 3px rgba(62, 207, 142, 0.1);
+  }
+
+  /* Badge — Supabase style */
+  .sb-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    background-color: var(--secondary);
+    color: var(--muted-foreground);
+  }
+  .sb-badge-green {
+    background-color: rgba(62, 207, 142, 0.1);
+    border-color: rgba(62, 207, 142, 0.25);
+    color: #3ecf8e;
   }
 }
 
-/* Custom Scrollbar */
+/* ─── SCROLLBAR ─────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
-
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
   background: var(--border);
-  border-radius: 10px;
+  border-radius: 999px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--muted-foreground);
+  background: #3ecf8e40;
+}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ─── SELECTION ─────────────────────────────────── */
+::selection {
+  background-color: rgba(62, 207, 142, 0.2);
+  color: inherit;
 }
 
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+/* ─── ANIMATIONS ────────────────────────────────── */
+@keyframes sb-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(62, 207, 142, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(62, 207, 142, 0); }
 }
+.animate-sb-pulse { animation: sb-pulse 2s infinite; }
 
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+/* Supabase green shimmer on hover */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer-green {
+  background: linear-gradient(90deg, transparent, rgba(62,207,142,0.08), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
 }

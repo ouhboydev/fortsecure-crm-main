@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { formatDisplayName } from "./utils";
 
 export interface RankingRow {
   user_id: string;
@@ -58,7 +59,7 @@ export async function fetchRanking(): Promise<RankingRow[]> {
       const attainment = goal > 0 ? (closed_value / goal) * 100 : 0;
       return {
         user_id: p.id,
-        full_name: p.full_name || "Sem nome",
+        full_name: formatDisplayName(p.full_name || "Sem nome"),
         avatar_url: p.avatar_url,
         points: p.points ?? 0,
         closed_value,
@@ -124,10 +125,10 @@ export async function fetchTeamMetrics() {
 }
 
 export const STAGES = [
-  { key: "prospect", label: "Prospect", color: "var(--info)" },
-  { key: "qualificado", label: "Qualificado", color: "var(--neon)" },
-  { key: "proposta", label: "Proposta", color: "var(--warning)" },
-  { key: "negociacao", label: "Negociação", color: "var(--neon-2)" },
-  { key: "ganho", label: "Ganho", color: "var(--success)" },
-  { key: "perdido", label: "Perdido", color: "var(--destructive)" },
+  { key: "prospect", label: "Prospect", color: "#4299e1" },
+  { key: "qualificado", label: "Qualificado", color: "#3ecf8e" },
+  { key: "proposta", label: "Proposta", color: "#f6ad55" },
+  { key: "negociacao", label: "Negociação", color: "#1eaedb" },
+  { key: "ganho", label: "Ganho", color: "#3ecf8e" },
+  { key: "perdido", label: "Perdido", color: "#e53e3e" },
 ] as const;
