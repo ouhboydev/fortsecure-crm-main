@@ -1,8 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { 
-  Zap, ArrowRight, Tv, BarChart3, Target, 
+import {
+  Zap, ArrowRight, Tv, BarChart3, Target,
   Kanban, Trophy, Brain, Monitor, ShieldCheck,
   ChevronRight, Sparkles, Activity
 } from "lucide-react";
@@ -37,7 +37,7 @@ function Landing() {
   return (
     <div className="min-h-screen bg-background text-foreground relative overflow-hidden font-sans selection:bg-primary selection:text-primary-foreground">
       <BackgroundEffects />
-      
+
       {/* Top Navigation - Dashboard Style */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-background/50 backdrop-blur-xl border-b border-border/50">
         <div className="max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
@@ -76,7 +76,7 @@ function Landing() {
               </Badge>
             </motion.div>
 
-            <motion.h1 
+            <motion.h1
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, ease: "easeOut" }}
@@ -87,17 +87,17 @@ function Landing() {
               Vendas.
             </motion.h1>
 
-            <motion.p 
+            <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4, duration: 1 }}
               className="text-lg md:text-xl text-muted-foreground/60 max-w-2xl leading-relaxed font-medium uppercase tracking-tight"
             >
-              A plataforma definitiva para times que operam em escala. 
+              A plataforma definitiva para times que operam em escala.
               <span className="text-foreground block mt-2">Visibilidade total, gamificação bruta e inteligência preditiva.</span>
             </motion.p>
 
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6, duration: 0.5 }}
@@ -105,7 +105,7 @@ function Landing() {
             >
               <Link to="/auth">
                 <Button className="h-16 px-10 rounded-[20px] bg-primary text-primary-foreground font-black uppercase tracking-widest text-xs hover:scale-[1.02] active:scale-95 transition-all shadow-2xl shadow-primary/30 group">
-                  Iniciar Operação 
+                  Iniciar Operação
                   <ArrowRight className="h-4 w-4 ml-3 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </Link>
@@ -148,7 +148,7 @@ function Landing() {
                     <p className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">Atingimento</p>
                     <p className="text-xl font-black italic tracking-tight text-primary">92%</p>
                     <div className="flex gap-1">
-                      {Array.from({length: 5}).map((_, i) => (
+                      {Array.from({ length: 5 }).map((_, i) => (
                         <div key={i} className={`h-1 flex-1 rounded-full ${i < 4 ? 'bg-primary' : 'bg-primary/20'}`} />
                       ))}
                     </div>
@@ -158,12 +158,12 @@ function Landing() {
                 {/* Mock Chart Area */}
                 <div className="bg-secondary/20 h-40 rounded-3xl border border-border/50 flex items-end p-4 gap-2">
                   {[40, 70, 45, 90, 65, 80, 100].map((h, i) => (
-                    <motion.div 
+                    <motion.div
                       key={i}
                       initial={{ height: 0 }}
                       animate={{ height: `${h}%` }}
                       transition={{ delay: 1 + (i * 0.1), duration: 0.5 }}
-                      className="flex-1 bg-gradient-to-t from-primary/40 to-primary/10 rounded-t-lg border-t border-primary/30" 
+                      className="flex-1 bg-gradient-to-t from-primary/40 to-primary/10 rounded-t-lg border-t border-primary/30"
                     />
                   ))}
                 </div>
@@ -186,7 +186,7 @@ function Landing() {
                 </div>
               </div>
             </motion.div>
-            
+
             {/* Decorative background glow */}
             <div className="absolute -inset-10 bg-primary/10 blur-[100px] -z-10 rounded-full opacity-50" />
           </div>
@@ -218,7 +218,7 @@ function Landing() {
 
         {/* Call to Action Banner */}
         <section className="mt-40">
-          <motion.div 
+          <motion.div
             whileInView={{ opacity: 1, scale: 1 }}
             initial={{ opacity: 0, scale: 0.95 }}
             className="bg-primary p-12 md:p-20 rounded-[40px] text-primary-foreground relative overflow-hidden group shadow-2xl shadow-primary/20"
@@ -236,7 +236,7 @@ function Landing() {
                 </Button>
               </Link>
             </div>
-            
+
             {/* Large background icon */}
             <Zap className="absolute -right-20 -bottom-20 h-[500px] w-[500px] opacity-10 -rotate-12 group-hover:scale-110 transition-transform duration-1000" />
           </motion.div>
