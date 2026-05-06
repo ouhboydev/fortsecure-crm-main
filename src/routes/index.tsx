@@ -204,18 +204,26 @@ function Landing() {
         </section>
       </main>
 
-      <footer className="max-w-7xl mx-auto px-6 py-20 border-t border-border flex flex-col md:flex-row justify-between items-center gap-8">
-        <div className="flex items-center gap-3">
-          <div className="h-6 w-6 bg-secondary rounded-md flex items-center justify-center">
-            <img src={logo} alt="FortSecure" className="h-3 w-3 object-contain opacity-50" />
+      <footer className="max-w-7xl mx-auto px-6 py-12 border-t border-border flex flex-col items-center gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-6 w-full">
+          <div className="flex items-center gap-3">
+            <div className="h-6 w-6 bg-secondary rounded-md flex items-center justify-center">
+              <img src={logo} alt="FortSecure" className="h-3 w-3 object-contain opacity-50" />
+            </div>
+            <span className="text-xs font-semibold text-muted-foreground">© 2026 FortSecure. Todos os direitos reservados.</span>
           </div>
-          <span className="text-xs font-semibold text-muted-foreground">© 2026 FortSecure. Todos os direitos reservados.</span>
+          <div className="flex gap-10 text-xs font-medium text-muted-foreground">
+            <span className="hover:text-[#3ecf8e] cursor-pointer transition-colors">Segurança</span>
+            <span className="hover:text-[#3ecf8e] cursor-pointer transition-colors">Status</span>
+            <span className="hover:text-[#3ecf8e] cursor-pointer transition-colors">Termos de Uso</span>
+          </div>
         </div>
-        <div className="flex gap-10 text-xs font-medium text-muted-foreground">
-          <span className="hover:text-[#3ecf8e] cursor-pointer transition-colors">Segurança</span>
-          <span className="hover:text-[#3ecf8e] cursor-pointer transition-colors">Status</span>
-          <span className="hover:text-[#3ecf8e] cursor-pointer transition-colors">Termos de Uso</span>
-        </div>
+        <p className="text-[11px] text-muted-foreground/50 tracking-wide">
+          Criado e desenvolvido por{" "}
+          <span className="text-[#3ecf8e]/70 font-medium">André Firmino</span>
+          {" "}&{" "}
+          <span className="text-[#3ecf8e]/70 font-medium">Fortsecure</span>
+        </p>
       </footer>
     </div>
   );

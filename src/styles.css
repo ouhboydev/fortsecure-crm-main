@@ -153,7 +153,8 @@
     border-color: var(--border);
   }
 
-  html, body {
+  html,
+  body {
     font-family: var(--font-display);
     background-color: var(--background);
     color: var(--foreground);
@@ -166,11 +167,35 @@
 
 /* ─── COMPONENTS ────────────────────────────────── */
 @layer components {
+
   /* Supabase-style card: very subtle elevation */
   .glass {
     background-color: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
+  }
+
+  /* Supabase widget inner grid — matches the card in their marketing page */
+  .widget-grid {
+    position: relative;
+  }
+  .widget-grid::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--grid-line-color) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line-color) 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: radial-gradient(ellipse 100% 100% at 50% 50%, black 30%, transparent 90%);
+    -webkit-mask-image: radial-gradient(ellipse 100% 100% at 50% 50%, black 30%, transparent 90%);
+    pointer-events: none;
+    border-radius: inherit;
+    z-index: 0;
+  }
+  .widget-grid > * {
+    position: relative;
+    z-index: 1;
   }
 
   /* Green text gradient — used in headings */
@@ -204,6 +229,7 @@
     padding: 6px 12px;
     transition: border-color 0.15s ease;
   }
+
   .sb-input:focus {
     outline: none;
     border-color: #3ecf8e;
@@ -223,6 +249,7 @@
     background-color: var(--secondary);
     color: var(--muted-foreground);
   }
+
   .sb-badge-green {
     background-color: rgba(62, 207, 142, 0.1);
     border-color: rgba(62, 207, 142, 0.25);
@@ -235,18 +262,28 @@
   width: 5px;
   height: 5px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 999px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #3ecf8e40;
 }
-.no-scrollbar::-webkit-scrollbar { display: none; }
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
 
 /* ─── SELECTION ─────────────────────────────────── */
 ::selection {
@@ -256,18 +293,34 @@
 
 /* ─── ANIMATIONS ────────────────────────────────── */
 @keyframes sb-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(62, 207, 142, 0.4); }
-  50% { box-shadow: 0 0 0 6px rgba(62, 207, 142, 0); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(62, 207, 142, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 0 0 6px rgba(62, 207, 142, 0);
+  }
 }
-.animate-sb-pulse { animation: sb-pulse 2s infinite; }
+
+.animate-sb-pulse {
+  animation: sb-pulse 2s infinite;
+}
 
 /* Supabase green shimmer on hover */
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
 }
+
 .shimmer-green {
-  background: linear-gradient(90deg, transparent, rgba(62,207,142,0.08), transparent);
+  background: linear-gradient(90deg, transparent, rgba(62, 207, 142, 0.08), transparent);
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
 }

@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AppShell } from "@/components/layout/AppShell";
 import { formatCurrency } from "@/components/ui-kit/PageHeader";
+import { WidgetCard } from "@/components/ui-kit/WidgetCard";
 
 export const Route = createFileRoute("/dashboard")({
   component: () => <AppShell><Dashboard /></AppShell>,
@@ -199,7 +200,7 @@ function Dashboard() {
 
       {/* ── KPI Row ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <DashKpi label="Receita (Real)" value={formatCurrency(metrics.revenue)} hint={`Meta: ${formatCurrency(metrics.goal)}`} icon={<DollarSign className="h-4 w-4" />} trend={metrics.attainment} accent />
+        <DashKpi label="Receita (Real)" value={formatCurrency(metrics.revenue)} hint={`Meta: ${formatCurrency(metrics.goal)}`} icon={<DollarSign className="h-4 w-4" />} trend={metrics.attainment} accent featured />
         <DashKpi label="Forecast Ponderado" value={formatCurrency(metrics.weighted)} hint="Pipeline probabilístico" icon={<Activity className="h-4 w-4" />} />
         <DashKpi label="Oportunidades" value={metrics.pipelineCount} hint={formatCurrency(metrics.pipelineValue)} icon={<TrendingUp className="h-4 w-4" />} />
         <DashKpi label="Reuniões" value={meetingCount} hint="Agendamentos no período" icon={<PhoneCall className="h-4 w-4" />} />
@@ -208,8 +209,8 @@ function Dashboard() {
 
       {/* ── Charts Row ── */}
       <div className="grid lg:grid-cols-3 gap-5">
-        {/* Quarterly area chart */}
-        <div className="lg:col-span-2 bg-card border border-border rounded-lg overflow-hidden">
+        {/* Quarterly area chart — FEATURED: grid no header, limpo no chart */}
+        <WidgetCard featured gridFade={0.3} className="lg:col-span-2 bg-card border border-border rounded-lg">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <div>
               <h2 className="text-sm font-medium text-foreground">Evolução Trimestral</h2>
@@ -242,9 +243,9 @@ function Dashboard() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </WidgetCard>
 
-        {/* Funnel bar chart */}
+        {/* Funnel bar chart — sem grid */}
         <div className="bg-card border border-border rounded-lg overflow-hidden">
           <div className="px-5 py-4 border-b border-border">
             <h2 className="text-sm font-medium text-foreground">Funil por Valor</h2>
@@ -372,11 +373,11 @@ function Dashboard() {
   );
 }
 
-function DashKpi({ label, value, hint, icon, trend, accent = false }: {
-  label: string; value: string | number; hint: string; icon: React.ReactNode; trend?: number; accent?: boolean;
+function DashKpi({ label, value, hint, icon, trend, accent = false, featured = false }: {
+  label: string; value: string | number; hint: string; icon: React.ReactNode; trend?: number; accent?: boolean; featured?: boolean;
 }) {
   return (
-    <div className={cn("bg-card border rounded-lg p-4 hover:border-[#3ecf8e]/20 transition-colors group", accent ? "border-[#3ecf8e]/15" : "border-border")}>
+    <WidgetCard featured={featured} className={cn("bg-card border rounded-lg p-4 hover:border-[#3ecf8e]/20 transition-colors group", accent ? "border-[#3ecf8e]/15" : "border-border")}>
       <div className="flex items-center justify-between mb-3">
         <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
         <div className={cn("h-7 w-7 rounded-md flex items-center justify-center transition-colors", accent ? "bg-[#3ecf8e]/10 text-[#3ecf8e]" : "bg-secondary text-muted-foreground group-hover:text-[#3ecf8e]")}>
@@ -392,6 +393,6 @@ function DashKpi({ label, value, hint, icon, trend, accent = false }: {
         )}
         <p className="text-[10px] text-muted-foreground truncate">{hint}</p>
       </div>
-    </div>
+    </WidgetCard>
   );
 }

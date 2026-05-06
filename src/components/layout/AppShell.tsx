@@ -29,8 +29,18 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex h-screen overflow-hidden bg-background">
       <BackgroundEffects />
       <Sidebar />
-      <main className="flex-1 relative z-10 overflow-y-auto">
-        {children}
+      <main className="flex-1 relative z-10 overflow-y-auto flex flex-col">
+        <div className="flex-1">
+          {children}
+        </div>
+        <footer className="px-6 py-3 border-t border-border/50 flex items-center justify-center">
+          <p className="text-[11px] text-muted-foreground/50 tracking-wide">
+            Criado e desenvolvido por{" "}
+            <span className="text-[#3ecf8e]/70 font-medium">André Firmino</span>
+            {" "}&{" "}
+            <span className="text-[#3ecf8e]/70 font-medium">Fortsecure</span>
+          </p>
+        </footer>
       </main>
     </div>
   );
