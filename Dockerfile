@@ -1,5 +1,5 @@
 # Estágio de Build
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
@@ -16,7 +16,7 @@ ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
 RUN TANSTACK_START_TARGET=node npm run build || npm run build
 
 # Estágio de Execução
-FROM node:20-slim
+FROM node:22-slim
 WORKDIR /app
 COPY --from=builder /app/package*.json ./
 RUN npm install --production

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { BackgroundEffects } from "@/components/layout/BackgroundEffects";
-import logo from "../../public/logo.png";
+import logo from "../public/logo.png";
 
 export const Route = createFileRoute("/")({
   component: Landing,
