@@ -47,7 +47,7 @@ function AuthPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center relative bg-background p-6">
       <BackgroundEffects />
-      
+
       <div className="w-full max-w-[400px] space-y-8 relative z-10">
         <div className="flex flex-col items-center gap-4">
           <Link to="/" className="hover:opacity-80 transition-opacity">
@@ -56,7 +56,7 @@ function AuthPage() {
             </div>
           </Link>
           <div className="text-center space-y-1">
-            <h1 className="text-2xl font-semibold text-foreground tracking-tight">Bem-vindo ao FortSecure</h1>
+            <h1 className="text-2xl font-semibold text-foreground tracking-tight">Bem-vindo ao FortSecure CRM</h1>
             <p className="text-sm text-muted-foreground">Acesse sua conta para gerenciar seu pipeline.</p>
           </div>
         </div>
@@ -75,7 +75,6 @@ function AuthPage() {
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Senha</Label>
-                <Link to="/" className="text-[11px] text-muted-foreground hover:text-[#3ecf8e] transition-colors">Esqueceu a senha?</Link>
               </div>
               <Input
                 required type="password" placeholder="••••••••" minLength={6}
@@ -98,14 +97,8 @@ function AuthPage() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground">
-          Não tem uma conta? <Link to="/" className="text-[#3ecf8e] hover:underline font-medium">Contate o administrador</Link>
+          Não tem uma conta? <strong className="text-[#3ecf8e] hover:underline font-medium">Contate o administrador</strong>
         </p>
-      </div>
-
-      <div className="fixed bottom-6 text-[10px] text-muted-foreground font-medium flex gap-4 uppercase tracking-widest">
-         <span>Privacidade</span>
-         <span>Termos</span>
-         <span>Suporte</span>
       </div>
     </div>
   );
