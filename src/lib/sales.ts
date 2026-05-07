@@ -108,8 +108,8 @@ export async function fetchTeamMetrics() {
   const hqGoal = Number(settings.global_revenue_goal);
   const goal = hqGoal || (goalsRes.data ?? []).reduce((s, g) => s + Number(g.target_amount), 0);
 
-  const totalEntered = closedMonth.length + lost.length;
-  const conversion = totalEntered > 0 ? (closedMonth.length / totalEntered) * 100 : 0;
+  const proposalOpps = opps.filter(o => ["proposta", "negociacao", "ganho", "perdido"].includes(o.stage));
+  const conversion = proposalOpps.length > 0 ? (opps.filter(o => o.stage === "ganho").length / proposalOpps.length) * 100 : 0;
 
   return {
     revenue, todayRevenue, pipelineValue, weighted, goal,

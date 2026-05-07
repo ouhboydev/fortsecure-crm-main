@@ -6,7 +6,7 @@ import { fetchTeamMetrics, fetchRanking, STAGES, type RankingRow } from "@/lib/s
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatCurrency } from "@/components/ui-kit/PageHeader";
-import { Trophy, TrendingUp, Target, Zap, Activity, CheckCircle2, ArrowUpRight, Flame, ChevronRight, ChevronLeft } from "lucide-react";
+import { Trophy, TrendingUp, Target, Zap, Activity, CheckCircle2, ArrowUpRight, Flame, ChevronRight, ChevronLeft, Maximize, Minimize } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import logo from "../public/logo.png";
@@ -227,6 +227,25 @@ function TV() {
   const [time, setTime] = useState(new Date());
   const [slide, setSlide] = useState(0);
   const [autoPlay, setAutoPlay] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+      });
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handleFsChange);
+    return () => document.removeEventListener("fullscreenchange", handleFsChange);
+  }, []);
 
   useEffect(() => { if (!loading && !user) nav({ to: "/auth" }); }, [user, loading]);
 
@@ -308,13 +327,22 @@ function TV() {
           <WinsTicker wins={recentWins} />
         </div>
 
-        <div className="text-right shrink-0">
-          <div className="text-3xl font-bold font-mono text-[#ededed] tabular-nums leading-none tracking-tighter">
-            {time.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-            <span className="text-lg text-[#404040] ml-0.5">{time.toLocaleTimeString("pt-BR", { second: "2-digit" })}</span>
-          </div>
-          <div className="text-[10px] text-[#505050] uppercase tracking-widest mt-1 font-medium">
-            {time.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
+        <div className="flex items-center gap-4 shrink-0">
+          <button
+            onClick={toggleFullscreen}
+            className="h-9 w-9 rounded-lg bg-[#0e0e0e] border border-[#1e1e1e] flex items-center justify-center text-[#505050] hover:text-[#3ecf8e] hover:border-[#3ecf8e]/30 transition-all mr-2"
+            title="Tela Cheia"
+          >
+            {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+          </button>
+          <div className="text-right">
+            <div className="text-3xl font-bold font-mono text-[#ededed] tabular-nums leading-none tracking-tighter">
+              {time.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+              <span className="text-lg text-[#404040] ml-0.5">{time.toLocaleTimeString("pt-BR", { second: "2-digit" })}</span>
+            </div>
+            <div className="text-[10px] text-[#505050] uppercase tracking-widest mt-1 font-medium">
+              {time.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
+            </div>
           </div>
         </div>
       </header>
