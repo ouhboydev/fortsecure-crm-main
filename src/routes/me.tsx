@@ -93,21 +93,22 @@ function MyPanel() {
       .filter(prod => prod.metadata?.goal_active)
       .map(prod => {
         const linked = opps.filter(o =>
-          o.metadata?.product_id === prod.id &&
+          (o as any).metadata?.product_id === prod.id &&
           o.stage === "ganho" &&
           o.closed_at &&
           qMonths.includes(new Date(o.closed_at).getMonth()) &&
           new Date(o.closed_at).getFullYear() === now.getFullYear()
         );
         const realized = linked.reduce((s: number, o: any) => s + Number(o.value), 0);
-        const goal = Number(prod.metadata?.goal ?? 0);
+        const sellerGoal = (prod as any).metadata?.seller_goals?.[user.id];
+        const goal = sellerGoal !== undefined && sellerGoal !== null ? Number(sellerGoal) : Number((prod as any).metadata?.goal ?? 0);
         const pct = goal > 0 ? Math.min(Math.round((realized / goal) * 100), 999) : 0;
         return {
           name: prod.name,
           realized,
           goal,
           pct,
-          color: prod.metadata?.color ?? "#3ecf8e",
+          color: (prod as any).metadata?.color ?? "#3ecf8e",
         };
       })
       .sort((a, b) => b.realized - a.realized);

@@ -105,7 +105,7 @@ function Dashboard() {
         supabase.from("goals").select("target_amount, user_id, month").in("month", goalMonths).eq("year", now.getFullYear()),
         supabase.from("meetings").select("id", { count: "exact", head: true }).gte("scheduled_at", firstDay).lte("scheduled_at", lastDay),
         supabase.from("app_settings").select("*").eq("key", "global_revenue_goal").single(),
-        supabase.from("activities").select("*, profiles(full_name)").in("type", ["reuniao", "visita"]).gte("due_date", firstDay).lte("due_date", lastDay).order("due_date", { ascending: false }).limit(50),
+        supabase.from("activities").select("*, profiles(full_name)").eq("type", "reuniao").gte("due_date", firstDay).lte("due_date", lastDay).order("due_date", { ascending: false }).limit(50),
         supabase.from("user_roles").select("user_id, role"),
         supabase.from("products").select("*"),
       ]);
@@ -212,10 +212,11 @@ function Dashboard() {
             qMonths.includes(new Date(o.closed_at).getMonth()) &&
             new Date(o.closed_at).getFullYear() === now.getFullYear()
           );
+          const sGoal = (selectedSeller !== "all" && prod.metadata?.seller_goals?.[selectedSeller]);
           return {
             name: prod.name,
             Receita: linked.reduce((s: number, o: any) => s + Number(o.value), 0),
-            Meta: prod.metadata?.goal ?? 0,
+            Meta: sGoal ? Number(sGoal) : (prod.metadata?.goal ?? 0),
             color: prod.metadata?.color ?? "#3ecf8e",
           };
         })

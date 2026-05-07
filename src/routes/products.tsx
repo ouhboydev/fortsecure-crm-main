@@ -8,10 +8,10 @@ import { toast } from "sonner";
 import {
   Package, Plus, Trash2, Edit3, Search, ShoppingBag,
   Loader2, Save, ArrowUpRight, Shield, RefreshCw,
-  BarChart3, Boxes, ShieldCheck, Target, ImagePlus, X, Check, Settings2, AlertTriangle, Pencil,
+  BarChart3, Boxes, ShieldCheck, Target, ImagePlus, X, Check, Settings2, AlertTriangle, Pencil, Users
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { cn, parseCurrency, formatCurrencyBRL } from "@/lib/utils";
+import { cn, parseCurrency, formatCurrencyBRL, formatDisplayName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,6 +64,7 @@ function Products() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [items, setItems] = useState<any[]>([]);
+  const [sellers, setSellers] = useState<any[]>([]);
   const [allCategories, setAllCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -76,12 +77,26 @@ function Products() {
   const [renamingCat, setRenamingCat] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  const blankForm = {
+  interface ProductForm {
+    name: string;
+    description: string;
+    category: string;
+    technical_notes: string;
+    color: string;
+    goal: string;
+    image: string;
+    new_category: string;
+    goal_active: boolean;
+    seller_goals: Record<string, number>;
+  }
+
+  const blankForm: ProductForm = {
     name: "", description: "", category: "Software",
     technical_notes: "", color: "#3ecf8e",
     goal: "", image: "", new_category: "", goal_active: false,
+    seller_goals: {},
   };
-  const [form, setForm] = useState(blankForm);
+  const [form, setForm] = useState<ProductForm>(blankForm);
 
   async function load() {
     setLoading(true);
@@ -92,8 +107,16 @@ function Products() {
       setItems(prods);
       // Collect custom categories
       const cats = new Set<string>(DEFAULT_CATEGORIES);
-      prods.forEach(p => { if (p.metadata?.category) cats.add(p.metadata.category); });
-      setAllCategories(Array.from(cats));
+      prods.forEach(p => { if ((p as any).metadata?.category) cats.add((p as any).metadata.category); });
+      const { data: profs } = await supabase.from("profiles").select("id, full_name").order("full_name");
+      const { data: roles } = await supabase.from("user_roles").select("user_id, role");
+      
+      const sellersOnly = (profs || []).filter(p => {
+        const r = roles?.find(r => r.user_id === p.id);
+        // Exclude managers and admins
+        return !r || (r.role !== "manager" && r.role !== "admin" && r.role !== "gestor");
+      });
+      setSellers(sellersOnly);
     } catch { toast.error("Erro ao carregar produtos"); }
     finally { setLoading(false); }
   }
@@ -129,7 +152,8 @@ function Products() {
           goal: form.goal ? parseCurrency(form.goal) : null,
           goal_active: form.goal_active,
           image: form.image || undefined,
-        },
+          seller_goals: form.seller_goals,
+        } as any,
       };
 
       if (editingId) {
@@ -161,7 +185,7 @@ function Products() {
     if (DEFAULT_CATEGORIES.includes(cat)) {
       toast.error("Categorias padrão não podem ser excluídas."); return;
     }
-    const affected = items.filter(p => p.metadata?.category === cat);
+    const affected = items.filter(p => (p as any).metadata?.category === cat);
     if (affected.length > 0) {
       const ok = confirm(`Excluir a categoria "${cat}"?\n\n${affected.length} produto(s) serão movidos para "Geral".`);
       if (!ok) return;
@@ -169,7 +193,7 @@ function Products() {
     // Bulk-update affected products
     for (const p of affected) {
       await supabase.from("products").update({
-        metadata: { ...p.metadata, category: "Geral" }
+        metadata: { ...(p as any).metadata, category: "Geral" }
       }).eq("id", p.id);
     }
     if (filterCat === cat) setFilterCat("Todos");
@@ -183,10 +207,10 @@ function Products() {
     if (allCategories.includes(trimmed)) {
       toast.error(`A categoria "${trimmed}" já existe.`); return;
     }
-    const affected = items.filter(p => p.metadata?.category === oldCat);
+    const affected = items.filter(p => (p as any).metadata?.category === oldCat);
     for (const p of affected) {
       await supabase.from("products").update({
-        metadata: { ...p.metadata, category: trimmed }
+        metadata: { ...(p as any).metadata, category: trimmed }
       }).eq("id", p.id);
     }
     if (filterCat === oldCat) setFilterCat(trimmed);
@@ -197,16 +221,17 @@ function Products() {
 
   function openEdit(p: any) {
     setEditingId(p.id);
-    setImagePreview(p.metadata?.image || "");
+    setImagePreview((p as any).metadata?.image || "");
     setForm({
       name: p.name, description: p.description || "",
-      category: p.metadata?.category || "Software",
-      technical_notes: p.metadata?.technical_notes || "",
-      color: p.metadata?.color || "#3ecf8e",
-      goal: p.metadata?.goal ? formatCurrencyBRL(p.metadata.goal) : "",
-      goal_active: p.metadata?.goal_active || false,
-      image: p.metadata?.image || "",
+      category: (p as any).metadata?.category || "Software",
+      technical_notes: (p as any).metadata?.technical_notes || "",
+      color: (p as any).metadata?.color || "#3ecf8e",
+      goal: (p as any).metadata?.goal ? formatCurrencyBRL((p as any).metadata.goal) : "",
+      goal_active: (p as any).metadata?.goal_active || false,
+      image: (p as any).metadata?.image || "",
       new_category: "",
+      seller_goals: (p as any).metadata?.seller_goals || {},
     });
     setIsModalOpen(true);
   }
@@ -576,6 +601,39 @@ function Products() {
               <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                 <div className="h-3 w-3 rounded-full" style={{ backgroundColor: form.color }} />
                 Esta cor aparecerá no gráfico de receita por produto no Dashboard.
+              </div>
+            </div>
+
+             {/* Seller Goals */}
+            <div className="space-y-3 p-4 bg-secondary/20 border border-border rounded-lg">
+              <div className="flex items-center gap-2 mb-1">
+                <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                <Label className="text-xs font-semibold text-foreground">Metas por Vendedor</Label>
+              </div>
+              <p className="text-[10px] text-muted-foreground mb-3 leading-relaxed">
+                Defina metas individuais para este produto. Se deixado em branco, o vendedor não terá meta específica para este produto.
+              </p>
+              <div className="space-y-2.5 max-h-[200px] overflow-y-auto pr-2 no-scrollbar">
+                {sellers.map(s => (
+                  <div key={s.id} className="flex items-center gap-3">
+                    <span className="text-[11px] font-medium text-foreground flex-1 truncate">{formatDisplayName(s.full_name)}</span>
+                    <div className="relative w-32">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground font-mono">R$</span>
+                      <Input
+                        placeholder="0,00"
+                        value={form.seller_goals[s.id] ? formatCurrencyBRL(form.seller_goals[s.id]) : ""}
+                        onChange={e => {
+                          const val = parseCurrency(e.target.value);
+                          setForm(f => ({
+                            ...f,
+                            seller_goals: { ...f.seller_goals, [s.id]: val }
+                          }));
+                        }}
+                        className="h-7 pl-7 bg-background border-border text-[10px] font-mono"
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
