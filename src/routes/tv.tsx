@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import logo from "../public/logo.png";
 
 export const Route = createFileRoute("/tv")({
-  head: () => ({ meta: [{ title: "War Room — FortSecure" }] }),
+  head: () => ({ meta: [{ title: "TV — FortSecure" }] }),
   component: TV,
 });
 
@@ -126,7 +126,7 @@ function TV() {
         <motion.div animate={{ scale: [1, 1.12, 1] }} transition={{ repeat: Infinity, duration: 1.4 }}>
           <Zap className="h-14 w-14 text-[#3ecf8e]" />
         </motion.div>
-        <p className="text-xs font-medium text-[#a3a3a3] uppercase tracking-widest">Inicializando War Room...</p>
+        <p className="text-xs font-medium text-[#a3a3a3] uppercase tracking-widest">Inicializando aplicação...</p>
       </div>
     </div>
   );
@@ -155,7 +155,7 @@ function TV() {
             <img src={logo} alt="FortSecure" className="h-5 w-5 object-contain" />
           </div>
           <div>
-            <div className="text-base font-bold text-[#ededed] tracking-tight">FortSecure <span className="text-[#3ecf8e]">War Room</span></div>
+            <div className="text-base font-bold text-[#ededed] tracking-tight">FortSecure <span className="text-[#3ecf8e]"></span></div>
             <div className="flex items-center gap-2 mt-0.5">
               <span className="h-1.5 w-1.5 rounded-full bg-[#3ecf8e] animate-pulse" />
               <span className="text-[10px] text-[#737373] uppercase tracking-widest font-medium">Live · {q} {new Date().getFullYear()}</span>
