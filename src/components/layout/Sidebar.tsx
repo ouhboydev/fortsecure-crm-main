@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Trophy, Briefcase,
   Tv, Brain, Settings, LogOut, Activity, User as UserIcon, Kanban,
   TrendingUp, ListTodo, UserCircle, PhoneCall, Package,
-  BarChart, Building2, ChevronDown, Search
+  BarChart, Target, ChevronDown, Search
 } from "lucide-react";
 import { cn, formatDisplayName } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -54,7 +54,7 @@ const nav: NavGroup[] = [
       { to: "/performance", label: "Performance", icon: BarChart },
       { to: "/executive", label: "Executivo", icon: TrendingUp, manager: true },
       { to: "/sellers", label: "Vendedores", icon: Users, manager: true },
-      { to: "/hq", label: "Comando HQ", icon: Building2, manager: true },
+      { to: "/hq", label: "Metas", icon: Target, manager: true },
     ]
   },
   {

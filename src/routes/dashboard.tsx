@@ -4,12 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   TrendingUp, DollarSign, Activity, Users as UsersIcon,
   RefreshCw, PhoneCall, PieChart as PieChartIcon,
-  Calendar, User, Target, ArrowUpRight, MapPin, Users
+  Calendar, User, Target, ArrowUpRight, Clock, MapPin, Users
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar, Cell, PieChart,
-  Pie, RadialBarChart, RadialBar
+  ResponsiveContainer, BarChart, Bar, Cell,
+  RadialBarChart, RadialBar
 } from "recharts";
 import { cn, formatDisplayName } from "@/lib/utils";
 import { toast } from "sonner";
@@ -27,18 +27,18 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 const STAGE_COLORS: Record<string, string> = {
-  prospect:   "#71717a",
-  qualificado:"#3ecf8e",
-  proposta:   "#1eaedb",
+  prospect: "#71717a",
+  qualificado: "#3ecf8e",
+  proposta: "#1eaedb",
   negociacao: "#f59e0b",
-  ganho:      "#3ecf8e",
+  ganho: "#3ecf8e",
 };
 const STAGES = [
-  { key: "prospect",    label: "Prospect",    color: "#71717a" },
+  { key: "prospect", label: "Prospect", color: "#71717a" },
   { key: "qualificado", label: "Qualificado", color: "#3ecf8e" },
-  { key: "proposta",    label: "Proposta",    color: "#1eaedb" },
-  { key: "negociacao",  label: "Negociação",  color: "#f59e0b" },
-  { key: "ganho",       label: "Fechado",     color: "#3ecf8e" },
+  { key: "proposta", label: "Proposta", color: "#1eaedb" },
+  { key: "negociacao", label: "Negociação", color: "#f59e0b" },
+  { key: "ganho", label: "Fechado", color: "#3ecf8e" },
 ];
 
 const TOOLTIP_STYLE = {
@@ -55,17 +55,24 @@ function Dashboard() {
   const [metrics, setMetrics] = useState<any>(null);
   const [funnelData, setFunnelData] = useState<any[]>([]);
   const [sellerData, setSellerData] = useState<any[]>([]);
-  const [stageData, setStageData] = useState<any[]>([]);
   const [trendData, setTrendData] = useState<any[]>([]);
   const [productData, setProductData] = useState<any[]>([]);
   const [meetingCount, setMeetingCount] = useState(0);
   const [conversionRate, setConversionRate] = useState(0);
   const [selectedSeller, setSelectedSeller] = useState("all");
   const [sellers, setSellers] = useState<any[]>([]);
-  // Quarter helper: Q1=0,Q2=1,Q3=2,Q4=3 (index)
-  const getQuarterIndex = (month: number) => Math.floor(month / 3); // month 0-11
-  const [selectedPeriod, setSelectedPeriod] = useState(getQuarterIndex(new Date().getMonth()).toString());
   const [fieldActivities, setFieldActivities] = useState<any[]>([]);
+  const getQuarterIndex = (month: number) => Math.floor(month / 3);
+  const [selectedPeriod, setSelectedPeriod] = useState(getQuarterIndex(new Date().getMonth()).toString());
+
+  // Quarter countdown (days until end of current quarter)
+  const daysUntilEndOfQuarter = (() => {
+    const now = new Date();
+    const q = getQuarterIndex(now.getMonth());
+    const endMonth = q * 3 + 2;
+    const endOfQ = new Date(now.getFullYear(), endMonth + 1, 0);
+    return Math.ceil((endOfQ.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  })();
 
   // Quarter → 3 months (0-indexed)
   const QUARTER_MONTHS: Record<string, number[]> = {
@@ -92,17 +99,20 @@ function Dashboard() {
 
       const [oppsRes, profilesRes, goalsRes, meetingsRes, settingsRes, activitiesRes, prodsRes] = await Promise.all([
         supabase.from("opportunities").select("*"),
-        supabase.from("profiles").select("id, full_name"),
+        supabase.from("profiles").select("id, full_name, role"),
         supabase.from("goals").select("target_amount, user_id, month").in("month", goalMonths).eq("year", now.getFullYear()),
         supabase.from("meetings").select("id", { count: "exact", head: true }).gte("scheduled_at", firstDay).lte("scheduled_at", lastDay),
         supabase.from("app_settings").select("*").eq("key", "global_revenue_goal").single(),
-        supabase.from("activities").select("*, profiles(full_name)").in("type", ["reuniao"]).gte("due_date", firstDay).lte("due_date", lastDay).order("due_date", { ascending: false }),
+        supabase.from("activities").select("id, title, due_date, owner_id, metadata, profiles(full_name)").in("type", ["reuniao"]).gte("due_date", firstDay).lte("due_date", lastDay).order("due_date", { ascending: false }).limit(30),
         supabase.from("products").select("id, name, metadata"),
       ]);
 
       if (oppsRes.error) throw oppsRes.error;
 
-      setSellers(profilesRes.data || []);
+      setSellers((profilesRes.data || []).filter((p: any) => {
+        // Exclude managers/admins from the seller filter list
+        return p.role !== 'manager' && p.role !== 'admin';
+      }));
 
       let opps = oppsRes.data || [];
       if (selectedSeller !== "all") {
@@ -129,8 +139,8 @@ function Dashboard() {
       setMetrics({ revenue, pipelineValue, pipelineCount, weighted, goal: realMeta, attainment: Math.round((revenue / realMeta) * 100) });
       setMeetingCount(meetingsRes.count || 0);
 
-      // Field activities (reuniões & visitas from tracker)
-      const acts = (activitiesRes.data || []);
+      // Field activities (reuniões & visitas do tracker)
+      const acts = activitiesRes.data || [];
       const filteredActs = selectedSeller !== "all" ? acts.filter((a: any) => a.owner_id === selectedSeller) : acts;
       setFieldActivities(filteredActs);
 
@@ -145,17 +155,15 @@ function Dashboard() {
         color: s.color,
       })));
 
-      const sData = (profilesRes.data || []).map(p => ({
-        name: formatDisplayName(p.full_name || "").split(" ")[0],
-        value: (oppsRes.data || []).filter(o => o.owner_id === p.id && o.stage === "ganho").reduce((s, o) => s + Number(o.value), 0),
-      })).sort((a, b) => b.value - a.value).slice(0, 5);
+      // Ranking: exclude managers/admins
+      const sData = (profilesRes.data || [])
+        .filter((p: any) => p.role !== 'manager' && p.role !== 'admin')
+        .map(p => ({
+          name: formatDisplayName(p.full_name || "").split(" ")[0],
+          value: (oppsRes.data || []).filter(o => o.owner_id === p.id && o.stage === "ganho").reduce((s, o) => s + Number(o.value), 0),
+        })).sort((a, b) => b.value - a.value).slice(0, 5);
       setSellerData(sData);
 
-      setStageData(STAGES.map(s => ({
-        name: s.label,
-        value: opps.filter(o => o.stage === s.key).length,
-        color: s.color,
-      })));
 
       // Quarter trend: show the 3 months of the selected quarter
       const monthlyHqGoal = settingsRes.data?.value ? Number(settingsRes.data.value) : 2000000;
@@ -259,50 +267,84 @@ function Dashboard() {
       </div>
 
       {/* ── KPI Row ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <DashKpi label="Receita (Real)" value={formatCurrency(metrics.revenue)} hint={`Meta: ${formatCurrency(metrics.goal)}`} icon={<DollarSign className="h-4 w-4" />} trend={metrics.attainment} accent featured />
-        <DashKpi label="Forecast Ponderado" value={formatCurrency(metrics.weighted)} hint="Pipeline probabilístico" icon={<Activity className="h-4 w-4" />} />
-        <DashKpi label="Oportunidades" value={metrics.pipelineCount} hint={formatCurrency(metrics.pipelineValue)} icon={<TrendingUp className="h-4 w-4" />} />
-        <DashKpi label="Reuniões" value={meetingCount + fieldActivities.filter((a: any) => a.metadata?.log_subtype === 'meeting').length} hint="Calendário + Tracker" icon={<PhoneCall className="h-4 w-4" />} />
-        <DashKpi label="Visitas" value={fieldActivities.filter((a: any) => a.metadata?.log_subtype === 'visit').length} hint="Registradas no Tracker" icon={<MapPin className="h-4 w-4" />} />
+        <DashKpi label="Forecast" value={metrics.pipelineCount} hint={formatCurrency(metrics.pipelineValue)} icon={<TrendingUp className="h-4 w-4" />} />
+        <DashKpi label="Reuniões" value={meetingCount} hint="Agendadas no período" icon={<PhoneCall className="h-4 w-4" />} />
         <DashKpi label="Conversão" value={`${conversionRate.toFixed(1)}%`} hint="Proposta → Fechado" icon={<PieChartIcon className="h-4 w-4" />} />
+        {!canFilter && (
+          <div className="bg-[#3ecf8e]/5 border border-[#3ecf8e]/20 rounded-lg p-4 flex flex-col justify-center">
+            <div className="flex items-center gap-2 mb-1">
+              <Clock className="h-3.5 w-3.5 text-[#3ecf8e]" />
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Fim do Trimestre</p>
+            </div>
+            <p className="text-xl font-bold font-mono text-[#3ecf8e]">{daysUntilEndOfQuarter}d</p>
+            <p className="text-[10px] text-muted-foreground mt-1">{QUARTER_LABELS[parseInt(selectedPeriod)]} · {daysUntilEndOfQuarter === 1 ? 'último dia' : `${daysUntilEndOfQuarter} dias restantes`}</p>
+          </div>
+        )}
+        {canFilter && (
+          <DashKpi label="Pipeline Total" value={formatCurrency(metrics.pipelineValue)} hint={`${metrics.pipelineCount} oportunidades`} icon={<Activity className="h-4 w-4" />} />
+        )}
       </div>
 
       {/* ── Charts Row ── */}
       <div className="grid lg:grid-cols-3 gap-5">
         {/* Quarterly area chart — FEATURED: grid no header, limpo no chart */}
-        <WidgetCard featured gridFade={0.3} className="lg:col-span-2 bg-card border border-border rounded-lg">
+        <WidgetCard featured gridFade={0.3} className="lg:col-span-2 bg-card border border-border rounded-lg overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <div>
-              <h2 className="text-sm font-medium text-foreground">Evolução — {QUARTER_LABELS[parseInt(selectedPeriod)]}</h2>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{["Jan · Fev · Mar","Abr · Mai · Jun","Jul · Ago · Set","Out · Nov · Dez"][parseInt(selectedPeriod)]}</p>
+              <h2 className="text-sm font-medium text-foreground">Atividades do Time</h2>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Reuniões e visitas registradas no período</p>
             </div>
-            <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-              <span className="flex items-center gap-1.5"><span className="h-1.5 w-4 rounded-full bg-[#3ecf8e] inline-block" />Realizado</span>
-              <span className="flex items-center gap-1.5"><span className="h-px w-4 border-t-2 border-dashed border-[#1eaedb] inline-block" />Empresa</span>
-              {selectedSeller !== "all" && <span className="flex items-center gap-1.5"><span className="h-px w-4 border-t-2 border-dashed border-[#f59e0b] inline-block" />Pessoal</span>}
-            </div>
+            <span className="text-[10px] font-mono text-muted-foreground bg-secondary border border-border rounded px-2 py-1">
+              {fieldActivities.length} atividade{fieldActivities.length !== 1 ? "s" : ""}
+            </span>
           </div>
-          <div className="p-5 h-[280px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData}>
-                <defs>
-                  <linearGradient id="colorReal" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3ecf8e" stopOpacity={0.12} />
-                    <stop offset="95%" stopColor="#3ecf8e" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.04)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#a3a3a3", fontSize: 11 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#a3a3a3", fontSize: 11 }} tickFormatter={v => `R$${v / 1000}k`} width={52} />
-                <Tooltip {...TOOLTIP_STYLE} formatter={(v: any) => formatCurrency(Number(v))} />
-                <Area type="monotone" dataKey="Realizado" stroke="#3ecf8e" strokeWidth={2} fillOpacity={1} fill="url(#colorReal)" />
-                <Area type="monotone" dataKey="Meta Empresa" stroke="#1eaedb" strokeWidth={1.5} strokeDasharray="5 4" fill="none" />
-                {selectedSeller !== "all" && (
-                  <Area type="monotone" dataKey="Meta Pessoal" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="3 3" fill="none" />
-                )}
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="divide-y divide-border overflow-y-auto h-[280px]">
+            {fieldActivities.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full gap-2">
+                <MapPin className="h-6 w-6 text-muted-foreground/30" />
+                <p className="text-xs text-muted-foreground">Nenhuma atividade no período</p>
+              </div>
+            ) : (
+              fieldActivities.map((a: any) => {
+                const isVisit = a.metadata?.log_subtype === "visit";
+                const sellerName = a.profiles?.full_name
+                  ? formatDisplayName(a.profiles.full_name).split(" ").slice(0, 2).join(" ")
+                  : "Vendedor";
+                const date = new Date(a.due_date);
+                return (
+                  <div key={a.id} className="flex items-center gap-3 px-5 py-3 hover:bg-secondary/20 transition-colors">
+                    <div className={cn(
+                      "h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
+                      isVisit ? "bg-[#1eaedb]/10 text-[#1eaedb]" : "bg-[#f59e0b]/10 text-[#f59e0b]"
+                    )}>
+                      {isVisit ? <MapPin className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">
+                        {a.title?.split(": ")[1] || a.title}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{sellerName}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-[10px] font-medium text-foreground">
+                        {date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+                      </p>
+                      <p className="text-[9px] text-muted-foreground">
+                        {date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                    <span className={cn(
+                      "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0",
+                      isVisit ? "bg-[#1eaedb]/10 text-[#1eaedb]" : "bg-[#f59e0b]/10 text-[#f59e0b]"
+                    )}>
+                      {isVisit ? "Visita" : "Reunião"}
+                    </span>
+                  </div>
+                );
+              })
+            )}
           </div>
         </WidgetCard>
 
@@ -490,39 +532,9 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* Donut chart */}
-        <div className="bg-card border border-border rounded-lg overflow-hidden">
-          <div className="px-5 py-4 border-b border-border">
-            <h2 className="text-sm font-medium text-foreground">Distribuição de Deals</h2>
-          </div>
-          <div className="p-2 h-[180px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={stageData} innerRadius={52} outerRadius={72} paddingAngle={3} dataKey="value">
-                  {stageData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#171717", border: "1px solid #2e2e2e", borderRadius: "8px", fontSize: "12px" }}
-                  itemStyle={{ color: "#ededed" }}
-                  labelStyle={{ color: "#ededed" }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="px-4 pb-4 grid grid-cols-2 gap-1">
-            {stageData.slice(0, 4).map(s => (
-              <div key={s.name} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                {s.name}
-              </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Attainment radial */}
-        <div className="bg-card border border-border rounded-lg overflow-hidden">
+        {/* Attainment radial — span 2 */}
+        <div className="bg-card border border-border rounded-lg overflow-hidden lg:col-span-2">
           <div className="px-5 py-4 border-b border-border">
             <h2 className="text-sm font-medium text-foreground">Atingimento Global</h2>
           </div>
@@ -545,50 +557,6 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* Field Activities — Atividades de Campo */}
-        <div className="bg-card border border-border rounded-lg overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-            <h2 className="text-sm font-medium text-foreground">Atividades de Campo</h2>
-            <span className="text-[10px] text-muted-foreground font-mono">{fieldActivities.length} no período</span>
-          </div>
-          <div className="p-4 space-y-2 overflow-y-auto max-h-[230px]">
-            {fieldActivities.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-6">Nenhuma atividade registrada.</p>
-            ) : (
-              fieldActivities.map((a: any) => {
-                const isVisit = a.metadata?.log_subtype === 'visit';
-                const sellerName = a.profiles?.full_name
-                  ? a.profiles.full_name.split(' ').slice(0, 2).join(' ')
-                  : 'Vendedor';
-                return (
-                  <div key={a.id} className="flex items-center gap-3 p-2.5 rounded-md bg-secondary/40 border border-border/40">
-                    <div className={cn(
-                      "h-7 w-7 rounded flex items-center justify-center shrink-0",
-                      isVisit ? "bg-[#1eaedb]/10 text-[#1eaedb]" : "bg-[#f59e0b]/10 text-[#f59e0b]"
-                    )}>
-                      {isVisit ? <MapPin className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-foreground truncate">{a.title.split(': ')[1] || a.title}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] text-muted-foreground">{sellerName}</span>
-                        <span className="text-[10px] text-muted-foreground">·</span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {new Date(a.due_date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                          {' '}{new Date(a.due_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                    </div>
-                    <span className={cn(
-                      "text-[9px] font-semibold uppercase tracking-wider shrink-0",
-                      isVisit ? "text-[#1eaedb]" : "text-[#f59e0b]"
-                    )}>{isVisit ? 'Visita' : 'Reunião'}</span>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
 
         {/* System status */}
         <div className="bg-card border border-border rounded-lg overflow-hidden">

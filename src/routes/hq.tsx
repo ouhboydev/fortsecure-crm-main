@@ -1,419 +1,417 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/layout/AppShell";
-import { PageHeader, formatCurrency, Section } from "@/components/ui-kit/PageHeader";
+import { PageHeader, formatCurrency } from "@/components/ui-kit/PageHeader";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { 
-  Building2, Percent, Target, Zap, 
-  Loader2, BarChart3, 
-  Landmark, ChevronRight, 
-  Users, Package, Calendar,
-  TrendingUp, Edit3
+import {
+  Target, Users, Package, Loader2, Save,
+  Shield, ArrowUpRight, Check, AlertTriangle, TrendingUp,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { STAGES } from "@/lib/sales";
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, 
-  Tooltip, ResponsiveContainer, Legend,
-  Area, AreaChart
-} from "recharts";
-
-// Shadcn UI Imports
+import { cn, parseCurrency, formatCurrencyBRL } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 
 export const Route = createFileRoute("/hq")({
-  head: () => ({ meta: [{ title: "Comando Superior (HQ) — FortSecure" }] }),
-  component: () => <AppShell><HQ /></AppShell>,
+  head: () => ({ meta: [{ title: "Metas — FortSecure" }] }),
+  component: () => <AppShell><Goals /></AppShell>,
 });
 
-function HQ() {
-  const { isManager, isAdmin, user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  
-  // Data States
-  const [profiles, setProfiles] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [sellerGoals, setSellerGoals] = useState<Record<string, number>>({});
-  const [productGoals, setProductGoals] = useState<Record<string, number>>({});
-  const [probabilities, setProbabilities] = useState<Record<string, number>>({});
-  const [configs, setConfigs] = useState<Record<string, any>>({
-    commission_rate: 15,
-    tax_rate: 18,
-    global_revenue_goal: 2000000,
-    currency: "BRL"
-  });
+// ─── Radial progress helper ─────────────────────────────────────────────────
+function RadialProgress({ pct, color, size = 80 }: { pct: number; color: string; size?: number }) {
+  const r = (size - 12) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (Math.min(pct, 100) / 100) * circ;
+  return (
+    <svg width={size} height={size} className="-rotate-90">
+      <circle cx={size / 2} cy={size / 2} r={r} strokeWidth={6} stroke="#262626" fill="none" />
+      <circle
+        cx={size / 2} cy={size / 2} r={r} strokeWidth={6}
+        stroke={color} fill="none" strokeLinecap="round"
+        strokeDasharray={circ} strokeDashoffset={offset}
+        className="transition-all duration-700"
+      />
+    </svg>
+  );
+}
 
-  const [quarterlyData, setQuarterlyData] = useState<any[]>([]);
+// ─── Main Component ──────────────────────────────────────────────────────────
+function Goals() {
+  const { isManager, isAdmin } = useAuth();
+  const nav = useNavigate();
+  const canManage = isManager || isAdmin;
+
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  // Global goal (monthly, saved in app_settings)
+  const [globalGoal, setGlobalGoal] = useState("");
+  const [savedGlobalGoal, setSavedGlobalGoal] = useState(0);
+
+  // Seller goals
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [sellerGoals, setSellerGoals] = useState<Record<string, string>>({});
+  const [savedSellerGoals, setSavedSellerGoals] = useState<Record<string, number>>({});
+
+  // Product goals (read-only panel — edit in Produtos)
+  const [products, setProducts] = useState<any[]>([]);
+
+  // Revenue actuals (current quarter)
+  const [revenue, setRevenue] = useState(0);
+  const [sellerRevenue, setSellerRevenue] = useState<Record<string, number>>({});
 
   const now = new Date();
-  const currentMonth = now.getMonth() + 1;
-  const currentYear = now.getFullYear();
+  const quarter = Math.floor(now.getMonth() / 3);
+  const qMonths = [quarter * 3, quarter * 3 + 1, quarter * 3 + 2];
+  const QUARTER_LABELS = ["Q1", "Q2", "Q3", "Q4"];
+  const qLabel = QUARTER_LABELS[quarter];
 
-  async function loadData() {
-    if (!isManager && !isAdmin) return;
+  async function load() {
     setLoading(true);
     try {
-      const [
-        profilesRes, 
-        productsRes, 
-        sellerGoalsRes, 
-        settingsRes,
-        oppsRes,
-        allGoalsRes
-      ] = await Promise.all([
+      const [profilesRes, settingsRes, goalsRes, oppsRes, prodsRes] = await Promise.all([
         supabase.from("profiles").select("id, full_name, avatar_url").order("full_name"),
-        supabase.from("products").select("id, name, price"),
-        supabase.from("goals").select("*").eq("month", currentMonth).eq("year", currentYear),
-        supabase.from("app_settings").select("*"),
-        supabase.from("opportunities").select("*"),
-        supabase.from("goals").select("*")
+        supabase.from("app_settings").select("key, value"),
+        supabase.from("goals").select("*").eq("year", now.getFullYear()),
+        supabase.from("opportunities").select("owner_id, value, stage, closed_at").eq("stage", "ganho"),
+        supabase.from("products").select("id, name, metadata").order("name"),
       ]);
 
       if (profilesRes.data) setProfiles(profilesRes.data);
-      if (productsRes.data) setProducts(productsRes.data);
-      
-      const sGoals: Record<string, number> = {};
-      sellerGoalsRes.data?.forEach(g => { sGoals[g.user_id] = Number(g.target_amount); });
-      setSellerGoals(sGoals);
+      if (prodsRes.data) setProducts(prodsRes.data);
 
-      const map = { ...configs };
-      settingsRes.data?.forEach(s => {
-        if (s.key === "product_goals") setProductGoals(s.value as Record<string, number>);
-        else if (s.key === "forecast_probabilities") setProbabilities(s.value as Record<string, number>);
-        else map[s.key] = s.value;
+      // Global goal from app_settings
+      const globalSetting = settingsRes.data?.find(s => s.key === "global_revenue_goal");
+      const gVal = globalSetting ? Number(globalSetting.value) : 0;
+      setSavedGlobalGoal(gVal);
+      setGlobalGoal(gVal ? formatCurrencyBRL(gVal) : "");
+
+      // Per-seller goals from goals table (current year, any month)
+      const sGoalMap: Record<string, number> = {};
+      goalsRes.data?.forEach(g => {
+        if (g.user_id) {
+          sGoalMap[g.user_id] = (sGoalMap[g.user_id] || 0) + Number(g.target_amount);
+        }
       });
-      setConfigs(map);
+      setSavedSellerGoals(sGoalMap);
+      const sGoalStr: Record<string, string> = {};
+      Object.entries(sGoalMap).forEach(([k, v]) => { sGoalStr[k] = formatCurrencyBRL(v); });
+      setSellerGoals(sGoalStr);
 
-      if (!probabilities || Object.keys(probabilities).length === 0) {
-        setProbabilities({ prospect: 20, qualificado: 40, proposta: 60, negociacao: 80, ganho: 100, perdido: 0 });
-      }
-
-      // Calculate Quarterly Data — one entry per Q1/Q2/Q3/Q4
-      const quarterDefs = [
-        { label: "Q1", months: [1, 2, 3] },
-        { label: "Q2", months: [4, 5, 6] },
-        { label: "Q3", months: [7, 8, 9] },
-        { label: "Q4", months: [10, 11, 12] },
-      ];
-
-      const qData = quarterDefs.map(q => {
-        const monthGoals = allGoalsRes.data?.filter(g => q.months.includes(g.month) && g.year === now.getFullYear()) ?? [];
-        const totalMonthGoal = monthGoals.reduce((sum, g) => sum + Number(g.target_amount), 0);
-        const monthlyHqGoal = Number(map.global_revenue_goal) || 2000000;
-        const finalGoal = totalMonthGoal > 0 ? totalMonthGoal : monthlyHqGoal * 3;
-
-        let revenue = 0;
-        let weighted = 0;
-
-        (oppsRes.data ?? []).forEach(o => {
-          if (o.stage === 'ganho' && o.closed_at) {
-            const closedDate = new Date(o.closed_at);
-            const m = closedDate.getMonth() + 1;
-            const y = closedDate.getFullYear();
-            if (q.months.includes(m) && y === now.getFullYear()) {
-              revenue += Number(o.value);
-            }
-          } else if (o.stage !== 'perdido' && o.expected_close_date) {
-            const expectedDate = new Date(o.expected_close_date);
-            const m = expectedDate.getUTCMonth() + 1;
-            const y = expectedDate.getUTCFullYear();
-            if (q.months.includes(m) && y === now.getFullYear()) {
-              weighted += (Number(o.value) * (o.probability || 0)) / 100;
-            }
-          }
-        });
-
-        return {
-          name: q.label,
-          revenue: revenue + weighted,
-          goal: finalGoal,
-          actualRevenue: revenue,
-          projected: weighted
-        };
+      // Revenue actuals for current quarter
+      let totalRevenue = 0;
+      const sRev: Record<string, number> = {};
+      (oppsRes.data ?? []).forEach(o => {
+        if (!o.closed_at) return;
+        const m = new Date(o.closed_at).getMonth();
+        if (!qMonths.includes(m)) return;
+        const val = Number(o.value);
+        totalRevenue += val;
+        sRev[o.owner_id] = (sRev[o.owner_id] || 0) + val;
       });
-
-      setQuarterlyData(qData);
-    } catch (e: any) {
-      toast.error("Erro ao carregar inteligência estratégica");
+      setRevenue(totalRevenue);
+      setSellerRevenue(sRev);
+    } catch {
+      toast.error("Erro ao carregar metas");
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { loadData(); }, [isManager, isAdmin]);
+  useEffect(() => { load(); }, []);
 
-  async function saveConfig(key: string, value: any) {
-    setBusy(true);
+  async function saveGlobalGoal() {
+    const val = parseCurrency(globalGoal);
+    if (!val) { toast.error("Informe um valor válido"); return; }
+    setBusy("global");
     try {
-      const { error } = await supabase.from("app_settings").upsert({ key, value }, { onConflict: 'key' });
-      if (error) throw error;
-      toast.success(`Configuração [${key}] sincronizada`);
-      loadData();
-    } catch (e: any) {
-      toast.error("Falha na persistência: " + e.message);
-    } finally {
-      setBusy(false);
-    }
+      await supabase.from("app_settings").upsert({ key: "global_revenue_goal", value: val }, { onConflict: "key" });
+      setSavedGlobalGoal(val);
+      setGlobalGoal(formatCurrencyBRL(val));
+      toast.success("Meta global salva!");
+    } catch { toast.error("Erro ao salvar"); }
+    finally { setBusy(null); }
   }
 
-  async function saveSellerGoal(userId: string, amount: number) {
+  async function saveSellerGoal(userId: string) {
+    const val = parseCurrency(sellerGoals[userId] || "0");
+    setBusy(userId);
     try {
-      const { error } = await supabase.from("goals").upsert({
+      // Upsert a yearly goal row (month=0 = annual)
+      await supabase.from("goals").upsert({
         user_id: userId,
-        month: currentMonth,
-        year: currentYear,
-        target_amount: amount
+        target_amount: val,
+        month: 0,
+        year: now.getFullYear(),
       }, { onConflict: "user_id,month,year" });
-      if (error) throw error;
-      setSellerGoals(prev => ({ ...prev, [userId]: amount }));
-      toast.success("Meta individual atualizada");
-      loadData();
-    } catch (e: any) {
-      toast.error("Erro ao salvar meta");
-    }
+      setSavedSellerGoals(prev => ({ ...prev, [userId]: val }));
+      setSellerGoals(prev => ({ ...prev, [userId]: formatCurrencyBRL(val) }));
+      toast.success("Meta do vendedor salva!");
+    } catch { toast.error("Erro ao salvar"); }
+    finally { setBusy(null); }
   }
 
-  async function saveProductGoal(productId: string, amount: number) {
-    const updated = { ...productGoals, [productId]: amount };
-    setProductGoals(updated);
-    await saveConfig("product_goals", updated);
-  }
-
-  if (!isManager && !isAdmin) return null;
-
-  if (loading) return (
-    <div className="h-screen flex flex-col items-center justify-center gap-4">
-       <Loader2 className="h-6 w-6 text-[#3ecf8e] animate-spin" />
-       <p className="text-xs text-muted-foreground uppercase tracking-widest">Sincronizando Comando HQ...</p>
+  if (!canManage) return (
+    <div className="h-[80vh] flex flex-col items-center justify-center gap-3">
+      <div className="h-12 w-12 rounded-xl bg-destructive/10 flex items-center justify-center">
+        <Shield className="h-6 w-6 text-destructive/40" />
+      </div>
+      <p className="text-xs text-muted-foreground font-medium">Acesso restrito a gestores</p>
     </div>
   );
 
+  const globalAttainment = savedGlobalGoal > 0 ? Math.round((revenue / (savedGlobalGoal * 3)) * 100) : 0;
+
   return (
-    <div className="flex flex-col gap-8 p-6 lg:p-8 max-w-[1600px] mx-auto pb-20">
-      <PageHeader 
-        title="Comando HQ" 
-        subtitle="Gestão centralizada de metas, probabilidades e ajustes financeiros."
-        actions={
-          <div className="flex items-center gap-4 bg-card border border-border p-2 pr-4 rounded-md">
-            <div className="flex flex-col items-end">
-               <span className="text-[10px] text-muted-foreground uppercase font-medium">Meta Global Q{Math.ceil(currentMonth / 3)}/{currentYear}</span>
-               <span className="text-sm font-semibold">{formatCurrency(configs.global_revenue_goal)}</span>
-            </div>
-            <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-accent" onClick={() => {
-               const val = prompt("Nova Meta Global:", configs.global_revenue_goal);
-               if (val) saveConfig("global_revenue_goal", Number(val));
-            }}>
-               <Edit3 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        }
+    <div className="p-6 lg:p-8 space-y-8 max-w-[1100px] mx-auto">
+      <PageHeader
+        title="Metas"
+        subtitle={`Configuração de metas de receita · ${qLabel} ${now.getFullYear()}`}
       />
 
-      <Tabs defaultValue="seller_goals" className="space-y-8">
-        <TabsList className="bg-card border border-border h-10 p-1 rounded-md w-fit">
-          <TabsTrigger value="seller_goals" className="text-xs px-4 h-8 rounded-sm data-[state=active]:bg-[#3ecf8e]/10 data-[state=active]:text-[#3ecf8e]">Vendedores</TabsTrigger>
-          <TabsTrigger value="product_goals" className="text-xs px-4 h-8 rounded-sm data-[state=active]:bg-[#3ecf8e]/10 data-[state=active]:text-[#3ecf8e]">Produtos</TabsTrigger>
-          <TabsTrigger value="percentage_adjusts" className="text-xs px-4 h-8 rounded-sm data-[state=active]:bg-[#3ecf8e]/10 data-[state=active]:text-[#3ecf8e]">Ajustes</TabsTrigger>
-          <TabsTrigger value="quarterly_analytics" className="text-xs px-4 h-8 rounded-sm data-[state=active]:bg-[#3ecf8e]/10 data-[state=active]:text-[#3ecf8e]">Analytics</TabsTrigger>
-        </TabsList>
+      {loading ? (
+        <div className="flex items-center justify-center py-32">
+          <Loader2 className="h-5 w-5 animate-spin text-[#3ecf8e]" />
+        </div>
+      ) : (
+        <div className="space-y-8">
 
-        <TabsContent value="seller_goals" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-           <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {profiles.map(p => (
-                 <Card key={p.id} className="bg-card border border-border hover:border-[#3ecf8e]/30 transition-colors">
-                    <CardContent className="p-5 space-y-4">
-                       <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10 border border-border">
-                             <AvatarImage src={p.avatar_url} />
-                             <AvatarFallback className="bg-secondary text-[10px] font-bold">{p.full_name?.[0]}</AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                             <p className="text-sm font-semibold truncate">{p.full_name}</p>
-                             <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Vendedor FortSecure</p>
-                          </div>
-                       </div>
-                       <div className="space-y-1.5">
-                          <Label className="text-[11px] text-muted-foreground">Meta Mensal</Label>
-                          <div className="relative group">
-                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">R$</span>
-                             <Input 
-                                type="number"
-                                defaultValue={sellerGoals[p.id] || 0}
-                                onBlur={(e) => saveSellerGoal(p.id, Number(e.target.value))}
-                                className="h-9 pl-8 bg-background border-border text-sm font-medium focus:border-[#3ecf8e] focus:ring-[#3ecf8e]/10"
-                             />
-                          </div>
-                       </div>
-                    </CardContent>
-                 </Card>
-              ))}
-           </div>
-        </TabsContent>
-
-        <TabsContent value="product_goals" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {products.map(p => (
-                 <Card key={p.id} className="bg-card border border-border hover:border-[#3ecf8e]/30 transition-colors">
-                    <CardContent className="p-5 space-y-4">
-                       <div className="flex items-center justify-between">
-                          <div className="h-8 w-8 rounded bg-[#3ecf8e]/10 flex items-center justify-center text-[#3ecf8e]">
-                             <Package className="h-4 w-4" />
-                          </div>
-                          <Badge variant="outline" className="text-[10px] font-medium text-muted-foreground uppercase">Target</Badge>
-                       </div>
-                       <div className="min-w-0">
-                          <p className="text-sm font-semibold truncate">{p.name}</p>
-                       </div>
-                       <div className="relative group">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">R$</span>
-                          <Input 
-                             type="number"
-                             defaultValue={productGoals[p.id] || 0}
-                             onBlur={(e) => saveProductGoal(p.id, Number(e.target.value))}
-                             className="h-9 pl-8 bg-background border-border text-sm font-medium focus:border-[#3ecf8e] focus:ring-[#3ecf8e]/10"
-                          />
-                       </div>
-                    </CardContent>
-                 </Card>
-              ))}
-           </div>
-        </TabsContent>
-
-        <TabsContent value="percentage_adjusts" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-           <div className="grid lg:grid-cols-2 gap-6">
-              <Section title="Forecast de Probabilidade">
-                 <div className="space-y-2 pt-2">
-                    {STAGES.map(s => (
-                       <div key={s.key} className="flex items-center justify-between p-3 rounded-md hover:bg-accent transition-colors group">
-                          <div className="flex items-center gap-3">
-                             <div className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
-                             <span className="text-xs font-medium text-foreground">{s.label}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                             <Input 
-                                type="number"
-                                value={probabilities[s.key] || 0}
-                                onChange={(e) => setProbabilities(prev => ({ ...prev, [s.key]: Number(e.target.value) }))}
-                                onBlur={() => saveConfig("forecast_probabilities", probabilities)}
-                                className="w-16 h-8 bg-background border-border text-center text-xs font-semibold"
-                              />
-                              <span className="text-[11px] text-muted-foreground font-medium">%</span>
-                          </div>
-                       </div>
-                    ))}
-                 </div>
-              </Section>
-
-              <Section title="Ajustes de Operação">
-                 <div className="space-y-8 pt-4">
-                    <div className="space-y-4">
-                       <div className="flex justify-between items-end">
-                          <Label className="text-xs font-medium text-muted-foreground">Comissão de Vendedores</Label>
-                          <span className="text-xl font-bold text-[#3ecf8e]">{configs.commission_rate}%</span>
-                       </div>
-                       <Slider 
-                          value={[configs.commission_rate]} max={50} step={1} 
-                          onValueChange={(v) => setConfigs({...configs, commission_rate: v[0]})}
-                          onValueCommit={(v) => saveConfig("commission_rate", v[0])}
-                          className="text-[#3ecf8e]"
-                       />
-                    </div>
-                    <div className="space-y-4">
-                       <div className="flex justify-between items-end">
-                          <Label className="text-xs font-medium text-muted-foreground">Taxa Fiscal / Impostos</Label>
-                          <span className="text-xl font-bold text-[#f59e0b]">{configs.tax_rate}%</span>
-                       </div>
-                       <Slider 
-                          value={[configs.tax_rate]} max={40} step={0.5} 
-                          onValueChange={(v) => setConfigs({...configs, tax_rate: v[0]})}
-                          onValueCommit={(v) => saveConfig("tax_rate", v[0])}
-                       />
-                    </div>
-                 </div>
-              </Section>
-           </div>
-        </TabsContent>
-
-        <TabsContent value="quarterly_analytics" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-           <div className="space-y-6">
-              <Section title="Performance Trimestral">
-                 <div className="h-[350px] w-full pt-4">
-                    <ResponsiveContainer width="100%" height="100%">
-                       <BarChart data={quarterlyData}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#a3a3a3' }} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#a3a3a3' }} tickFormatter={(v) => `R$ ${v/1000}k`} />
-                          <Tooltip 
-                              contentStyle={{backgroundColor: '#171717', border: '1px solid #2e2e2e', borderRadius: '8px', fontSize: '12px'}} 
-                              itemStyle={{color: '#ededed'}}
-                              labelStyle={{color: '#ededed', fontWeight: 'bold', marginBottom: '4px'}}
-                           />
-                          <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '11px' }} />
-                          <Bar dataKey="revenue" name="Projetado" fill="#3ecf8e" radius={[4, 4, 0, 0]} barSize={40} />
-                          <Bar dataKey="goal" name="Meta" fill="#262626" radius={[4, 4, 0, 0]} barSize={40} stroke="#2e2e2e" strokeWidth={1} />
-                       </BarChart>
-                    </ResponsiveContainer>
-                 </div>
-              </Section>
-              
-              <div className="grid lg:grid-cols-3 gap-6">
-                 <Section title="Tendência de Atendimento" className="lg:col-span-2">
-                    <div className="h-[300px] w-full pt-4">
-                       <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={quarterlyData}>
-                             <defs>
-                                <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                                   <stop offset="5%" stopColor="#3ecf8e" stopOpacity={0.1}/>
-                                   <stop offset="95%" stopColor="#3ecf8e" stopOpacity={0}/>
-                                </linearGradient>
-                             </defs>
-                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#a3a3a3' }} />
-                             <YAxis hide />
-                             <Tooltip 
-                                contentStyle={{backgroundColor: '#171717', border: '1px solid #2e2e2e', borderRadius: '8px', fontSize: '12px'}} 
-                                itemStyle={{color: '#ededed'}}
-                                labelStyle={{color: '#ededed', fontWeight: 'bold', marginBottom: '4px'}}
-                             />
-                             <Area type="monotone" dataKey="revenue" stroke="#3ecf8e" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
-                             <Area type="monotone" dataKey="goal" stroke="#2e2e2e" strokeWidth={1} strokeDasharray="4 4" fill="none" />
-                          </AreaChart>
-                       </ResponsiveContainer>
-                    </div>
-                 </Section>
-
-                 <Section title="Status da Missão">
-                    <div className="space-y-8 pt-4">
-                       {quarterlyData.map((d, i) => (
-                         <div key={d.name} className="space-y-2">
-                            <div className="flex justify-between text-[11px] font-medium text-muted-foreground">
-                               <span>{d.name}</span>
-                               <span className={cn(d.revenue >= d.goal ? "text-[#3ecf8e]" : "text-[#f59e0b]")}>
-                                  {d.goal > 0 ? ((d.revenue / d.goal) * 100).toFixed(0) : 0}%
-                               </span>
-                            </div>
-                            <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                               <div className={cn("h-full transition-all duration-1000", d.revenue >= d.goal ? "bg-[#3ecf8e]" : "bg-[#f59e0b]")} style={{ width: `${Math.min(100, (d.goal > 0 ? (d.revenue / d.goal) * 100 : 0))}%` }} />
-                            </div>
-                         </div>
-                       ))}
-                    </div>
-                 </Section>
+          {/* ── Global Goal ── */}
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-border flex items-center gap-3">
+              <div className="h-7 w-7 rounded-md bg-[#3ecf8e]/10 flex items-center justify-center">
+                <TrendingUp className="h-3.5 w-3.5 text-[#3ecf8e]" />
               </div>
-           </div>
-        </TabsContent>
-      </Tabs>
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Meta Global de Receita</h2>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Meta mensal da empresa — utilizada no dashboard e gráficos de atingimento</p>
+              </div>
+            </div>
+            <div className="p-6 flex flex-col md:flex-row items-start md:items-center gap-6">
+              {/* Radial */}
+              <div className="relative flex items-center justify-center shrink-0">
+                <RadialProgress pct={globalAttainment} color={globalAttainment >= 100 ? "#3ecf8e" : "#f59e0b"} size={100} />
+                <div className="absolute flex flex-col items-center">
+                  <span className={cn("text-lg font-black font-mono leading-none", globalAttainment >= 100 ? "text-[#3ecf8e]" : "text-yellow-400")}>
+                    {globalAttainment}%
+                  </span>
+                  <span className="text-[8px] text-muted-foreground">do {qLabel}</span>
+                </div>
+              </div>
+
+              {/* Info */}
+              <div className="flex-1 space-y-4 w-full">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-secondary/30 border border-border rounded-lg p-3">
+                    <p className="text-[10px] text-muted-foreground font-medium mb-1">Receita {qLabel}</p>
+                    <p className="text-base font-black font-mono text-foreground">{formatCurrency(revenue)}</p>
+                  </div>
+                  <div className="bg-secondary/30 border border-border rounded-lg p-3">
+                    <p className="text-[10px] text-muted-foreground font-medium mb-1">Meta {qLabel} (×3)</p>
+                    <p className="text-base font-black font-mono text-foreground">{savedGlobalGoal ? formatCurrency(savedGlobalGoal * 3) : "—"}</p>
+                  </div>
+                </div>
+
+                {/* Edit */}
+                <div className="flex items-end gap-3">
+                  <div className="flex-1 space-y-1.5">
+                    <Label className="text-xs text-muted-foreground font-medium">Meta Mensal (BRL)</Label>
+                    <Input
+                      value={globalGoal}
+                      onChange={e => setGlobalGoal(e.target.value)}
+                      onBlur={e => setGlobalGoal(formatCurrencyBRL(e.target.value))}
+                      placeholder="R$ 0,00"
+                      className="h-9 bg-background border-border font-mono text-sm"
+                    />
+                    <p className="text-[10px] text-muted-foreground">O valor trimestral será calculado automaticamente (×3)</p>
+                  </div>
+                  <Button onClick={saveGlobalGoal} disabled={busy === "global"}
+                    className="h-9 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-black font-semibold text-xs gap-2 shrink-0">
+                    {busy === "global" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                    Salvar
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Per-seller Goals ── */}
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-border flex items-center gap-3">
+              <div className="h-7 w-7 rounded-md bg-blue-500/10 flex items-center justify-center">
+                <Users className="h-3.5 w-3.5 text-blue-400" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Metas por Vendedor</h2>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Meta anual individual · {now.getFullYear()}</p>
+              </div>
+            </div>
+
+            <div className="divide-y divide-border">
+              {profiles.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-10">Nenhum vendedor encontrado.</p>
+              )}
+              {profiles.map(p => {
+                const saved = savedSellerGoals[p.id] || 0;
+                const actual = sellerRevenue[p.id] || 0;
+                const pct = saved > 0 ? Math.min(Math.round((actual / saved) * 100), 999) : 0;
+                const isOver = pct >= 100;
+                const initials = p.full_name ? p.full_name.split(" ").map((n: string) => n[0]).slice(0, 2).join("") : "?";
+
+                return (
+                  <div key={p.id} className="flex items-center gap-4 px-6 py-4 hover:bg-secondary/20 transition-colors">
+                    {/* Avatar */}
+                    <div className="h-8 w-8 rounded-full bg-secondary border border-border flex items-center justify-center text-xs font-bold text-foreground shrink-0">
+                      {p.avatar_url
+                        ? <img src={p.avatar_url} className="w-full h-full rounded-full object-cover" alt={p.full_name} />
+                        : initials}
+                    </div>
+
+                    {/* Name + progress */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-semibold text-foreground truncate">{p.full_name}</span>
+                        {saved > 0 && (
+                          <span className={cn(
+                            "text-[10px] font-black px-1.5 py-0.5 rounded ml-2 shrink-0",
+                            isOver ? "bg-[#3ecf8e]/10 text-[#3ecf8e]" : "bg-yellow-500/10 text-yellow-400"
+                          )}>{pct}%</span>
+                        )}
+                      </div>
+                      {saved > 0 && (
+                        <>
+                          <div className="h-1 bg-secondary rounded-full overflow-hidden mb-1">
+                            <div
+                              className="h-full rounded-full transition-all duration-700"
+                              style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: isOver ? "#3ecf8e" : "#f59e0b" }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
+                            <span>{formatCurrency(actual)} realizados</span>
+                            <span>meta: {formatCurrency(saved)}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Goal input + save */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Input
+                        value={sellerGoals[p.id] || ""}
+                        onChange={e => setSellerGoals(prev => ({ ...prev, [p.id]: e.target.value }))}
+                        onBlur={e => setSellerGoals(prev => ({ ...prev, [p.id]: formatCurrencyBRL(e.target.value) }))}
+                        placeholder="R$ 0,00"
+                        className="h-8 w-36 bg-background border-border font-mono text-xs"
+                      />
+                      <Button
+                        size="icon"
+                        onClick={() => saveSellerGoal(p.id)}
+                        disabled={busy === p.id}
+                        className="h-8 w-8 bg-[#3ecf8e]/10 hover:bg-[#3ecf8e]/20 text-[#3ecf8e] border border-[#3ecf8e]/20"
+                        variant="outline"
+                        title="Salvar meta"
+                      >
+                        {busy === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Product Goals (read-only) ── */}
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-7 w-7 rounded-md bg-purple-500/10 flex items-center justify-center">
+                  <Package className="h-3.5 w-3.5 text-purple-400" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">Metas de Produto</h2>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Configuradas individualmente por produto</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => nav({ to: "/products" })}
+                className="h-7 px-3 text-[11px] gap-1.5 border-border text-muted-foreground hover:text-foreground bg-secondary"
+              >
+                <ArrowUpRight className="h-3 w-3" /> Gerenciar Produtos
+              </Button>
+            </div>
+
+            <div className="divide-y divide-border">
+              {products.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-10">Nenhum produto cadastrado.</p>
+              )}
+              {products.map(p => {
+                const hasGoal = !!p.metadata?.goal;
+                const isActive = !!p.metadata?.goal_active;
+                const color = p.metadata?.color || "#3ecf8e";
+                const goal = Number(p.metadata?.goal || 0);
+
+                return (
+                  <div key={p.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-secondary/20 transition-colors group">
+                    {/* Color dot */}
+                    <div className="h-6 w-6 rounded-md flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: color + "20", color }}>
+                      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+                    </div>
+
+                    {/* Name */}
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-semibold text-foreground truncate block">{p.name}</span>
+                      {p.metadata?.category && (
+                        <span className="text-[10px] text-muted-foreground">{p.metadata.category}</span>
+                      )}
+                    </div>
+
+                    {/* Status badges */}
+                    <div className="flex items-center gap-2">
+                      {hasGoal ? (
+                        <span className="text-[11px] font-mono font-semibold text-foreground">{formatCurrency(goal)}</span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground italic">Sem meta definida</span>
+                      )}
+
+                      {isActive ? (
+                        <Badge className="text-[9px] bg-[#3ecf8e]/10 text-[#3ecf8e] border border-[#3ecf8e]/20 font-bold px-1.5">
+                          <Target className="h-2.5 w-2.5 mr-1" /> Ativa
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[9px] text-yellow-500/80 border-yellow-500/20 font-semibold px-1.5">
+                          <AlertTriangle className="h-2.5 w-2.5 mr-1" /> Inativa
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Edit shortcut */}
+                    <button
+                      onClick={() => nav({ to: "/products" })}
+                      className="opacity-0 group-hover:opacity-100 h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-all"
+                      title="Editar em Produtos"
+                    >
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="px-6 py-3 bg-secondary/20 border-t border-border flex items-center gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 text-yellow-500/70 shrink-0" />
+              <p className="text-[10px] text-muted-foreground">
+                Para ativar ou editar a meta de um produto, acesse <strong className="text-foreground">Produtos → Editar</strong>.
+              </p>
+            </div>
+          </div>
+
+        </div>
+      )}
     </div>
   );
 }
-
