@@ -61,21 +61,38 @@ function Dashboard() {
   const [conversionRate, setConversionRate] = useState(0);
   const [selectedSeller, setSelectedSeller] = useState("all");
   const [sellers, setSellers] = useState<any[]>([]);
-  const [selectedPeriod, setSelectedPeriod] = useState(new Date().getMonth().toString());
+  // Quarter helper: Q1=0,Q2=1,Q3=2,Q4=3 (index)
+  const getQuarterIndex = (month: number) => Math.floor(month / 3); // month 0-11
+  const [selectedPeriod, setSelectedPeriod] = useState(getQuarterIndex(new Date().getMonth()).toString());
   const [fieldActivities, setFieldActivities] = useState<any[]>([]);
+
+  // Quarter → 3 months (0-indexed)
+  const QUARTER_MONTHS: Record<string, number[]> = {
+    "0": [0, 1, 2],   // Q1: Jan, Fev, Mar
+    "1": [3, 4, 5],   // Q2: Abr, Mai, Jun
+    "2": [6, 7, 8],   // Q3: Jul, Ago, Set
+    "3": [9, 10, 11], // Q4: Out, Nov, Dez
+  };
+  const QUARTER_LABELS = ["Q1", "Q2", "Q3", "Q4"];
+  const MONTH_SHORT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
   async function load() {
     setIsSyncing(true);
     try {
       const now = new Date();
-      const month = parseInt(selectedPeriod);
-      const firstDay = new Date(now.getFullYear(), month, 1).toISOString();
-      const lastDay = new Date(now.getFullYear(), month + 1, 0, 23, 59, 59).toISOString();
+      const qMonths = QUARTER_MONTHS[selectedPeriod] || [0, 1, 2];
+      const firstMonth = qMonths[0];
+      const lastMonth = qMonths[2];
+      const firstDay = new Date(now.getFullYear(), firstMonth, 1).toISOString();
+      const lastDay = new Date(now.getFullYear(), lastMonth + 1, 0, 23, 59, 59).toISOString();
+
+      // For goal lookup we pass the 3 months (1-indexed)
+      const goalMonths = qMonths.map(m => m + 1);
 
       const [oppsRes, profilesRes, goalsRes, meetingsRes, settingsRes, activitiesRes] = await Promise.all([
         supabase.from("opportunities").select("*"),
         supabase.from("profiles").select("id, full_name"),
-        supabase.from("goals").select("target_amount, user_id, month").in("month", [month + 1, month + 2, month + 3]).eq("year", now.getFullYear()),
+        supabase.from("goals").select("target_amount, user_id, month").in("month", goalMonths).eq("year", now.getFullYear()),
         supabase.from("meetings").select("id", { count: "exact", head: true }).gte("scheduled_at", firstDay).lte("scheduled_at", lastDay),
         supabase.from("app_settings").select("*").eq("key", "global_revenue_goal").single(),
         supabase.from("activities").select("*, profiles(full_name)").in("type", ["reuniao"]).gte("due_date", firstDay).lte("due_date", lastDay).order("due_date", { ascending: false }),
@@ -90,14 +107,20 @@ function Dashboard() {
         opps = opps.filter(o => o.owner_id === selectedSeller);
       }
 
-      const revenue = opps.filter(o => o.stage === "ganho" && o.closed_at && new Date(o.closed_at).getMonth() === month).reduce((s, o) => s + Number(o.value), 0);
+      // Revenue = sum of won deals closed in any of the 3 quarter months
+      const revenue = opps.filter(o =>
+        o.stage === "ganho" && o.closed_at &&
+        qMonths.includes(new Date(o.closed_at).getMonth()) &&
+        new Date(o.closed_at).getFullYear() === now.getFullYear()
+      ).reduce((s, o) => s + Number(o.value), 0);
+
       const pipelineValue = opps.filter(o => o.stage !== "ganho" && o.stage !== "perdido").reduce((s, o) => s + Number(o.value), 0);
       const pipelineCount = opps.filter(o => o.stage !== "ganho" && o.stage !== "perdido").length;
       const weighted = opps.filter(o => o.stage !== "ganho" && o.stage !== "perdido").reduce((s, o) => s + (Number(o.value) * (Number(o.probability || 0) / 100)), 0);
 
-      const hqGoal = settingsRes.data?.value ? Number(settingsRes.data.value) : 2000000;
+      const hqGoal = settingsRes.data?.value ? Number(settingsRes.data.value) * 3 : 6000000; // quarterly = 3x monthly
       const sellerGoal = selectedSeller !== "all"
-        ? Number((goalsRes.data || []).find(g => g.user_id === selectedSeller && g.month === month + 1)?.target_amount || 0)
+        ? goalMonths.reduce((sum, m) => sum + Number((goalsRes.data || []).find(g => g.user_id === selectedSeller && g.month === m)?.target_amount || 0), 0)
         : 0;
       const realMeta = selectedSeller === "all" ? hqGoal : (sellerGoal || hqGoal / Math.max(1, (profilesRes.data || []).length));
 
@@ -132,17 +155,23 @@ function Dashboard() {
         color: s.color,
       })));
 
-      // Quarterly trend (current month + 2 ahead)
-      const trend = Array.from({ length: 3 }, (_, i) => {
-        const mIndex = month + i;
+      // Quarter trend: show the 3 months of the selected quarter
+      const monthlyHqGoal = settingsRes.data?.value ? Number(settingsRes.data.value) : 2000000;
+      const trend = qMonths.map((mIndex) => {
         const d = new Date(now.getFullYear(), mIndex, 1);
         const allOpps = selectedSeller === "all" ? (oppsRes.data || []) : (oppsRes.data || []).filter(o => o.owner_id === selectedSeller);
-        const mOpps = allOpps.filter(o => o.stage === "ganho" && o.closed_at && new Date(o.closed_at).getMonth() === d.getMonth() && new Date(o.closed_at).getFullYear() === d.getFullYear());
-        const personalMeta = (goalsRes.data || []).find(g => g.month === d.getMonth() + 1 && selectedSeller !== "all" && g.user_id === selectedSeller)?.target_amount;
+        const mOpps = allOpps.filter(o =>
+          o.stage === "ganho" && o.closed_at &&
+          new Date(o.closed_at).getMonth() === d.getMonth() &&
+          new Date(o.closed_at).getFullYear() === d.getFullYear()
+        );
+        const personalMeta = (goalsRes.data || []).find(g =>
+          g.month === d.getMonth() + 1 && selectedSeller !== "all" && g.user_id === selectedSeller
+        )?.target_amount;
         return {
-          name: d.toLocaleString("pt-BR", { month: "long" }),
+          name: MONTH_SHORT[mIndex],
           Realizado: mOpps.reduce((s, o) => s + Number(o.value), 0),
-          "Meta Empresa": hqGoal,
+          "Meta Empresa": monthlyHqGoal,
           ...(selectedSeller !== "all" && { "Meta Pessoal": Number(personalMeta || 0) }),
         };
       });
@@ -187,16 +216,15 @@ function Dashboard() {
             </Select>
           )}
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-            <SelectTrigger className="w-[140px] h-9 bg-card border-border text-sm">
+            <SelectTrigger className="w-[150px] h-9 bg-card border-border text-sm">
               <Calendar className="h-3.5 w-3.5 mr-2 text-muted-foreground shrink-0" />
-              <SelectValue placeholder="Mês" />
+              <SelectValue placeholder="Quarter" />
             </SelectTrigger>
             <SelectContent>
-              {Array.from({ length: 12 }, (_, i) => (
-                <SelectItem key={i} value={i.toString()}>
-                  {new Date(new Date().getFullYear(), i, 1).toLocaleString("pt-BR", { month: "long" })}
-                </SelectItem>
-              ))}
+              <SelectItem value="0">Q1 · Jan — Mar</SelectItem>
+              <SelectItem value="1">Q2 · Abr — Jun</SelectItem>
+              <SelectItem value="2">Q3 · Jul — Set</SelectItem>
+              <SelectItem value="3">Q4 · Out — Dez</SelectItem>
             </SelectContent>
           </Select>
           <Button variant="outline" size="icon" className="h-9 w-9 bg-card border-border" onClick={load} disabled={isSyncing}>
@@ -221,8 +249,8 @@ function Dashboard() {
         <WidgetCard featured gridFade={0.3} className="lg:col-span-2 bg-card border border-border rounded-lg">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <div>
-              <h2 className="text-sm font-medium text-foreground">Evolução Trimestral</h2>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Mês atual + 2 próximos</p>
+              <h2 className="text-sm font-medium text-foreground">Evolução — {QUARTER_LABELS[parseInt(selectedPeriod)]}</h2>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{["Jan · Fev · Mar","Abr · Mai · Jun","Jul · Ago · Set","Out · Nov · Dez"][parseInt(selectedPeriod)]}</p>
             </div>
             <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
               <span className="flex items-center gap-1.5"><span className="h-1.5 w-4 rounded-full bg-[#3ecf8e] inline-block" />Realizado</span>

@@ -98,39 +98,43 @@ function HQ() {
         setProbabilities({ prospect: 20, qualificado: 40, proposta: 60, negociacao: 80, ganho: 100, perdido: 0 });
       }
 
-      // Calculate Real Quarterly Data
-      const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-      const qData = [0, 1, 2].map(offset => {
-        const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
-        const m = d.getMonth() + 1;
-        const y = d.getFullYear();
-        const monthName = `${months[d.getMonth()]} ${y.toString().slice(2)}`;
+      // Calculate Quarterly Data — one entry per Q1/Q2/Q3/Q4
+      const quarterDefs = [
+        { label: "Q1", months: [1, 2, 3] },
+        { label: "Q2", months: [4, 5, 6] },
+        { label: "Q3", months: [7, 8, 9] },
+        { label: "Q4", months: [10, 11, 12] },
+      ];
 
-        const monthGoals = allGoalsRes.data?.filter(g => g.month === m && g.year === y) ?? [];
+      const qData = quarterDefs.map(q => {
+        const monthGoals = allGoalsRes.data?.filter(g => q.months.includes(g.month) && g.year === now.getFullYear()) ?? [];
         const totalMonthGoal = monthGoals.reduce((sum, g) => sum + Number(g.target_amount), 0);
-        
-        const finalGoal = totalMonthGoal > 0 ? totalMonthGoal : (offset === 0 ? Number(map.global_revenue_goal) : 0);
+        const monthlyHqGoal = Number(map.global_revenue_goal) || 2000000;
+        const finalGoal = totalMonthGoal > 0 ? totalMonthGoal : monthlyHqGoal * 3;
 
-        const monthOpps = oppsRes.data ?? [];
         let revenue = 0;
         let weighted = 0;
 
-        monthOpps.forEach(o => {
+        (oppsRes.data ?? []).forEach(o => {
           if (o.stage === 'ganho' && o.closed_at) {
             const closedDate = new Date(o.closed_at);
-            if (closedDate.getMonth() + 1 === m && closedDate.getFullYear() === y) {
+            const m = closedDate.getMonth() + 1;
+            const y = closedDate.getFullYear();
+            if (q.months.includes(m) && y === now.getFullYear()) {
               revenue += Number(o.value);
             }
           } else if (o.stage !== 'perdido' && o.expected_close_date) {
             const expectedDate = new Date(o.expected_close_date);
-            if (expectedDate.getUTCMonth() + 1 === m && expectedDate.getUTCFullYear() === y) {
+            const m = expectedDate.getUTCMonth() + 1;
+            const y = expectedDate.getUTCFullYear();
+            if (q.months.includes(m) && y === now.getFullYear()) {
               weighted += (Number(o.value) * (o.probability || 0)) / 100;
             }
           }
         });
 
         return {
-          name: monthName,
+          name: q.label,
           revenue: revenue + weighted,
           goal: finalGoal,
           actualRevenue: revenue,
@@ -202,7 +206,7 @@ function HQ() {
         actions={
           <div className="flex items-center gap-4 bg-card border border-border p-2 pr-4 rounded-md">
             <div className="flex flex-col items-end">
-               <span className="text-[10px] text-muted-foreground uppercase font-medium">Meta Global {currentMonth}/{currentYear}</span>
+               <span className="text-[10px] text-muted-foreground uppercase font-medium">Meta Global Q{Math.ceil(currentMonth / 3)}/{currentYear}</span>
                <span className="text-sm font-semibold">{formatCurrency(configs.global_revenue_goal)}</span>
             </div>
             <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-accent" onClick={() => {
