@@ -45,6 +45,7 @@ function MyPanel() {
   const [productData, setProductData] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pipelineOpps, setPipelineOpps] = useState<any[]>([]);
   const [form, setForm] = useState({ title: "", type: "tarefa", due_date: "", is_public: false });
 
   // Current quarter months
@@ -86,6 +87,7 @@ function MyPanel() {
     setMetrics({ revenue, pipeline: pipe, count: won.length, points, commission, conversionRate });
     setActivities(actsRes.data ?? []);
     setBadges(badgeRes.data ?? []);
+    setPipelineOpps(opps.filter(o => ["proposta", "negociacao"].includes(o.stage)));
 
     // Product performance for this user (current quarter)
     const prods = (prodsRes.data || []) as any[];
@@ -160,266 +162,322 @@ function MyPanel() {
     <div className="flex flex-col gap-6 p-6 lg:p-8 max-w-[1400px] mx-auto pb-20">
 
       {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-border">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">
-            Olá, {displayName.split(" ")[0]} 👋
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Aqui está a sua performance individual.</p>
-        </div>
-        {/* Status pill */}
-        <div className="flex items-center gap-3 bg-card border border-border rounded-lg px-4 py-2.5">
-          <div>
-            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Ranking</p>
-            <p className="text-base font-bold font-mono text-foreground">{rank}</p>
-          </div>
-          <div className="h-8 w-px bg-border" />
-          <div>
-            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">XP</p>
-            <p className="text-base font-bold font-mono text-[#3ecf8e]">{metrics.points}</p>
-          </div>
-          <div className="h-8 w-px bg-border" />
-          <Badge className="bg-[#3ecf8e]/10 text-[#3ecf8e] border-[#3ecf8e]/20 text-[9px] font-semibold uppercase tracking-wide">
-            Vendedor Ativo
-          </Badge>
-        </div>
-      </div>
-
-      {/* ── KPI Row ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <KpiCard
-          label="Receita Liquidada"
-          value={formatCurrency(metrics.revenue)}
-          sub={`${metrics.count} negócio${metrics.count !== 1 ? "s" : ""} ganho${metrics.count !== 1 ? "s" : ""}`}
-          icon={<TrendingUp className="h-4 w-4" />}
-          accent
-        />
-        <KpiCard
-          label="Volume em Negociação"
-          value={formatCurrency(metrics.pipeline)}
-          sub="Pipeline ativo"
-          icon={<Target className="h-4 w-4" />}
-        />
-        <KpiCard
-          label="Comissões Estimadas"
-          value={formatCurrency(metrics.commission)}
-          sub={`Taxa de ${metrics.revenue > 0 ? ((metrics.commission / metrics.revenue) * 100).toFixed(1) : 15}%`}
-          icon={<Award className="h-4 w-4" />}
-        />
-        <KpiCard
-          label="Taxa de Conversão"
-          value={`${metrics.conversionRate.toFixed(1)}%`}
-          sub="Proposta → Fechado"
-          icon={<ArrowUpRight className="h-4 w-4" />}
-        />
-      </div>
-
-      {/* ── Product Performance ── */}
-      {productData.length > 0 && (
-        <div className="bg-card border border-border rounded-lg overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center gap-3">
-            <div className="h-7 w-7 rounded-md bg-purple-500/10 flex items-center justify-center">
-              <Package className="h-3.5 w-3.5 text-purple-400" />
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-border">
+        <div className="flex items-center gap-5">
+          <div className="relative group">
+            <div className="h-20 w-20 rounded-2xl bg-[#171717] border-2 border-border flex items-center justify-center overflow-hidden shadow-2xl transition-all group-hover:border-[#3ecf8e]/40">
+              {user?.user_metadata?.avatar_url ? (
+                <img src={user.user_metadata.avatar_url} alt="profile" className="w-full h-full object-cover" />
+              ) : (
+                <Users className="h-10 w-10 text-muted-foreground" />
+              )}
             </div>
-            <div>
-              <h2 className="text-sm font-medium text-foreground">Performance por Produto</h2>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Sua receita vs meta · {qLabel} {now.getFullYear()}</p>
+            <div className="absolute -bottom-2 -right-2 h-7 w-7 rounded-lg bg-[#3ecf8e] text-black flex items-center justify-center font-black text-[10px] shadow-lg">
+              {rank.replace("#", "")}
             </div>
           </div>
-          <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {productData.map((p: any) => {
-              const isOver = p.pct >= 100;
-              return (
-                <div key={p.name} className="bg-secondary/20 border border-border/50 rounded-lg p-4 hover:border-border transition-colors">
-                  {/* Header */}
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
-                      <span className="text-[11px] font-semibold text-foreground truncate">{p.name}</span>
-                    </div>
-                    <span className={cn(
-                      "text-[10px] font-black px-1.5 py-0.5 rounded shrink-0",
-                      isOver ? "bg-[#3ecf8e]/10 text-[#3ecf8e]" : p.pct > 0 ? "bg-yellow-500/10 text-yellow-400" : "bg-secondary text-muted-foreground"
-                    )}>
-                      {p.pct}%
-                    </span>
-                  </div>
-
-                  {/* Progress bar */}
-                  <div className="h-1.5 bg-secondary rounded-full overflow-hidden mb-3">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${Math.min(p.pct, 100)}%` }}
-                      transition={{ duration: 0.8, ease: "circOut" }}
-                      className="h-full rounded-full"
-                      style={{ backgroundColor: isOver ? p.color : "#f59e0b" }}
-                    />
-                  </div>
-
-                  {/* Values */}
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-sm font-bold font-mono" style={{ color: p.color }}>
-                      {formatCurrency(p.realized)}
-                    </span>
-                    {p.goal > 0 && (
-                      <span className="text-[9px] text-muted-foreground font-mono">
-                        / {formatCurrency(p.goal)}
-                      </span>
-                    )}
-                  </div>
-                  {p.goal > 0 && !isOver && (
-                    <p className="text-[9px] text-muted-foreground mt-1">
-                      Faltam {formatCurrency(Math.max(0, p.goal - p.realized))}
-                    </p>
-                  )}
-                  {isOver && (
-                    <p className="text-[9px] text-[#3ecf8e] mt-1">🎯 Meta superada!</p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── Main Content Grid ── */}
-      <div className="grid lg:grid-cols-[1fr_340px] gap-6">
-
-        {/* Left: Activities */}
-        <div className="bg-card border border-border rounded-lg overflow-hidden">
-          {/* Card header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-            <h2 className="text-sm font-medium text-foreground">Atividades Recentes</h2>
-            <Button
-              size="sm"
-              onClick={() => setIsModalOpen(true)}
-              className="h-7 px-3 gap-1.5 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-black font-semibold text-[10px] rounded-md"
-            >
-              <Plus className="h-3 w-3" /> Nova Atividade
-            </Button>
-          </div>
-
-          {/* Activity list */}
-          <div className="divide-y divide-border">
-            {activities.map(a => {
-              const cfg = TYPE_CONFIG[a.type] || TYPE_CONFIG.tarefa;
-              const Icon = cfg.icon;
-              const isDone = a.status === "concluida";
-              return (
-                <div key={a.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-accent/30 transition-colors group">
-                  {/* Type icon */}
-                  <div className={cn("h-8 w-8 rounded-md flex items-center justify-center shrink-0", cfg.bg, cfg.color)}>
-                    <Icon className="h-3.5 w-3.5" />
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className={cn("text-sm font-medium truncate", isDone ? "line-through text-muted-foreground" : "text-foreground")}>{a.title}</p>
-                    {a.due_date && (
-                      <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {new Date(a.due_date).toLocaleDateString("pt-BR")} · {new Date(a.due_date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Badge type */}
-                  <Badge variant="outline" className="text-[9px] border-border text-muted-foreground hidden sm:flex shrink-0">
-                    {cfg.icon === ListTodo ? "Tarefa" : a.type}
-                  </Badge>
-
-                  {/* Complete button */}
-                  <button
-                    onClick={() => completeActivity(a.id, a.status)}
-                    className={cn(
-                      "h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all shrink-0",
-                      isDone ? "bg-[#3ecf8e] border-[#3ecf8e] text-black" : "border-border text-transparent hover:border-[#3ecf8e] hover:text-[#3ecf8e]"
-                    )}
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              );
-            })}
-
-            {activities.length === 0 && (
-              <div className="py-16 text-center text-xs text-muted-foreground">
-                <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center mx-auto mb-3">
-                  <ListTodo className="h-4 w-4 text-muted-foreground" />
-                </div>
-                Nenhuma atividade registrada
+          <div>
+            <h1 className="text-2xl font-black text-foreground tracking-tight">
+              {displayName}
+            </h1>
+            <div className="flex items-center gap-3 mt-1.5">
+              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 rounded-md">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#3ecf8e] animate-pulse" />
+                <span className="text-[10px] text-[#3ecf8e] font-bold uppercase tracking-wider">Online</span>
               </div>
-            )}
+              <span className="text-xs text-muted-foreground font-medium">Equipe FortSecure</span>
+            </div>
           </div>
         </div>
 
-        {/* Right column */}
-        <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-4 bg-secondary/30 border border-border p-2 rounded-xl">
+          <div className="px-4 py-2">
+            <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest mb-0.5">Pontuação XP</p>
+            <p className="text-xl font-black font-mono text-foreground">{metrics.points}</p>
+          </div>
+          <div className="h-10 w-px bg-border" />
+          <div className="px-4 py-2">
+            <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest mb-0.5">Média Ticket</p>
+            <p className="text-xl font-black font-mono text-[#3ecf8e]">
+              {metrics.count > 0 ? formatCurrency(metrics.revenue / metrics.count).replace(",00", "") : "R$ 0"}
+            </p>
+          </div>
+        </div>
+      </div>
 
-          {/* Badges */}
-          <div className="bg-card border border-border rounded-lg overflow-hidden">
-            <div className="px-5 py-4 border-b border-border">
-              <h2 className="text-sm font-medium text-foreground">Especializações</h2>
+      {/* ── Layout Grid ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8">
+        
+        {/* Main Column */}
+        <div className="flex flex-col gap-8">
+          
+          {/* Main KPIs (3) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <KpiCard
+              label="Receita Liquidada"
+              value={formatCurrency(metrics.revenue)}
+              sub={`${metrics.count} negócios ganhos`}
+              icon={<TrendingUp className="h-4 w-4" />}
+              accent
+            />
+            <KpiCard
+              label="Fila de Negociação"
+              value={formatCurrency(metrics.pipeline)}
+              sub={`${pipelineOpps.length} oportunidades`}
+              icon={<Target className="h-4 w-4" />}
+            />
+            <KpiCard
+              label="Taxa de Conversão"
+              value={`${metrics.conversionRate.toFixed(1)}%`}
+              sub="Média do período"
+              icon={<ArrowUpRight className="h-4 w-4" />}
+            />
+          </div>
+
+          {/* ── Product Performance Grid ── */}
+          {productData.length > 0 && (
+            <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+              <div className="px-6 py-5 border-b border-border flex items-center justify-between bg-secondary/10">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                    <Package className="h-4 w-4 text-purple-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Performance por Produto</h2>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Metas individuais do quarter</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {productData.map((p: any) => {
+                  const isOver = p.pct >= 100;
+                  return (
+                    <div key={p.name} className="bg-secondary/30 border border-border/50 rounded-xl p-5 hover:border-[#3ecf8e]/30 transition-all group">
+                      <div className="flex items-center justify-between gap-3 mb-4">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="h-2 w-2 rounded-full shrink-0 animate-pulse" style={{ backgroundColor: p.color }} />
+                          <span className="text-xs font-black text-foreground truncate">{p.name}</span>
+                        </div>
+                        <span className={cn(
+                          "text-[10px] font-black px-2 py-0.5 rounded-full font-mono",
+                          isOver ? "bg-[#3ecf8e]/10 text-[#3ecf8e]" : "bg-yellow-500/10 text-yellow-500"
+                        )}>
+                          {p.pct}%
+                        </span>
+                      </div>
+                      <div className="h-2 bg-background border border-border/50 rounded-full overflow-hidden mb-4">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.min(p.pct, 100)}%` }}
+                          transition={{ duration: 1.2, ease: "backOut" }}
+                          className="h-full rounded-full"
+                          style={{ backgroundColor: p.color, boxShadow: `0 0 10px ${p.color}40` }}
+                        />
+                      </div>
+                      <div className="flex justify-between items-end">
+                        <div className="flex flex-col">
+                          <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest mb-0.5">Realizado</span>
+                          <span className="text-sm font-black font-mono" style={{ color: p.color }}>{formatCurrency(p.realized)}</span>
+                        </div>
+                        <div className="flex flex-col items-end text-right">
+                          <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest mb-0.5">Meta</span>
+                          <span className="text-[11px] font-black font-mono text-foreground/70">{formatCurrency(p.goal)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <div className="p-4 grid grid-cols-2 gap-2">
+          )}
+
+          {/* ── Mini Kanban (Foco Comercial) ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {["proposta", "negociacao"].map(stage => (
+              <div key={stage} className="bg-card border border-border rounded-2xl overflow-hidden flex flex-col shadow-sm">
+                <div className="px-5 py-4 border-b border-border bg-secondary/30 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className={cn("h-1.5 w-1.5 rounded-full", stage === "proposta" ? "bg-blue-500" : "bg-purple-500")} />
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-foreground">
+                      {stage === "proposta" ? "Em Proposta" : "Em Negociação"}
+                    </h3>
+                  </div>
+                  <Badge variant="secondary" className="text-[10px] h-5 px-2 bg-background border-border font-mono font-bold text-[#3ecf8e]">
+                    {formatCurrency(pipelineOpps.filter(o => o.stage === stage).reduce((s, o) => s + Number(o.value), 0)).replace(",00", "")}
+                  </Badge>
+                </div>
+                <div className="p-4 space-y-3 flex-1 min-h-[140px]">
+                  {pipelineOpps.filter(o => o.stage === stage).map(o => (
+                    <div key={o.id} className="bg-secondary/40 border border-border/50 rounded-xl p-3.5 hover:border-[#3ecf8e]/30 transition-all cursor-pointer group"
+                      onClick={() => window.location.href = "/pipeline"}>
+                      <div className="flex justify-between items-start gap-2 mb-1.5">
+                        <p className="text-xs font-bold text-foreground truncate">{o.client_name}</p>
+                        <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-[#3ecf8e] transition-colors" />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground truncate mb-3 leading-relaxed">{o.title}</p>
+                      <div className="flex justify-between items-center pt-2 border-t border-white/5">
+                        <span className="text-[11px] font-black font-mono text-[#3ecf8e]">{formatCurrency(o.value)}</span>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-8 h-1 bg-white/5 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-500" style={{ width: `${o.probability}%` }} />
+                          </div>
+                          <span className="text-[9px] text-muted-foreground font-bold">{o.probability}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {pipelineOpps.filter(o => o.stage === stage).length === 0 && (
+                    <div className="h-full flex items-center justify-center py-10 opacity-40">
+                      <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest italic">Vazio</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Left: Activities */}
+          <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-border bg-secondary/10">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                  <ListTodo className="h-4 w-4 text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Agenda</h2>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Atividades e Tarefas</p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => setIsModalOpen(true)}
+                className="h-8 px-4 gap-2 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-black font-bold text-[10px] rounded-lg transition-transform hover:scale-105 active:scale-95"
+              >
+                <Plus className="h-3.5 w-3.5" /> Nova Atividade
+              </Button>
+            </div>
+
+            <div className="divide-y divide-border/40">
+              {activities.map(a => {
+                const cfg = TYPE_CONFIG[a.type] || TYPE_CONFIG.tarefa;
+                const Icon = cfg.icon;
+                const isDone = a.status === "concluida";
+                return (
+                  <div key={a.id} className="flex items-center gap-5 px-6 py-4 hover:bg-accent/20 transition-colors group">
+                    <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-110", cfg.bg, cfg.color)}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <p className={cn("text-xs font-bold truncate tracking-tight", isDone ? "line-through text-muted-foreground" : "text-foreground")}>{a.title}</p>
+                      {a.due_date && (
+                        <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1.5 font-medium">
+                          <Clock className="h-3 w-3" />
+                          {new Date(a.due_date).toLocaleDateString("pt-BR")} às {new Date(a.due_date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-border text-muted-foreground hidden sm:flex h-5 px-2">
+                        {cfg.icon === ListTodo ? "Tarefa" : a.type}
+                      </Badge>
+
+                      <button
+                        onClick={() => completeActivity(a.id, a.status)}
+                        className={cn(
+                          "h-8 w-8 rounded-full border-2 flex items-center justify-center transition-all shrink-0",
+                          isDone ? "bg-[#3ecf8e] border-[#3ecf8e] text-black" : "border-border text-transparent hover:border-[#3ecf8e] hover:text-[#3ecf8e] hover:bg-[#3ecf8e]/5"
+                        )}
+                      >
+                        <CheckCircle2 className={cn("h-4 w-4", isDone ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {activities.length === 0 && (
+                <div className="py-20 text-center flex flex-col items-center">
+                  <div className="h-16 w-16 rounded-3xl bg-secondary/30 flex items-center justify-center mb-4 border border-border border-dashed">
+                    <ListTodo className="h-6 w-6 text-muted-foreground/30" />
+                  </div>
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Nada pendente</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Sidebar Column */}
+        <div className="flex flex-col gap-6">
+
+          {/* Next level progress */}
+          <div className="bg-[#3ecf8e]/5 border border-[#3ecf8e]/15 rounded-2xl p-6 relative overflow-hidden group">
+            <div className="absolute right-4 top-4 text-[#3ecf8e]/10 group-hover:text-[#3ecf8e]/15 transition-colors">
+              <Zap className="h-16 w-16" />
+            </div>
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-4">
+                <div className="h-10 w-10 rounded-xl bg-background border border-border flex items-center justify-center shadow-sm">
+                  <Award className="h-5 w-5 text-[#3ecf8e]" />
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">Nível Atual</p>
+                  <p className="text-xs font-bold text-foreground">Vendedor Senior</p>
+                </div>
+              </div>
+              <p className="text-sm font-bold text-foreground mb-1.5">Progresso do Escalão</p>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Você já completou <span className="text-[#3ecf8e] font-bold">{metrics.points} negócios</span>. 
+                Faltam {Math.max(0, 5 - metrics.points)} para o próximo nível.
+              </p>
+              <div className="h-2 w-full bg-background rounded-full mt-5 overflow-hidden border border-border">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, (metrics.points / 5) * 100)}%` }}
+                  transition={{ duration: 1, ease: "circOut" }}
+                  className="h-full bg-[#3ecf8e] rounded-full shadow-[0_0_10px_rgba(62,207,142,0.4)]"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Specialized Skills (Badges) */}
+          <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+            <div className="px-5 py-4 border-b border-border bg-secondary/20">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Especializações</h2>
+            </div>
+            <div className="p-4 grid grid-cols-2 gap-3">
               {badges.slice(0, 4).map(b => (
-                <div key={b.id} className="bg-secondary border border-border rounded-md p-3 flex flex-col items-center text-center hover:border-[#3ecf8e]/30 transition-all group">
-                  <div className="text-2xl mb-2 group-hover:scale-110 transition-transform">{b.badges?.icon || "🏅"}</div>
-                  <div className="text-[10px] font-semibold text-foreground leading-tight">{b.badges?.name || "Conquista"}</div>
+                <div key={b.id} className="bg-secondary/40 border border-border rounded-xl p-4 flex flex-col items-center text-center hover:border-[#3ecf8e]/30 transition-all hover:-translate-y-0.5">
+                  <div className="text-3xl mb-2 drop-shadow-md">{b.badges?.icon || "🏅"}</div>
+                  <div className="text-[10px] font-black text-foreground leading-tight uppercase tracking-tight">{b.badges?.name || "Conquista"}</div>
                 </div>
               ))}
               {badges.length === 0 && (
-                <div className="col-span-2 py-8 text-center text-[10px] text-muted-foreground border border-dashed border-border rounded-md">
-                  Nenhuma especialização desbloqueada
+                <div className="col-span-2 py-10 text-center text-[10px] text-muted-foreground border border-dashed border-border rounded-xl">
+                  Nenhuma especialização ativa
                 </div>
               )}
             </div>
           </div>
 
-          {/* Next level progress */}
-          <div className="bg-[#3ecf8e]/5 border border-[#3ecf8e]/15 rounded-lg p-5 relative overflow-hidden group">
-            <div className="absolute right-4 top-4 text-[#3ecf8e]/10 group-hover:text-[#3ecf8e]/15 transition-colors">
-              <Zap className="h-16 w-16" />
-            </div>
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-3">
-                <div className="h-8 w-8 rounded-md bg-background border border-border flex items-center justify-center">
-                  <Zap className="h-3.5 w-3.5 text-[#3ecf8e]" />
+          {/* Stats Summary */}
+          <div className="bg-card border border-border rounded-2xl p-6 space-y-5 shadow-sm">
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Performance Rápida</h2>
+            <div className="space-y-4">
+              {[
+                { label: "Taxa de Sucesso", value: `${metrics.conversionRate.toFixed(1)}%`, accent: true },
+                { label: "Ticket Médio", value: metrics.count > 0 ? formatCurrency(metrics.revenue / metrics.count) : "—" },
+                { label: "Crescimento Mensal", value: "+12.4%", color: "text-[#3ecf8e]" },
+              ].map(item => (
+                <div key={item.label} className="flex items-center justify-between pb-3 border-b border-white/5 last:border-0 last:pb-0">
+                  <span className="text-[11px] font-medium text-muted-foreground">{item.label}</span>
+                  <span className={cn("text-xs font-black font-mono", item.accent ? "text-[#3ecf8e]" : (item.color || "text-foreground"))}>{item.value}</span>
                 </div>
-                <ArrowUpRight className="h-4 w-4 text-muted-foreground group-hover:text-[#3ecf8e] transition-colors" />
-              </div>
-              <p className="text-sm font-semibold text-foreground mb-1">Próximo Escalão</p>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Faltam <span className="text-[#3ecf8e] font-semibold">{Math.max(0, 5 - metrics.count)} negócios</span> para atingir <span className="text-foreground font-medium">Especialista III</span>.
-              </p>
-              <div className="h-1.5 w-full bg-background rounded-full mt-4 overflow-hidden border border-border">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(100, (metrics.count / 5) * 100)}%` }}
-                  transition={{ duration: 1, ease: "circOut" }}
-                  className="h-full bg-[#3ecf8e] rounded-full"
-                />
-              </div>
-              <div className="flex justify-between mt-1.5">
-                <span className="text-[9px] text-muted-foreground">{metrics.count} negócios</span>
-                <span className="text-[9px] text-muted-foreground">Meta: 5</span>
-              </div>
+              ))}
             </div>
-          </div>
-
-          {/* Quick stats */}
-          <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-            <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Resumo Rápido</h2>
-            {[
-              { label: "Taxa de Conversão", value: `${metrics.conversionRate.toFixed(1)}%`, color: "text-[#3ecf8e]" },
-              { label: "Ticket Médio", value: metrics.count > 0 ? formatCurrency(metrics.revenue / metrics.count) : "—", color: "text-foreground" },
-              { label: "Comissão / Negócio", value: metrics.count > 0 ? formatCurrency(metrics.commission / metrics.count) : "—", color: "text-foreground" },
-            ].map(item => (
-              <div key={item.label} className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">{item.label}</span>
-                <span className={cn("text-xs font-semibold font-mono", item.color)}>{item.value}</span>
-              </div>
-            ))}
           </div>
         </div>
       </div>

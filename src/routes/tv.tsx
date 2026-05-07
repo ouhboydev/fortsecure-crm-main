@@ -6,7 +6,7 @@ import { fetchTeamMetrics, fetchRanking, STAGES, type RankingRow } from "@/lib/s
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatCurrency } from "@/components/ui-kit/PageHeader";
-import { Trophy, TrendingUp, Target, Zap, Activity, CheckCircle2, ArrowUpRight, Flame, ChevronRight, ChevronLeft, Maximize, Minimize } from "lucide-react";
+import { Trophy, TrendingUp, Target, Zap, Activity, CheckCircle2, ArrowUpRight, Flame, ChevronRight, ChevronLeft, Maximize, Minimize, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import logo from "../public/logo.png";
@@ -21,11 +21,11 @@ function getQuarterLabel() {
   return `Q${Math.floor(m / 3) + 1}`;
 }
 
-function RadialRing({ pct }: { pct: number }) {
+function RadialRing({ pct, color: customColor }: { pct: number; color?: string }) {
   const r = 80, cx = 100, cy = 100;
   const circ = 2 * Math.PI * r;
   const dash = Math.min(pct, 100) / 100 * circ;
-  const color = pct >= 100 ? "#3ecf8e" : pct >= 60 ? "#f59e0b" : "#e53e3e";
+  const color = customColor || (pct >= 100 ? "#3ecf8e" : pct >= 60 ? "#f59e0b" : "#e53e3e");
   return (
     <svg viewBox="0 0 200 200" className="w-full h-full">
       <defs>
@@ -81,31 +81,120 @@ function WinsTicker({ wins }: { wins: any[] }) {
   );
 }
 
-// ── Slide 1: Atingimento + KPIs ──
+// ── Slide 1: Atingimento Global (Equipe) ──
 function SlideAchievement({ metrics, q }: { metrics: any; q: string }) {
   return (
     <div className="flex-1 grid gap-4 p-6 relative z-10" style={{ gridTemplateColumns: "320px 1fr", gridTemplateRows: "1fr" }}>
       <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-2xl p-6 flex flex-col gap-4 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-[#3ecf8e]/3 to-transparent pointer-events-none rounded-2xl" />
-        <div>
-          <p className="text-[10px] text-[#505050] uppercase tracking-widest font-bold">Meta {q}</p>
-          <h2 className="text-base font-semibold text-[#ededed] mt-0.5">Atingimento Global</h2>
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="w-52 h-52"><RadialRing pct={metrics.attainment} /></div>
-        </div>
-        <div className="space-y-3 border-t border-[#1a1a1a] pt-4">
-          <MetaRow label="Realizado" value={formatCurrency(metrics.revenue)} accent />
-          <MetaRow label="Meta" value={formatCurrency(metrics.goal)} />
-          <MetaRow label="Forecast" value={formatCurrency(metrics.forecast ?? 0)} />
-          <MetaRow label="Conversão" value={`${(metrics.conversion ?? 0).toFixed(1)}%`} />
+        <div className="flex flex-col flex-1 gap-4">
+          <div>
+            <p className="text-[10px] text-[#505050] uppercase tracking-widest font-bold">Meta {q}</p>
+            <h2 className="text-base font-semibold text-[#ededed] mt-0.5">Atingimento Global</h2>
+          </div>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="w-52 h-52">
+              <RadialRing pct={metrics.attainment} />
+            </div>
+          </div>
+          <div className="space-y-3 border-t border-[#1a1a1a] pt-4">
+            <MetaRow label="Realizado" value={formatCurrency(metrics.revenue)} accent />
+            <MetaRow label="Meta" value={formatCurrency(metrics.goal)} />
+            <MetaRow label="Forecast" value={formatCurrency(metrics.forecast ?? 0)} />
+            <MetaRow label="Conversão" value={`${(metrics.conversion ?? 0).toFixed(1)}%`} />
+          </div>
         </div>
       </div>
       <div className="grid grid-cols-2 grid-rows-2 gap-4">
-        <KpiBox label="Receita" value={formatCurrency(metrics.revenue)} icon={<TrendingUp className="h-4 w-4" />} accent />
+        <KpiBox label="Receita Total" value={formatCurrency(metrics.revenue)} icon={<TrendingUp className="h-4 w-4" />} accent />
         <KpiBox label="Pipeline" value={formatCurrency(metrics.pipelineValue)} sub={`${metrics.pipelineCount} opps`} icon={<Activity className="h-4 w-4" />} />
         <KpiBox label="Forecast" value={formatCurrency(metrics.forecast ?? 0)} icon={<Zap className="h-4 w-4" />} />
         <KpiBox label="Conversão" value={`${(metrics.conversion ?? 0).toFixed(1)}%`} icon={<ArrowUpRight className="h-4 w-4" />} accent />
+      </div>
+    </div>
+  );
+}
+
+// ── Slide Novo: Grid de Produtos (Layout Premium) ──
+function SlideProductGrid({ products }: { products: any[] }) {
+  return (
+    <div className="flex-1 p-8 relative z-10">
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <p className="text-[10px] text-[#505050] uppercase tracking-widest font-bold">Portfólio</p>
+          <h2 className="text-xl font-bold text-[#ededed]">Performance por Solução</h2>
+        </div>
+        <div className="flex items-center gap-2 px-3 py-1 bg-[#0d0d0d] border border-[#1a1a1a] rounded-full">
+          <span className="h-1.5 w-1.5 rounded-full bg-[#3ecf8e] animate-pulse" />
+          <span className="text-[9px] text-[#737373] uppercase font-bold tracking-wider">{products.length} Ativos</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 h-[calc(100%-80px)]">
+        {products.slice(0, 6).map((p, i) => (
+          <motion.div
+            key={p.name}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1, duration: 0.5 }}
+            className="relative bg-[#0d0d0d] border border-[#1a1a1a] rounded-3xl p-6 flex flex-col justify-between overflow-hidden group"
+          >
+            {/* Ambient Glow */}
+            <div 
+              className="absolute -top-24 -right-24 w-48 h-48 blur-[80px] opacity-20 transition-opacity group-hover:opacity-30 pointer-events-none"
+              style={{ backgroundColor: p.color }}
+            />
+            
+            <div className="flex items-start justify-between relative z-10">
+              <div className="space-y-1">
+                <p className="text-[10px] text-[#505050] uppercase font-bold tracking-widest">Produto</p>
+                <h3 className="text-lg font-black text-[#ededed] leading-tight tracking-tight max-w-[180px]">{p.name}</h3>
+              </div>
+              <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-white/5 border border-white/10 text-[#ededed]">
+                <Package className="h-5 w-5" />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-8 my-4 relative z-10">
+              <div className="w-32 h-32 shrink-0">
+                <RadialRing pct={p.pct} color={p.color} />
+              </div>
+              <div className="flex-1 space-y-4">
+                <div>
+                  <p className="text-[10px] text-[#505050] uppercase font-bold tracking-widest mb-1">Realizado</p>
+                  <p className="text-xl font-mono font-bold text-[#ededed] tabular-nums">{formatCurrency(p.realized)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-[#505050] uppercase font-bold tracking-widest mb-1">Objetivo</p>
+                  <p className="text-sm font-mono font-bold text-[#737373] tabular-nums">{formatCurrency(p.goal)}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Progress Bar */}
+            <div className="relative z-10 pt-4 border-t border-white/5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[9px] text-[#505050] font-bold uppercase tracking-widest">Atingimento Global</span>
+                <span className="text-[10px] font-mono font-bold" style={{ color: p.color }}>{Math.round(p.pct)}%</span>
+              </div>
+              <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                <motion.div 
+                  className="h-full rounded-full"
+                  style={{ backgroundColor: p.color, boxShadow: `0 0 10px ${p.color}40` }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, p.pct)}%` }}
+                  transition={{ duration: 1, delay: i * 0.1 + 0.5 }}
+                />
+              </div>
+            </div>
+          </motion.div>
+        ))}
+        {products.length === 0 && (
+          <div className="col-span-full flex flex-col items-center justify-center gap-4 text-[#3a3a3a]">
+            <Package className="h-12 w-12 opacity-20" />
+            <p className="text-sm font-medium">Sem metas de produtos configuradas</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -214,7 +303,7 @@ function SlideFunnel({ funnel, metrics }: { funnel: any[]; metrics: any }) {
   );
 }
 
-const SLIDES = ["atingimento", "ranking", "funil"] as const;
+const SLIDES = ["atingimento", "produtos", "ranking", "funil"] as const;
 const SLIDE_DURATION = 15000; // 15s per slide
 
 function TV() {
@@ -224,10 +313,13 @@ function TV() {
   const [ranking, setRanking] = useState<RankingRow[]>([]);
   const [funnel, setFunnel] = useState<any[]>([]);
   const [recentWins, setRecentWins] = useState<any[]>([]);
+  const [productGoals, setProductGoals] = useState<any[]>([]);
   const [time, setTime] = useState(new Date());
   const [slide, setSlide] = useState(0);
+  const [productIdx, setProductIdx] = useState(0);
   const [autoPlay, setAutoPlay] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [ticks, setTicks] = useState(0); // For timing non-achievement slides
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -250,19 +342,48 @@ function TV() {
   useEffect(() => { if (!loading && !user) nav({ to: "/auth" }); }, [user, loading]);
 
   async function load() {
-    const [m, r, oppsRes, winsRes] = await Promise.all([
+    const now = new Date();
+    const quarter = Math.floor(now.getMonth() / 3);
+    const qMonths = [quarter * 3, quarter * 3 + 1, quarter * 3 + 2];
+
+    const [m, r, oppsRes, winsRes, prodsRes] = await Promise.all([
       fetchTeamMetrics(), fetchRanking(),
-      supabase.from("opportunities").select("stage, value"),
-      supabase.from("opportunities").select("id, title, value, closed_at, profiles(full_name, avatar_url)")
-        .eq("stage", "ganho").order("closed_at", { ascending: false }).limit(8),
+      supabase.from("opportunities").select("*") as any,
+      supabase.from("opportunities").select("*, profiles(full_name, avatar_url)")
+        .eq("stage", "ganho").order("closed_at", { ascending: false }).limit(8) as any,
+      supabase.from("products").select("*") as any,
     ]);
+
     setMetrics(m); setRanking(r); setRecentWins(winsRes.data ?? []);
-    const opps = oppsRes.data ?? [];
+    const opps = (oppsRes.data || []) as any[];
+    
     setFunnel(STAGES.map(s => ({
       stage: s.label, color: s.color,
       count: opps.filter(o => o.stage === s.key).length,
       value: opps.filter(o => o.stage === s.key).reduce((sum, o) => sum + Number(o.value), 0),
     })));
+
+    // Product goals for the quarter
+    const activeProds = (prodsRes.data || []).filter((p: any) => p.metadata?.goal_active);
+    const pGoals = activeProds.map((p: any) => {
+      const pOpps = opps.filter(o => 
+        o.metadata?.product_id === p.id && 
+        o.stage === "ganho" && 
+        o.closed_at && 
+        qMonths.includes(new Date(o.closed_at).getMonth()) &&
+        new Date(o.closed_at).getFullYear() === now.getFullYear()
+      );
+      const realized = pOpps.reduce((sum, o) => sum + Number(o.value), 0);
+      const goal = Number(p.metadata?.goal || 0);
+      return {
+        name: p.name,
+        realized,
+        goal,
+        pct: goal > 0 ? (realized / goal) * 100 : 0,
+        color: p.metadata?.color || "#3ecf8e"
+      };
+    });
+    setProductGoals(pGoals);
   }
 
   useEffect(() => {
@@ -273,7 +394,7 @@ function TV() {
     return () => { clearInterval(int); clearInterval(clk); supabase.removeChannel(ch); };
   }, []);
 
-  // Auto-advance slides
+  // Auto-advance logic (Simple 15s per slide)
   useEffect(() => {
     if (!autoPlay) return;
     const t = setInterval(() => setSlide(s => (s + 1) % SLIDES.length), SLIDE_DURATION);
@@ -292,6 +413,7 @@ function TV() {
   );
 
   const q = getQuarterLabel();
+  const currentSlideName = SLIDES[slide];
 
   return (
     <div className="min-h-screen bg-[#080808] text-[#ededed] flex flex-col overflow-hidden"
@@ -368,9 +490,10 @@ function TV() {
       <AnimatePresence mode="wait">
         <motion.div key={slide} initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}
           transition={{ duration: 0.4 }} className="flex flex-col flex-1">
-          {SLIDES[slide] === "atingimento" && <SlideAchievement metrics={metrics} q={q} />}
-          {SLIDES[slide] === "ranking" && <SlideRanking ranking={ranking} />}
-          {SLIDES[slide] === "funil" && <SlideFunnel funnel={funnel} metrics={metrics} />}
+          {currentSlideName === "atingimento" && <SlideAchievement metrics={metrics} q={q} />}
+          {currentSlideName === "produtos" && <SlideProductGrid products={productGoals} />}
+          {currentSlideName === "ranking" && <SlideRanking ranking={ranking} />}
+          {currentSlideName === "funil" && <SlideFunnel funnel={funnel} metrics={metrics} />}
         </motion.div>
       </AnimatePresence>
 
@@ -425,11 +548,12 @@ function KpiBox({ label, value, sub, icon, accent = false }: {
   );
 }
 
-function MetaRow({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+function MetaRow({ label, value, accent = false, color: customColor }: { label: string; value: string; accent?: boolean; color?: string }) {
+  const color = customColor || "#3ecf8e";
   return (
     <div className="flex items-center justify-between">
       <span className="text-[10px] text-[#505050] uppercase tracking-widest font-medium">{label}</span>
-      <span className={cn("text-sm font-bold font-mono", accent ? "text-[#3ecf8e]" : "text-[#ededed]")}>{value}</span>
+      <span className={cn("text-sm font-bold font-mono", accent ? "" : "text-[#ededed]")} style={accent ? { color } : {}}>{value}</span>
     </div>
   );
 }

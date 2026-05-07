@@ -209,6 +209,7 @@ function Dashboard() {
             o.metadata?.product_id === prod.id &&
             o.stage === "ganho" &&
             o.closed_at &&
+            (selectedSeller === "all" || o.owner_id === selectedSeller) &&
             qMonths.includes(new Date(o.closed_at).getMonth()) &&
             new Date(o.closed_at).getFullYear() === now.getFullYear()
           );

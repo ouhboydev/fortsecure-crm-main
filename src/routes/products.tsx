@@ -87,7 +87,7 @@ function Products() {
     image: string;
     new_category: string;
     goal_active: boolean;
-    seller_goals: Record<string, number>;
+    seller_goals: Record<string, string>;
   }
 
   const blankForm: ProductForm = {
@@ -152,7 +152,11 @@ function Products() {
           goal: form.goal ? parseCurrency(form.goal) : null,
           goal_active: form.goal_active,
           image: form.image || undefined,
-          seller_goals: form.seller_goals,
+          seller_goals: Object.fromEntries(
+            Object.entries(form.seller_goals)
+              .filter(([_, val]) => val !== "")
+              .map(([id, val]) => [id, parseCurrency(val)])
+          ),
         } as any,
       };
 
@@ -231,7 +235,9 @@ function Products() {
       goal_active: (p as any).metadata?.goal_active || false,
       image: (p as any).metadata?.image || "",
       new_category: "",
-      seller_goals: (p as any).metadata?.seller_goals || {},
+      seller_goals: Object.fromEntries(
+        Object.entries((p as any).metadata?.seller_goals || {}).map(([id, val]) => [id, formatCurrencyBRL(val as number)])
+      ),
     });
     setIsModalOpen(true);
   }
@@ -539,11 +545,10 @@ function Products() {
                 <Target className="h-3 w-3" /> Meta do Produto (BRL)
               </Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">R$</span>
                 <Input type="text" placeholder="R$ 0,00" value={form.goal}
                   onChange={e => setForm({ ...form, goal: e.target.value })}
                   onBlur={e => setForm({ ...form, goal: formatCurrencyBRL(e.target.value) })}
-                  className="h-9 pl-9 bg-background border-border text-sm font-mono" />
+                  className="h-9 px-3 bg-background border-border text-sm font-mono" />
               </div>
               <p className="text-[10px] text-muted-foreground">Valor alvo de receita para este produto no dashboard.</p>
             </div>
@@ -617,19 +622,26 @@ function Products() {
                 {sellers.map(s => (
                   <div key={s.id} className="flex items-center gap-3">
                     <span className="text-[11px] font-medium text-foreground flex-1 truncate">{formatDisplayName(s.full_name)}</span>
-                    <div className="relative w-32">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground font-mono">R$</span>
+                    <div className="relative w-40">
                       <Input
-                        placeholder="0,00"
-                        value={form.seller_goals[s.id] ? formatCurrencyBRL(form.seller_goals[s.id]) : ""}
+                        placeholder="R$ 0,00"
+                        value={form.seller_goals[s.id] || ""}
                         onChange={e => {
-                          const val = parseCurrency(e.target.value);
+                          const val = e.target.value;
                           setForm(f => ({
                             ...f,
                             seller_goals: { ...f.seller_goals, [s.id]: val }
                           }));
                         }}
-                        className="h-7 pl-7 bg-background border-border text-[10px] font-mono"
+                        onBlur={e => {
+                          const val = e.target.value;
+                          if (!val) return;
+                          setForm(f => ({
+                            ...f,
+                            seller_goals: { ...f.seller_goals, [s.id]: formatCurrencyBRL(val) }
+                          }));
+                        }}
+                        className="h-8 px-3 bg-background border-border text-[11px] font-mono"
                       />
                     </div>
                   </div>
