@@ -58,10 +58,12 @@ function Dashboard() {
   const [trendData, setTrendData] = useState<any[]>([]);
   const [productData, setProductData] = useState<any[]>([]);
   const [meetingCount, setMeetingCount] = useState(0);
+  const [visitCount, setVisitCount] = useState(0);
   const [conversionRate, setConversionRate] = useState(0);
   const [selectedSeller, setSelectedSeller] = useState("all");
   const [sellers, setSellers] = useState<any[]>([]);
   const [fieldActivities, setFieldActivities] = useState<any[]>([]);
+  const [activityFilter, setActivityFilter] = useState<"all" | "reuniao" | "visita">("all");
   const getQuarterIndex = (month: number) => Math.floor(month / 3);
   const [selectedPeriod, setSelectedPeriod] = useState(getQuarterIndex(new Date().getMonth()).toString());
 
@@ -103,7 +105,7 @@ function Dashboard() {
         supabase.from("goals").select("target_amount, user_id, month").in("month", goalMonths).eq("year", now.getFullYear()),
         supabase.from("meetings").select("id", { count: "exact", head: true }).gte("scheduled_at", firstDay).lte("scheduled_at", lastDay),
         supabase.from("app_settings").select("*").eq("key", "global_revenue_goal").single(),
-        supabase.from("activities").select("*, profiles(full_name)").in("type", ["reuniao"]).gte("due_date", firstDay).lte("due_date", lastDay).order("due_date", { ascending: false }).limit(30),
+        supabase.from("activities").select("*, profiles(full_name)").in("type", ["reuniao", "visita"]).gte("due_date", firstDay).lte("due_date", lastDay).order("due_date", { ascending: false }).limit(50),
         supabase.from("user_roles").select("user_id, role"),
         supabase.from("products").select("*"),
       ]);
@@ -151,6 +153,8 @@ function Dashboard() {
       const acts = (activitiesRes.data || []) as any[];
       const filteredActs = selectedSeller !== "all" ? acts.filter((a: any) => a.owner_id === selectedSeller) : acts;
       setFieldActivities(filteredActs);
+      setVisitCount(filteredActs.filter((a: any) => a.type === "visita" || a.metadata?.log_subtype === "visit").length);
+      setMeetingCount(filteredActs.filter((a: any) => a.type === "reuniao" || a.metadata?.log_subtype === "meeting").length);
 
       const proposalCount = opps.filter(o => ["proposta", "negociacao", "ganho", "perdido"].includes(o.stage)).length;
       const winCount = opps.filter(o => o.stage === "ganho").length;
@@ -275,10 +279,11 @@ function Dashboard() {
       </div>
 
       {/* ── KPI Row ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <DashKpi label="Receita (Real)" value={formatCurrency(metrics.revenue)} hint={`Meta: ${formatCurrency(metrics.goal)}`} icon={<DollarSign className="h-4 w-4" />} trend={metrics.attainment} accent featured />
         <DashKpi label="Forecast" value={metrics.pipelineCount} hint={formatCurrency(metrics.pipelineValue)} icon={<TrendingUp className="h-4 w-4" />} />
-        <DashKpi label="Reuniões" value={meetingCount} hint="Agendadas no período" icon={<PhoneCall className="h-4 w-4" />} />
+        <DashKpi label="Reuniões" value={meetingCount} hint="No período" icon={<PhoneCall className="h-4 w-4" />} />
+        <DashKpi label="Visitas" value={visitCount} hint="No período" icon={<MapPin className="h-4 w-4" />} />
         <DashKpi label="Conversão" value={`${conversionRate.toFixed(1)}%`} hint="Proposta → Fechado" icon={<PieChartIcon className="h-4 w-4" />} />
 
         {/* Countdown - Always visible */}
@@ -302,26 +307,38 @@ function Dashboard() {
 
       {/* ── Charts Row ── */}
       <div className="grid lg:grid-cols-3 gap-5">
-        {/* Quarterly area chart — FEATURED: grid no header, limpo no chart */}
+        {/* Field Activities Widget */}
         <WidgetCard featured gridFade={0.3} className="lg:col-span-2 bg-card border border-border rounded-lg overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <div>
               <h2 className="text-sm font-medium text-foreground">Atividades do Time</h2>
               <p className="text-[10px] text-muted-foreground mt-0.5">Reuniões e visitas registradas no período</p>
             </div>
-            <span className="text-[10px] font-mono text-muted-foreground bg-secondary border border-border rounded px-2 py-1">
-              {fieldActivities.length} atividade{fieldActivities.length !== 1 ? "s" : ""}
-            </span>
+            <div className="flex items-center gap-2">
+              <select
+                value={activityFilter}
+                onChange={e => setActivityFilter(e.target.value as any)}
+                className="text-[10px] font-mono text-muted-foreground bg-secondary border border-border rounded px-2 py-1 focus:outline-none"
+              >
+                <option value="all">Todos ({fieldActivities.length})</option>
+                <option value="reuniao">Reuniões ({fieldActivities.filter((a: any) => a.type === "reuniao").length})</option>
+                <option value="visita">Visitas ({fieldActivities.filter((a: any) => a.type === "visita" || a.metadata?.log_subtype === "visit").length})</option>
+              </select>
+            </div>
           </div>
           <div className="divide-y divide-border overflow-y-auto h-[280px]">
-            {fieldActivities.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full gap-2">
-                <MapPin className="h-6 w-6 text-muted-foreground/30" />
-                <p className="text-xs text-muted-foreground">Nenhuma atividade no período</p>
-              </div>
-            ) : (
-              fieldActivities.map((a: any) => {
-                const isVisit = a.metadata?.log_subtype === "visit";
+            {(() => {
+              const filtered = activityFilter === "all" ? fieldActivities
+                : activityFilter === "reuniao" ? fieldActivities.filter((a: any) => a.type === "reuniao")
+                : fieldActivities.filter((a: any) => a.type === "visita" || a.metadata?.log_subtype === "visit");
+              if (filtered.length === 0) return (
+                <div className="flex flex-col items-center justify-center h-full gap-2">
+                  <MapPin className="h-6 w-6 text-muted-foreground/30" />
+                  <p className="text-xs text-muted-foreground">Nenhuma atividade no período</p>
+                </div>
+              );
+              return filtered.map((a: any) => {
+                const isVisit = a.type === "visita" || a.metadata?.log_subtype === "visit";
                 const sellerName = a.profiles?.full_name
                   ? formatDisplayName(a.profiles.full_name).split(" ").slice(0, 2).join(" ")
                   : "Vendedor";
@@ -356,33 +373,47 @@ function Dashboard() {
                     </span>
                   </div>
                 );
-              })
-            )}
+              });
+            })()}
           </div>
         </WidgetCard>
 
-        {/* Atingimento Global — replaces Funil */}
+        {/* Funil de Vendas */}
         <div className="bg-card border border-border rounded-lg overflow-hidden flex flex-col">
           <div className="px-5 py-4 border-b border-border">
-            <h2 className="text-sm font-medium text-foreground">Atingimento Global</h2>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Progresso em relação à meta do período</p>
+            <h2 className="text-sm font-medium text-foreground">Funil de Vendas</h2>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Distribuição por etapa do pipeline</p>
           </div>
-          <div className="p-4 flex flex-col items-center justify-center flex-1 relative min-h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadialBarChart cx="50%" cy="50%" innerRadius="72%" outerRadius="100%" barSize={12} data={[{ value: Math.min(100, metrics.attainment), fill: metrics.attainment >= 100 ? "#3ecf8e" : metrics.attainment >= 60 ? "#f59e0b" : "#e53e3e" }]}>
-                <RadialBar background={{ fill: "#262626" }} dataKey="value" cornerRadius={6} />
-                <text x="50%" y="46%" textAnchor="middle" dominantBaseline="middle" fill="#ededed" fontSize="26" fontWeight="800" fontFamily="monospace">
-                  {metrics.attainment}%
-                </text>
-                <text x="50%" y="60%" textAnchor="middle" dominantBaseline="middle" fill="#737373" fontSize="10">
-                  da meta total
-                </text>
-              </RadialBarChart>
-            </ResponsiveContainer>
+          <div className="p-5 flex flex-col justify-center gap-3 flex-1">
+            {funnelData.map((f: any) => {
+              const maxVal = Math.max(...funnelData.map((x: any) => x.value), 1);
+              const pct = maxVal > 0 ? (f.value / maxVal) * 100 : 0;
+              return (
+                <div key={f.name}>
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: f.color }} />
+                      <span className="text-muted-foreground font-medium">{f.name}</span>
+                      <span className="text-[#3a3a3a] font-mono text-[10px]">{f.count}</span>
+                    </div>
+                    <span className="font-mono font-semibold text-foreground">{formatCurrency(f.value)}</span>
+                  </div>
+                  <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${pct}%`, backgroundColor: f.color }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+            {funnelData.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center">Sem dados de pipeline</p>
+            )}
           </div>
-          <div className="px-5 pb-4 mt-auto flex justify-between text-[10px] text-muted-foreground border-t border-border/30 pt-3">
-            <span>Realizado: <span className="text-foreground font-mono">{formatCurrency(metrics.revenue)}</span></span>
-            <span>Meta: <span className="text-foreground font-mono">{formatCurrency(metrics.goal)}</span></span>
+          <div className="px-5 pb-4 border-t border-border/30 pt-3 flex justify-between text-[10px] text-muted-foreground">
+            <span>Atingimento: <span className="font-mono text-foreground">{metrics.attainment}%</span></span>
+            <span>Conversão: <span className="font-mono text-foreground">{conversionRate.toFixed(1)}%</span></span>
           </div>
         </div>
       </div>

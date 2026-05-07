@@ -9,7 +9,7 @@ import { motion } from "framer-motion";
 import {
   TrendingUp, Target, Award, Plus, Zap,
   PhoneCall, Mail, Users, ListTodo,
-  CheckCircle2, Clock, Loader2, ArrowUpRight,
+  CheckCircle2, Clock, Loader2, ArrowUpRight, Package,
 } from "lucide-react";
 import { cn, formatDisplayName } from "@/lib/utils";
 import { toast } from "sonner";
@@ -42,18 +42,26 @@ function MyPanel() {
   const [activities, setActivities] = useState<any[]>([]);
   const [badges, setBadges] = useState<any[]>([]);
   const [rank, setRank] = useState<string>("--");
+  const [productData, setProductData] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ title: "", type: "tarefa", due_date: "", is_public: false });
 
+  // Current quarter months
+  const now = new Date();
+  const quarter = Math.floor(now.getMonth() / 3);
+  const qMonths = [quarter * 3, quarter * 3 + 1, quarter * 3 + 2];
+  const qLabel = `Q${quarter + 1}`;
+
   async function load() {
     if (!user) return;
-    const [oppsRes, actsRes, badgeRes, settings, rankRes] = await Promise.all([
+    const [oppsRes, actsRes, badgeRes, settings, rankRes, prodsRes] = await Promise.all([
       supabase.from("opportunities").select("*").eq("owner_id", user.id),
       supabase.from("activities").select("*").eq("owner_id", user.id).order("due_date", { ascending: true }).limit(5),
       supabase.from("badges").select("*, badges(*)").eq("user_id", user.id),
       fetchAppSettings(),
       supabase.rpc("get_ranking"),
+      supabase.from("products").select("*"),
     ]);
 
     const opps = oppsRes.data ?? [];
@@ -64,15 +72,46 @@ function MyPanel() {
     const commission = (revenue * rate) / 100;
     const points = won.length;
 
+    // Conversion rate
+    const proposalCount = opps.filter(o => ["proposta", "negociacao", "ganho", "perdido"].includes(o.stage)).length;
+    const winCount = won.length;
+    const conversionRate = proposalCount > 0 ? (winCount / proposalCount) * 100 : 0;
+
     if (rankRes.data) {
       const ranking = rankRes.data as any[];
       const myIndex = ranking.findIndex(r => r.user_id === user.id);
       if (myIndex !== -1) setRank(`#${String(myIndex + 1).padStart(2, "0")}`);
     }
 
-    setMetrics({ revenue, pipeline: pipe, count: won.length, points, commission });
+    setMetrics({ revenue, pipeline: pipe, count: won.length, points, commission, conversionRate });
     setActivities(actsRes.data ?? []);
     setBadges(badgeRes.data ?? []);
+
+    // Product performance for this user (current quarter)
+    const prods = (prodsRes.data || []) as any[];
+    const productBreakdown = prods
+      .filter(prod => prod.metadata?.goal_active)
+      .map(prod => {
+        const linked = opps.filter(o =>
+          o.metadata?.product_id === prod.id &&
+          o.stage === "ganho" &&
+          o.closed_at &&
+          qMonths.includes(new Date(o.closed_at).getMonth()) &&
+          new Date(o.closed_at).getFullYear() === now.getFullYear()
+        );
+        const realized = linked.reduce((s: number, o: any) => s + Number(o.value), 0);
+        const goal = Number(prod.metadata?.goal ?? 0);
+        const pct = goal > 0 ? Math.min(Math.round((realized / goal) * 100), 999) : 0;
+        return {
+          name: prod.name,
+          realized,
+          goal,
+          pct,
+          color: prod.metadata?.color ?? "#3ecf8e",
+        };
+      })
+      .sort((a, b) => b.realized - a.realized);
+    setProductData(productBreakdown);
   }
 
   useEffect(() => { load(); }, [user]);
@@ -146,7 +185,7 @@ function MyPanel() {
       </div>
 
       {/* ── KPI Row ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <KpiCard
           label="Receita Liquidada"
           value={formatCurrency(metrics.revenue)}
@@ -166,7 +205,81 @@ function MyPanel() {
           sub={`Taxa de ${metrics.revenue > 0 ? ((metrics.commission / metrics.revenue) * 100).toFixed(1) : 15}%`}
           icon={<Award className="h-4 w-4" />}
         />
+        <KpiCard
+          label="Taxa de Conversão"
+          value={`${metrics.conversionRate.toFixed(1)}%`}
+          sub="Proposta → Fechado"
+          icon={<ArrowUpRight className="h-4 w-4" />}
+        />
       </div>
+
+      {/* ── Product Performance ── */}
+      {productData.length > 0 && (
+        <div className="bg-card border border-border rounded-lg overflow-hidden">
+          <div className="px-5 py-4 border-b border-border flex items-center gap-3">
+            <div className="h-7 w-7 rounded-md bg-purple-500/10 flex items-center justify-center">
+              <Package className="h-3.5 w-3.5 text-purple-400" />
+            </div>
+            <div>
+              <h2 className="text-sm font-medium text-foreground">Performance por Produto</h2>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Sua receita vs meta · {qLabel} {now.getFullYear()}</p>
+            </div>
+          </div>
+          <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {productData.map((p: any) => {
+              const isOver = p.pct >= 100;
+              return (
+                <div key={p.name} className="bg-secondary/20 border border-border/50 rounded-lg p-4 hover:border-border transition-colors">
+                  {/* Header */}
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+                      <span className="text-[11px] font-semibold text-foreground truncate">{p.name}</span>
+                    </div>
+                    <span className={cn(
+                      "text-[10px] font-black px-1.5 py-0.5 rounded shrink-0",
+                      isOver ? "bg-[#3ecf8e]/10 text-[#3ecf8e]" : p.pct > 0 ? "bg-yellow-500/10 text-yellow-400" : "bg-secondary text-muted-foreground"
+                    )}>
+                      {p.pct}%
+                    </span>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="h-1.5 bg-secondary rounded-full overflow-hidden mb-3">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(p.pct, 100)}%` }}
+                      transition={{ duration: 0.8, ease: "circOut" }}
+                      className="h-full rounded-full"
+                      style={{ backgroundColor: isOver ? p.color : "#f59e0b" }}
+                    />
+                  </div>
+
+                  {/* Values */}
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-sm font-bold font-mono" style={{ color: p.color }}>
+                      {formatCurrency(p.realized)}
+                    </span>
+                    {p.goal > 0 && (
+                      <span className="text-[9px] text-muted-foreground font-mono">
+                        / {formatCurrency(p.goal)}
+                      </span>
+                    )}
+                  </div>
+                  {p.goal > 0 && !isOver && (
+                    <p className="text-[9px] text-muted-foreground mt-1">
+                      Faltam {formatCurrency(Math.max(0, p.goal - p.realized))}
+                    </p>
+                  )}
+                  {isOver && (
+                    <p className="text-[9px] text-[#3ecf8e] mt-1">🎯 Meta superada!</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Main Content Grid ── */}
       <div className="grid lg:grid-cols-[1fr_340px] gap-6">
@@ -297,7 +410,7 @@ function MyPanel() {
           <div className="bg-card border border-border rounded-lg p-4 space-y-3">
             <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Resumo Rápido</h2>
             {[
-              { label: "Taxa de Conversão", value: metrics.count > 0 ? `${((metrics.count / Math.max(1, metrics.count + 2)) * 100).toFixed(0)}%` : "0%", color: "text-[#3ecf8e]" },
+              { label: "Taxa de Conversão", value: `${metrics.conversionRate.toFixed(1)}%`, color: "text-[#3ecf8e]" },
               { label: "Ticket Médio", value: metrics.count > 0 ? formatCurrency(metrics.revenue / metrics.count) : "—", color: "text-foreground" },
               { label: "Comissão / Negócio", value: metrics.count > 0 ? formatCurrency(metrics.commission / metrics.count) : "—", color: "text-foreground" },
             ].map(item => (

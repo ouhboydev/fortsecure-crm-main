@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/layout/AppShell";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +8,7 @@ import {
   Database, Trash2, Sparkles, ShieldAlert, Loader2,
   Users, Settings, Activity, ShieldCheck, RefreshCw,
   Search, Lock, Mail, Crown, Save, CheckCircle2,
-  Terminal, BarChart3
+  Terminal, BarChart3, KeyRound
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn, formatDisplayName } from "@/lib/utils";
@@ -67,6 +67,23 @@ function Admin() {
   async function loadAuditLogs() {
     const { data } = await supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(20);
     if (data) setLogs(data);
+  }
+
+  async function resetUserPassword(email: string) {
+    if (!email) { toast.error("E-mail não encontrado."); return; }
+    if (!confirm(`Enviar e-mail de redefinição de senha para ${email}?`)) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      if (error) throw error;
+      await supabase.from("audit_logs").insert({ action: `Reset de senha enviado para ${email}`, entity: "auth", user_id: currentUser?.id });
+      toast.success("E-mail de recuperação enviado!");
+      loadAuditLogs();
+    } catch (e: any) {
+      toast.error("Falha: " + e.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function updateRole(userId: string, newRole: string) {
@@ -228,6 +245,7 @@ function Admin() {
                     <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Função</th>
                     <th className="px-4 py-3 text-xs font-medium text-muted-foreground">XP</th>
                     <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Alterar cargo</th>
+                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Senha</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -274,10 +292,22 @@ function Admin() {
                           ))}
                         </div>
                       </td>
+                      <td className="px-4 py-3">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busy || !p.email}
+                          onClick={() => resetUserPassword(p.email)}
+                          title="Enviar e-mail de redefinicao de senha"
+                          className="h-7 px-2.5 text-[10px] border-border text-muted-foreground hover:text-orange-400 hover:border-orange-400/30 gap-1.5"
+                        >
+                          <KeyRound className="h-3 w-3" /> Reset
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                   {filteredProfiles.length === 0 && (
-                    <tr><td colSpan={4} className="px-4 py-12 text-center text-xs text-muted-foreground">Nenhum usuário encontrado</td></tr>
+                    <tr><td colSpan={5} className="px-4 py-12 text-center text-xs text-muted-foreground">Nenhum usuário encontrado</td></tr>
                   )}
                 </tbody>
               </table>
@@ -434,7 +464,7 @@ function Admin() {
                     </tr>
                   ))}
                   {logs.length === 0 && (
-                    <tr><td colSpan={4} className="px-4 py-12 text-center text-xs text-muted-foreground">Nenhum log registrado</td></tr>
+                    <tr><td colSpan={5} className="px-4 py-12 text-center text-xs text-muted-foreground">Nenhum log registrado</td></tr>
                   )}
                 </tbody>
               </table>
