@@ -138,7 +138,7 @@ function Dashboard() {
       const pipelineCount = opps.filter(o => o.stage !== "ganho" && o.stage !== "perdido").length;
       const weighted = opps.filter(o => o.stage !== "ganho" && o.stage !== "perdido").reduce((s, o) => s + (Number(o.value) * (Number(o.probability || 0) / 100)), 0);
 
-      const hqGoal = settingsRes.data?.value ? Number(settingsRes.data.value) * 3 : 6000000; // quarterly = 3x monthly
+      const hqGoal = settingsRes.data?.value ? Number(settingsRes.data.value) : 6000000; // stored as quarterly total
       const sellerGoal = selectedSeller !== "all"
         ? goalMonths.reduce((sum, m) => sum + Number((goalsRes.data || []).find(g => g.user_id === selectedSeller && g.month === m)?.target_amount || 0), 0)
         : 0;

@@ -8,7 +8,11 @@ import { toast } from "sonner";
 import {
   Target, Users, Package, Loader2, Save,
   Shield, ArrowUpRight, Check, AlertTriangle, TrendingUp,
+  Settings2, Mail, Key, User as UserIcon, Camera, Pencil
 } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
+} from "@/components/ui/dialog";
 import { cn, parseCurrency, formatCurrencyBRL } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +67,11 @@ function Goals() {
   const [revenue, setRevenue] = useState(0);
   const [sellerRevenue, setSellerRevenue] = useState<Record<string, number>>({});
 
+  // Management Modal
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingProfile, setEditingProfile] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ full_name: "", email: "", avatar_url: "" });
+
   const now = new Date();
   const quarter = Math.floor(now.getMonth() / 3);
   const qMonths = [quarter * 3, quarter * 3 + 1, quarter * 3 + 2];
@@ -72,15 +81,25 @@ function Goals() {
   async function load() {
     setLoading(true);
     try {
-      const [profilesRes, settingsRes, goalsRes, oppsRes, prodsRes] = await Promise.all([
-        supabase.from("profiles").select("id, full_name, avatar_url").order("full_name"),
+      const [profilesRes, settingsRes, goalsRes, oppsRes, prodsRes, rolesRes] = await Promise.all([
+        supabase.from("profiles").select("*").order("full_name"),
         supabase.from("app_settings").select("key, value"),
         supabase.from("goals").select("*").eq("year", now.getFullYear()),
         supabase.from("opportunities").select("owner_id, value, stage, closed_at").eq("stage", "ganho"),
         supabase.from("products").select("id, name, metadata").order("name"),
+        supabase.from("user_roles").select("*"),
       ]);
 
-      if (profilesRes.data) setProfiles(profilesRes.data);
+      const allProfiles = profilesRes.data || [];
+      const allRoles = rolesRes.data || [];
+
+      // Filter: only sellers (exclude gestor, admin, manager)
+      const sellersOnly = allProfiles.filter(p => {
+        const role = allRoles.find(r => r.user_id === p.id)?.role;
+        return role === 'vendedor';
+      });
+
+      setProfiles(sellersOnly);
       if (prodsRes.data) setProducts(prodsRes.data);
 
       // Global goal from app_settings
@@ -128,12 +147,56 @@ function Goals() {
     if (!val) { toast.error("Informe um valor válido"); return; }
     setBusy("global");
     try {
+      // Save directly as the quarterly goal
       await supabase.from("app_settings").upsert({ key: "global_revenue_goal", value: val }, { onConflict: "key" });
       setSavedGlobalGoal(val);
       setGlobalGoal(formatCurrencyBRL(val));
-      toast.success("Meta global salva!");
+      toast.success("Meta global trimestral salva!");
     } catch { toast.error("Erro ao salvar"); }
     finally { setBusy(null); }
+  }
+
+  function openEditProfile(p: any) {
+    setEditingProfile(p);
+    setEditForm({ full_name: p.full_name || "", email: p.email || "", avatar_url: p.avatar_url || "" });
+    setIsEditModalOpen(true);
+  }
+
+  async function updateProfile() {
+    if (!editingProfile) return;
+    setBusy("profile-update");
+    try {
+      const { error } = await supabase.from("profiles").update({
+        full_name: editForm.full_name,
+        avatar_url: editForm.avatar_url,
+      }).eq("id", editingProfile.id);
+
+      if (error) throw error;
+      toast.success("Perfil atualizado!");
+      setIsEditModalOpen(false);
+      load();
+    } catch (err: any) {
+      toast.error("Erro ao atualizar: " + err.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function resetPassword() {
+    if (!editingProfile?.email) {
+      toast.error("Email do usuário não encontrado.");
+      return;
+    }
+    setBusy("reset-pw");
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(editingProfile.email);
+      if (error) throw error;
+      toast.success("E-mail de recuperação enviado para " + editingProfile.email);
+    } catch (err: any) {
+      toast.error("Erro: " + err.message);
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function saveSellerGoal(userId: string) {
@@ -163,7 +226,7 @@ function Goals() {
     </div>
   );
 
-  const globalAttainment = savedGlobalGoal > 0 ? Math.round((revenue / (savedGlobalGoal * 3)) * 100) : 0;
+  const globalAttainment = savedGlobalGoal > 0 ? Math.round((revenue / savedGlobalGoal) * 100) : 0;
 
   return (
     <div className="p-6 lg:p-8 space-y-8 max-w-[1100px] mx-auto">
@@ -187,7 +250,7 @@ function Goals() {
               </div>
               <div>
                 <h2 className="text-sm font-semibold text-foreground">Meta Global de Receita</h2>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Meta mensal da empresa — utilizada no dashboard e gráficos de atingimento</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Meta trimestral da empresa — utilizada no atingimento do dashboard</p>
               </div>
             </div>
             <div className="p-6 flex flex-col md:flex-row items-start md:items-center gap-6">
@@ -210,15 +273,15 @@ function Goals() {
                     <p className="text-base font-black font-mono text-foreground">{formatCurrency(revenue)}</p>
                   </div>
                   <div className="bg-secondary/30 border border-border rounded-lg p-3">
-                    <p className="text-[10px] text-muted-foreground font-medium mb-1">Meta {qLabel} (×3)</p>
-                    <p className="text-base font-black font-mono text-foreground">{savedGlobalGoal ? formatCurrency(savedGlobalGoal * 3) : "—"}</p>
+                    <p className="text-[10px] text-muted-foreground font-medium mb-1">Meta {qLabel} (Total)</p>
+                    <p className="text-base font-black font-mono text-foreground">{savedGlobalGoal ? formatCurrency(savedGlobalGoal) : "—"}</p>
                   </div>
                 </div>
 
                 {/* Edit */}
                 <div className="flex items-end gap-3">
                   <div className="flex-1 space-y-1.5">
-                    <Label className="text-xs text-muted-foreground font-medium">Meta Mensal (BRL)</Label>
+                    <Label className="text-xs text-muted-foreground font-medium">Meta do Trimestre (BRL)</Label>
                     <Input
                       value={globalGoal}
                       onChange={e => setGlobalGoal(e.target.value)}
@@ -226,7 +289,7 @@ function Goals() {
                       placeholder="R$ 0,00"
                       className="h-9 bg-background border-border font-mono text-sm"
                     />
-                    <p className="text-[10px] text-muted-foreground">O valor trimestral será calculado automaticamente (×3)</p>
+                    <p className="text-[10px] text-muted-foreground">Valor total desejado para os 3 meses de {qLabel}</p>
                   </div>
                   <Button onClick={saveGlobalGoal} disabled={busy === "global"}
                     className="h-9 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-black font-semibold text-xs gap-2 shrink-0">
@@ -304,7 +367,7 @@ function Goals() {
                         onChange={e => setSellerGoals(prev => ({ ...prev, [p.id]: e.target.value }))}
                         onBlur={e => setSellerGoals(prev => ({ ...prev, [p.id]: formatCurrencyBRL(e.target.value) }))}
                         placeholder="R$ 0,00"
-                        className="h-8 w-36 bg-background border-border font-mono text-xs"
+                        className="h-8 w-32 bg-background border-border font-mono text-[11px]"
                       />
                       <Button
                         size="icon"
@@ -314,8 +377,20 @@ function Goals() {
                         variant="outline"
                         title="Salvar meta"
                       >
-                        {busy === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                        {busy === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
                       </Button>
+                      
+                      {isAdmin && (
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          onClick={() => openEditProfile(p)}
+                          className="h-8 w-8 bg-secondary border-border hover:text-foreground"
+                          title="Gerenciar Vendedor"
+                        >
+                          <Settings2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );
@@ -412,6 +487,88 @@ function Goals() {
 
         </div>
       )}
+      {/* ── Seller Management Modal ── */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="bg-card border-border sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserIcon className="h-4 w-4 text-[#3ecf8e]" />
+              Gerenciar Vendedor
+            </DialogTitle>
+            <DialogDescription>
+              Altere informações cadastrais ou resete a senha do usuário.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="space-y-1.5 text-center flex flex-col items-center">
+              <div className="h-20 w-20 rounded-full bg-secondary border border-border relative overflow-hidden mb-2 group">
+                {editForm.avatar_url ? (
+                  <img src={editForm.avatar_url} className="w-full h-full object-cover" alt="Avatar" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-muted-foreground uppercase">
+                    {editForm.full_name?.[0] || "?"}
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Camera className="h-5 w-5 text-white" />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label className="text-xs text-muted-foreground font-medium">Nome Completo</Label>
+              <Input
+                value={editForm.full_name}
+                onChange={e => setEditForm(prev => ({ ...prev, full_name: e.target.value }))}
+                className="h-9 bg-background border-border text-sm"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label className="text-xs text-muted-foreground font-medium">URL do Avatar</Label>
+              <Input
+                value={editForm.avatar_url}
+                onChange={e => setEditForm(prev => ({ ...prev, avatar_url: e.target.value }))}
+                placeholder="https://exemplo.com/foto.jpg"
+                className="h-9 bg-background border-border text-sm"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label className="text-xs text-muted-foreground font-medium">E-mail (Leitura)</Label>
+              <div className="flex items-center gap-2 px-3 py-2 bg-secondary/50 rounded-md border border-border text-xs text-muted-foreground">
+                <Mail className="h-3.5 w-3.5" />
+                {editingProfile?.email || "Sem e-mail"}
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-9 border-destructive/20 text-destructive hover:bg-destructive/5 gap-2 text-xs"
+                onClick={resetPassword}
+                disabled={busy === "reset-pw"}
+              >
+                {busy === "reset-pw" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Key className="h-3.5 w-3.5" />}
+                Resetar Senha (Enviar E-mail)
+              </Button>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              onClick={updateProfile}
+              disabled={busy === "profile-update"}
+              className="h-9 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-black font-semibold text-xs gap-2"
+            >
+              {busy === "profile-update" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Salvar Alterações
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
