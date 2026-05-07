@@ -5,12 +5,10 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { STAGES } from "@/lib/sales";
 import {
-  Plus, Search, Filter, MoreVertical,
-  Clock, AlertCircle, CheckCircle2,
-  ArrowRight, DollarSign, User as UserIcon,
-  Loader2, Kanban, LayoutGrid, List, RefreshCw, X, Target
+  Plus, Search,
+  Clock, Loader2, Kanban, List, X, Target, Package, ShieldCheck
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, parseCurrency, formatCurrencyBRL } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
@@ -53,8 +51,10 @@ export const Route = createFileRoute("/pipeline")({
 });
 
 function SalesPipeline() {
-  const { user } = useAuth();
+  const { user, isManager, isAdmin } = useAuth();
+  const canManage = isManager || isAdmin;
   const [opps, setOpps] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
@@ -77,8 +77,12 @@ function SalesPipeline() {
 
   async function load() {
     setLoading(true);
-    const { data } = await supabase.from("opportunities").select("*, profiles(full_name)");
-    setOpps(data ?? []);
+    const [oppsRes, prodsRes] = await Promise.all([
+      supabase.from("opportunities").select("*, profiles(full_name)"),
+      supabase.from("products").select("id, name, metadata").order("name"),
+    ]);
+    setOpps(oppsRes.data ?? []);
+    setProducts(prodsRes.data ?? []);
     setLoading(false);
   }
 
@@ -98,7 +102,7 @@ function SalesPipeline() {
         owner_id: user.id,
         client_name: form.client_name,
         title: form.title,
-        value: Number(form.value),
+        value: parseCurrency(form.value),
         stage: form.stage as any,
         probability: Number(form.probability),
         description: form.description,
@@ -107,7 +111,7 @@ function SalesPipeline() {
           source: form.source,
           product_id: form.product_id,
           contact_email: form.contact_email,
-          contact_phone: form.contact_phone
+          contact_phone: form.contact_phone,
         },
         closed_at: (form.stage === 'ganho' || form.stage === 'perdido') ? new Date().toISOString() : null
       } as any;
@@ -152,7 +156,7 @@ function SalesPipeline() {
       product_id: o.metadata?.product_id || "",
       contact_email: o.metadata?.contact_email || "",
       contact_phone: o.metadata?.contact_phone || "",
-      description: o.description || ""
+      description: o.description || "",
     });
     setIsModalOpen(true);
   };
@@ -205,33 +209,33 @@ function SalesPipeline() {
   return (
     <div className="flex flex-col h-screen max-w-[1600px] mx-auto overflow-hidden">
       <div className="p-6 lg:p-8 shrink-0">
-        <PageHeader 
-           title="Pipeline de Vendas" 
-           subtitle="Gerencie suas oportunidades comerciais."
-           actions={
-             <div className="flex items-center gap-3">
-                <div className="relative">
-                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                   <Input 
-                      placeholder="Pesquisar..." 
-                      value={search} 
-                      onChange={(e) => setSearch(e.target.value)}
-                      className="h-9 pl-9 w-48 bg-card border-border text-xs"
-                   />
-                </div>
-                <div className="flex bg-secondary border border-border p-1 rounded-md">
-                   <Button variant={view === 'kanban' ? 'secondary' : 'ghost'} size="icon" onClick={() => setView('kanban')} className="h-7 w-7 rounded-sm">
-                      <Kanban className="h-3.5 w-3.5" />
-                   </Button>
-                   <Button variant={view === 'list' ? 'secondary' : 'ghost'} size="icon" onClick={() => setView('list')} className="h-7 w-7 rounded-sm">
-                      <List className="h-3.5 w-3.5" />
-                   </Button>
-                </div>
-                <Button onClick={openNew} className="h-9 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-[#000] font-semibold text-xs rounded-md shadow-sm">
-                   <Plus className="h-3.5 w-3.5 mr-2" /> Novo Negócio
+        <PageHeader
+          title="Pipeline de Vendas"
+          subtitle="Gerencie suas oportunidades comerciais."
+          actions={
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Pesquisar..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="h-9 pl-9 w-48 bg-card border-border text-xs"
+                />
+              </div>
+              <div className="flex bg-secondary border border-border p-1 rounded-md">
+                <Button variant={view === 'kanban' ? 'secondary' : 'ghost'} size="icon" onClick={() => setView('kanban')} className="h-7 w-7 rounded-sm">
+                  <Kanban className="h-3.5 w-3.5" />
                 </Button>
-             </div>
-           }
+                <Button variant={view === 'list' ? 'secondary' : 'ghost'} size="icon" onClick={() => setView('list')} className="h-7 w-7 rounded-sm">
+                  <List className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <Button onClick={openNew} className="h-9 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-[#000] font-semibold text-xs rounded-md shadow-sm">
+                <Plus className="h-3.5 w-3.5 mr-2" /> Novo Negócio
+              </Button>
+            </div>
+          }
         />
       </div>
 
@@ -277,7 +281,7 @@ function SalesPipeline() {
                               >
                                 {/* Color Tag (Top bar) */}
                                 <div className="h-1 w-full" style={{ backgroundColor: s.color }} />
-                                
+
                                 <div className="p-4 flex flex-col gap-3">
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="flex flex-col gap-1 min-w-0">
@@ -288,8 +292,8 @@ function SalesPipeline() {
                                         {o.title}
                                       </p>
                                     </div>
-                                    <button 
-                                      onClick={(e) => { e.stopPropagation(); deleteOpp(o.id); }} 
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); deleteOpp(o.id); }}
                                       className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-muted-foreground hover:text-destructive rounded-md hover:bg-destructive/10"
                                     >
                                       <X className="h-3 w-3" />
@@ -309,15 +313,32 @@ function SalesPipeline() {
                                         {o.metadata.source}
                                       </Badge>
                                     )}
+                                    {o.metadata?.product_id && (() => {
+                                      const prod = products.find(p => p.id === o.metadata.product_id);
+                                      return prod ? (
+                                        <Badge variant="outline" className="h-5 px-1.5 text-[9px] bg-blue-500/5 border-blue-500/20 font-bold text-blue-400 gap-1">
+                                          <Package className="h-2.5 w-2.5" />
+                                          {prod.name}
+                                        </Badge>
+                                      ) : null;
+                                    })()}
+                                    {o.metadata?.product_id && (() => {
+                                      const prod = products.find(p => p.id === o.metadata.product_id);
+                                      return prod?.metadata?.goal_active ? (
+                                        <Badge variant="outline" className="h-5 px-1.5 text-[9px] bg-[#3ecf8e]/5 border-[#3ecf8e]/20 font-bold text-[#3ecf8e] gap-1">
+                                          <Target className="h-2.5 w-2.5" /> Meta Ativa
+                                        </Badge>
+                                      ) : null;
+                                    })()}
                                   </div>
 
                                   <div className="space-y-1.5">
                                     <div className="flex justify-between text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
-                                       <span>Sucesso</span>
-                                       <span>{o.probability || 0}%</span>
+                                      <span>Sucesso</span>
+                                      <span>{o.probability || 0}%</span>
                                     </div>
                                     <div className="h-1 w-full bg-secondary rounded-full overflow-hidden">
-                                       <div className="h-full bg-[#3ecf8e] transition-all duration-500 shadow-[0_0_8px_rgba(62,207,142,0.3)]" style={{ width: `${o.probability || 0}%` }} />
+                                      <div className="h-full bg-[#3ecf8e] transition-all duration-500 shadow-[0_0_8px_rgba(62,207,142,0.3)]" style={{ width: `${o.probability || 0}%` }} />
                                     </div>
                                   </div>
 
@@ -329,7 +350,7 @@ function SalesPipeline() {
                                       </span>
                                     </div>
                                     <div className="h-7 w-7 rounded-lg bg-secondary border border-border flex items-center justify-center text-[10px] font-bold text-foreground shadow-inner">
-                                       {o.profiles?.full_name?.[0] || 'A'}
+                                      {o.profiles?.full_name?.[0] || 'A'}
                                     </div>
                                   </div>
                                 </div>
@@ -382,64 +403,114 @@ function SalesPipeline() {
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="max-w-2xl bg-card border-border p-0 overflow-hidden rounded-xl">
-           <DialogHeader className="p-6 border-b border-border bg-muted/50">
-              <DialogTitle className="text-lg font-semibold">{editingId ? "Editar Negócio" : "Registrar Oportunidade"}</DialogTitle>
-              <DialogDescription className="text-xs">Preencha os dados técnicos da oportunidade comercial.</DialogDescription>
-           </DialogHeader>
+          <DialogHeader className="p-6 border-b border-border bg-muted/50">
+            <DialogTitle className="text-lg font-semibold">{editingId ? "Editar Negócio" : "Registrar Oportunidade"}</DialogTitle>
+            <DialogDescription className="text-xs">Preencha os dados técnicos da oportunidade comercial.</DialogDescription>
+          </DialogHeader>
 
-           <div className="p-6 overflow-y-auto max-h-[70vh] no-scrollbar">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                       <Label className="text-xs font-medium text-muted-foreground">Cliente / Empresa</Label>
-                       <Input required value={form.client_name} onChange={e => setForm({...form, client_name: e.target.value})} className="h-9 bg-background border-border text-sm" />
-                    </div>
-                    <div className="space-y-2">
-                       <Label className="text-xs font-medium text-muted-foreground">Título do Negócio</Label>
-                       <Input required value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="h-9 bg-background border-border text-sm" />
-                    </div>
-                 </div>
+          <div className="p-6 overflow-y-auto max-h-[70vh] no-scrollbar">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Cliente / Empresa</Label>
+                  <Input required value={form.client_name} onChange={e => setForm({ ...form, client_name: e.target.value })} className="h-9 bg-background border-border text-sm" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Título do Negócio</Label>
+                  <Input required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="h-9 bg-background border-border text-sm" />
+                </div>
+              </div>
 
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                       <Label className="text-xs font-medium text-muted-foreground">Estágio</Label>
-                       <Select value={form.stage} onValueChange={handleStageChange}>
-                          <SelectTrigger className="h-9 bg-background border-border text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent className="bg-card border-border">
-                             {STAGES.map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
-                          </SelectContent>
-                       </Select>
-                    </div>
-                    <div className="space-y-2">
-                       <Label className="text-xs font-medium text-muted-foreground">Probabilidade (%)</Label>
-                       <Input type="number" value={form.probability} onChange={e => setForm({...form, probability: Number(e.target.value)})} className="h-9 bg-background border-border text-sm" />
-                    </div>
-                 </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Estágio</Label>
+                  <Select value={form.stage} onValueChange={handleStageChange}>
+                    <SelectTrigger className="h-9 bg-background border-border text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-card border-border">
+                      {STAGES.map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Probabilidade (%)</Label>
+                  <Input type="number" value={form.probability} onChange={e => setForm({ ...form, probability: Number(e.target.value) })} className="h-9 bg-background border-border text-sm" />
+                </div>
+              </div>
 
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                       <Label className="text-xs font-medium text-muted-foreground">Valor (BRL)</Label>
-                       <Input required type="number" value={form.value} onChange={e => setForm({...form, value: e.target.value})} className="h-9 bg-background border-border text-sm font-mono" />
-                    </div>
-                    <div className="space-y-2">
-                       <Label className="text-xs font-medium text-muted-foreground">Previsão de Fechamento</Label>
-                       <Input type="date" value={form.expected_closing} onChange={e => setForm({...form, expected_closing: e.target.value})} className="h-9 bg-background border-border text-sm" />
-                    </div>
-                 </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Valor (BRL)</Label>
+                  <Input 
+                    required 
+                    type="text" 
+                    placeholder="R$ 0,00"
+                    value={form.value} 
+                    onChange={e => setForm({ ...form, value: e.target.value })}
+                    onBlur={e => setForm({ ...form, value: formatCurrencyBRL(e.target.value) })}
+                    className="h-9 bg-background border-border text-sm font-mono" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Previsão de Fechamento</Label>
+                  <Input type="date" value={form.expected_closing} onChange={e => setForm({ ...form, expected_closing: e.target.value })} className="h-9 bg-background border-border text-sm" />
+                </div>
+              </div>
 
-                 <div className="space-y-2">
-                    <Label className="text-xs font-medium text-muted-foreground">Observações Técnicas</Label>
-                    <Textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="bg-background border-border text-sm min-h-[100px]" />
-                 </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-muted-foreground">Produto Vinculado</Label>
+                <Select value={form.product_id || "none"} onValueChange={v => setForm({ ...form, product_id: v === "none" ? "" : v })}>
+                  <SelectTrigger className="h-9 bg-background border-border text-xs">
+                    <Package className="h-3.5 w-3.5 mr-2 text-muted-foreground shrink-0" />
+                    <SelectValue placeholder="Selecionar produto..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    <SelectItem value="none">Nenhum produto vinculado</SelectItem>
+                    {products.map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name} {p.metadata?.category ? `· ${p.metadata.category}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                 <div className="flex justify-end gap-3 pt-4">
-                    <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)} className="text-xs">Cancelar</Button>
-                    <Button type="submit" disabled={busy} className="bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-[#000] font-semibold text-xs px-6">
-                       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? "Salvar Alterações" : "Efetivar Negócio"}
-                    </Button>
-                 </div>
-              </form>
-           </div>
+              {form.product_id && (() => {
+                const linkedProd = products.find(p => p.id === form.product_id);
+                if (!linkedProd) return null;
+                const hasGoal = !!linkedProd.metadata?.goal_active;
+                const hasGoalValue = !!linkedProd.metadata?.goal;
+                return (
+                  <div className={cn(
+                    "flex items-center gap-3 p-3 rounded-lg border text-xs",
+                    hasGoal && hasGoalValue
+                      ? "bg-[#3ecf8e]/5 border-[#3ecf8e]/20 text-[#3ecf8e]"
+                      : "bg-yellow-500/5 border-yellow-500/20 text-yellow-500"
+                  )}>
+                    <Target className="h-4 w-4 shrink-0" />
+                    <div>
+                      {hasGoal && hasGoalValue
+                        ? <><span className="font-semibold">Meta ativa</span> <span className="text-[10px] opacity-80">— {Number(linkedProd.metadata.goal).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}</span></>
+                        : hasGoal
+                          ? <><span className="font-semibold">Meta ativa, mas sem valor definido</span> <span className="text-[10px] opacity-80">— configure em Produtos</span></>
+                          : <><span className="font-semibold">Meta inativa neste produto</span> <span className="text-[10px] opacity-80">— ative em Produtos para aparecer no dashboard</span></>}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-muted-foreground">Observações Técnicas</Label>
+                <Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="bg-background border-border text-sm min-h-[80px]" />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)} className="text-xs">Cancelar</Button>
+                <Button type="submit" disabled={busy} className="bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-[#000] font-semibold text-xs px-6">
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? "Salvar Alterações" : "Efetivar Negócio"}
+                </Button>
+              </div>
+            </form>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -29,3 +29,31 @@ export function formatDisplayName(name: string): string {
   
   return formattedWords.join(" ");
 }
+
+/**
+ * Converte strings monetárias brasileiras (ex: "R$ 1.234,56") em números (1234.56)
+ */
+export function parseCurrency(value: string | number): number {
+  if (typeof value === "number") return value;
+  if (!value) return 0;
+
+  // Remove R$, espaços e pontos de milhar
+  let cleanValue = value.replace(/[R$\s.]/g, "");
+  
+  // Substitui vírgula decimal por ponto
+  cleanValue = cleanValue.replace(",", ".");
+  
+  const parsed = parseFloat(cleanValue);
+  return isNaN(parsed) ? 0 : parsed;
+}
+
+/**
+ * Formata um número ou string para o padrão de moeda brasileiro (R$ 1.234,56)
+ */
+export function formatCurrencyBRL(value: number | string): string {
+  const number = typeof value === "string" ? parseCurrency(value) : value;
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(number || 0);
+}

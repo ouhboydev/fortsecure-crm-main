@@ -1,107 +1,135 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/layout/AppShell";
-import { PageHeader, formatCurrency } from "@/components/ui-kit/PageHeader";
-import { useEffect, useState } from "react";
+import { PageHeader } from "@/components/ui-kit/PageHeader";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
-  Package, Plus, Trash2, Edit3,
-  Search, Filter, ShoppingBag,
-  DollarSign, Tag, Info, X,
-  Loader2, Save, MoreHorizontal, ArrowUpRight,
-  Database, LayoutGrid, Zap, Sparkles,
-  ShieldCheck, Globe, Cpu, BarChart3,
-  Boxes, Layers, Shield, RefreshCw
+  Package, Plus, Trash2, Edit3, Search, ShoppingBag,
+  Loader2, Save, ArrowUpRight, Shield, RefreshCw,
+  BarChart3, Boxes, ShieldCheck, Target, ImagePlus, X, Check, Settings2, AlertTriangle, Pencil,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
-
-// Shadcn UI Imports
+import { cn, parseCurrency, formatCurrencyBRL } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 
 export const Route = createFileRoute("/products")({
-  head: () => ({ meta: [{ title: "Gestão de Produtos — FortSecure" }] }),
+  head: () => ({ meta: [{ title: "Produtos — FortSecure" }] }),
   component: () => <AppShell><Products /></AppShell>,
 });
 
+const DEFAULT_CATEGORIES = ["Software", "Hardware", "Serviços", "Suporte"];
+
+const PRESET_COLORS = [
+  "#3ecf8e", "#1eaedb", "#f59e0b", "#e53e3e",
+  "#8b5cf6", "#ec4899", "#14b8a6", "#f97316",
+  "#6366f1", "#84cc16",
+];
+
+function ColorPicker({ value, onChange }: { value: string; onChange: (c: string) => void }) {
+  const [custom, setCustom] = useState(value.startsWith("#") && !PRESET_COLORS.includes(value) ? value : "");
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {PRESET_COLORS.map(c => (
+          <button key={c} type="button" onClick={() => onChange(c)}
+            className={cn("h-7 w-7 rounded-md border-2 transition-all", value === c ? "border-white scale-110" : "border-transparent hover:scale-105")}
+            style={{ backgroundColor: c }} />
+        ))}
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="h-7 w-7 rounded-md border border-border shrink-0" style={{ backgroundColor: custom || value }} />
+        <Input
+          placeholder="#hex personalizado"
+          value={custom}
+          onChange={e => { setCustom(e.target.value); if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) onChange(e.target.value); }}
+          className="h-7 text-xs bg-background border-border font-mono"
+        />
+      </div>
+    </div>
+  );
+}
+
 function Products() {
-  const { isManager, user } = useAuth();
+  const { isManager, isAdmin } = useAuth();
+  const canManage = isManager || isAdmin;
   const nav = useNavigate();
+  const fileRef = useRef<HTMLInputElement>(null);
+
   const [items, setItems] = useState<any[]>([]);
+  const [allCategories, setAllCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
-  const [sortOrder, setSortOrder] = useState<'name' | 'price-asc' | 'price-desc'>('name');
+  const [filterCat, setFilterCat] = useState("Todos");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCatModalOpen, setIsCatModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ 
-    name: "", 
-    description: "", 
-    price: "",
-    sku: "",
-    category: "Software",
-    cost_price: "",
-    stock: "Disponível",
-    technical_notes: ""
-  });
+  const [imagePreview, setImagePreview] = useState<string>("");
+  const [renamingCat, setRenamingCat] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  const blankForm = {
+    name: "", description: "", category: "Software",
+    technical_notes: "", color: "#3ecf8e",
+    goal: "", image: "", new_category: "", goal_active: false,
+  };
+  const [form, setForm] = useState(blankForm);
 
   async function load() {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .order("name", { ascending: true });
-
+      const { data, error } = await supabase.from("products").select("*").order("name");
       if (error) throw error;
-      setItems(data ?? []);
-    } catch (e: any) {
-      toast.error("Erro ao carregar produtos");
-    } finally {
-      setLoading(false);
-    }
+      const prods = data ?? [];
+      setItems(prods);
+      // Collect custom categories
+      const cats = new Set<string>(DEFAULT_CATEGORIES);
+      prods.forEach(p => { if (p.metadata?.category) cats.add(p.metadata.category); });
+      setAllCategories(Array.from(cats));
+    } catch { toast.error("Erro ao carregar produtos"); }
+    finally { setLoading(false); }
   }
 
   useEffect(() => { load(); }, []);
+
+  function handleImageFile(file: File) {
+    if (file.size > 2 * 1024 * 1024) { toast.error("Imagem deve ter menos de 2MB"); return; }
+    const reader = new FileReader();
+    reader.onload = e => {
+      const base64 = e.target?.result as string;
+      setImagePreview(base64);
+      setForm(f => ({ ...f, image: base64 }));
+    };
+    reader.readAsDataURL(file);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
+      // If new category typed, use it
+      const finalCategory = form.new_category.trim() || form.category;
+
       const payload = {
         name: form.name,
         description: form.description,
-        price: Number(form.price),
+        price: 0,
         metadata: {
-          sku: form.sku,
-          category: form.category,
-          cost_price: form.cost_price,
-          stock: form.stock,
-          technical_notes: form.technical_notes
-        }
+          category: finalCategory,
+          technical_notes: form.technical_notes,
+          color: form.color,
+          goal: form.goal ? parseCurrency(form.goal) : null,
+          goal_active: form.goal_active,
+          image: form.image || undefined,
+        },
       };
 
       if (editingId) {
@@ -113,352 +141,605 @@ function Products() {
         if (error) throw error;
         toast.success("Produto adicionado");
       }
-
       setIsModalOpen(false);
       setEditingId(null);
-      resetForm();
+      setImagePreview("");
+      setForm(blankForm);
       load();
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setBusy(false);
-    }
+    } catch (e: any) { toast.error(e.message); }
+    finally { setBusy(false); }
   }
-
-  const resetForm = () => {
-    setForm({ 
-      name: "", description: "", price: "", 
-      sku: "", category: "Software", cost_price: "", stock: "Disponível", technical_notes: "" 
-    });
-  };
 
   async function remove(id: string) {
     if (!confirm("Excluir este produto?")) return;
     const { error } = await supabase.from("products").delete().eq("id", id);
     if (error) toast.error(error.message);
-    else {
-      toast.success("Produto removido");
-      load();
+    else { toast.success("Produto removido"); load(); }
+  }
+
+  async function deleteCategory(cat: string) {
+    if (DEFAULT_CATEGORIES.includes(cat)) {
+      toast.error("Categorias padrão não podem ser excluídas."); return;
     }
+    const affected = items.filter(p => p.metadata?.category === cat);
+    if (affected.length > 0) {
+      const ok = confirm(`Excluir a categoria "${cat}"?\n\n${affected.length} produto(s) serão movidos para "Geral".`);
+      if (!ok) return;
+    }
+    // Bulk-update affected products
+    for (const p of affected) {
+      await supabase.from("products").update({
+        metadata: { ...p.metadata, category: "Geral" }
+      }).eq("id", p.id);
+    }
+    if (filterCat === cat) setFilterCat("Todos");
+    toast.success(`Categoria "${cat}" excluída`);
+    load();
   }
 
-  const filtered = items
-    .filter(p =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.description?.toLowerCase().includes(search.toLowerCase())
-    )
-    .sort((a, b) => {
-      if (sortOrder === 'price-asc') return a.price - b.price;
-      if (sortOrder === 'price-desc') return b.price - a.price;
-      return a.name.localeCompare(b.name);
+  async function renameCategory(oldCat: string, newCat: string) {
+    const trimmed = newCat.trim();
+    if (!trimmed || trimmed === oldCat) { setRenamingCat(null); return; }
+    if (allCategories.includes(trimmed)) {
+      toast.error(`A categoria "${trimmed}" já existe.`); return;
+    }
+    const affected = items.filter(p => p.metadata?.category === oldCat);
+    for (const p of affected) {
+      await supabase.from("products").update({
+        metadata: { ...p.metadata, category: trimmed }
+      }).eq("id", p.id);
+    }
+    if (filterCat === oldCat) setFilterCat(trimmed);
+    setRenamingCat(null);
+    toast.success(`"${oldCat}" renomeada para "${trimmed}"`);
+    load();
+  }
+
+  function openEdit(p: any) {
+    setEditingId(p.id);
+    setImagePreview(p.metadata?.image || "");
+    setForm({
+      name: p.name, description: p.description || "",
+      category: p.metadata?.category || "Software",
+      technical_notes: p.metadata?.technical_notes || "",
+      color: p.metadata?.color || "#3ecf8e",
+      goal: p.metadata?.goal ? formatCurrencyBRL(p.metadata.goal) : "",
+      goal_active: p.metadata?.goal_active || false,
+      image: p.metadata?.image || "",
+      new_category: "",
     });
-
-  function toggleSort() {
-    if (sortOrder === 'name') setSortOrder('price-asc');
-    else if (sortOrder === 'price-asc') setSortOrder('price-desc');
-    else setSortOrder('name');
+    setIsModalOpen(true);
   }
 
-  if (!isManager) return (
-    <div className="h-[80vh] flex flex-col items-center justify-center space-y-8 animate-in fade-in duration-1000">
-       <div className="relative">
-          <div className="absolute inset-0 bg-destructive/10 blur-3xl rounded-full" />
-          <Shield className="h-20 w-20 text-destructive/30 relative" />
-       </div>
-       <div className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.5em]">Acesso Restrito ao Comando</div>
+  const categories = ["Todos", ...allCategories];
+  const filtered = items.filter(p => {
+    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.description?.toLowerCase().includes(search.toLowerCase());
+    const matchCat = filterCat === "Todos" || p.metadata?.category === filterCat;
+    return matchSearch && matchCat;
+  });
+
+  if (!canManage) return (
+    <div className="h-[80vh] flex flex-col items-center justify-center gap-4">
+      <div className="h-12 w-12 rounded-xl bg-destructive/10 flex items-center justify-center">
+        <Shield className="h-6 w-6 text-destructive/50" />
+      </div>
+      <p className="text-xs font-medium text-muted-foreground">Acesso restrito a gestores</p>
     </div>
   );
 
   return (
-    <div className="p-8 md:p-12 lg:p-20 space-y-16 max-w-[1600px] mx-auto min-h-screen pb-40 relative selection:bg-primary selection:text-primary-foreground">
-      {/* Background Decor */}
-      <div className="fixed inset-0 pointer-events-none">
-         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/5 blur-[180px] rounded-full -mr-32 -mt-32" />
-         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-500/5 blur-[150px] rounded-full -ml-32 -mb-32" />
-      </div>
-
+    <div className="p-6 lg:p-8 space-y-6 max-w-[1400px] mx-auto">
       <PageHeader
-        title="Catálogo de Produtos"
-        subtitle="Gestão estratégica de inventário e soluções táticas de segurança"
+        title="Produtos"
+        subtitle="Catálogo de soluções disponíveis para vinculação no pipeline"
         actions={
-          <Button
-            onClick={() => {
-              setEditingId(null);
-              resetForm();
-              setIsModalOpen(true);
-            }}
-            className="h-16 px-10 bg-primary text-primary-foreground font-black uppercase tracking-widest text-[11px] rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-2xl shadow-emerald-500/20 gap-3"
-          >
-            <Plus className="h-5 w-5" /> Registrar Nova Solução
+          <Button onClick={() => { setEditingId(null); setImagePreview(""); setForm(blankForm); setIsModalOpen(true); }}
+            className="h-9 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-black font-semibold text-xs rounded-md gap-2">
+            <Plus className="h-3.5 w-3.5" /> Novo Produto
           </Button>
         }
       />
 
-      {/* Analytics Toolbar */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-         <StatCard label="Total em Catálogo" value={items.length} icon={<Boxes />} />
-         <StatCard label="Ticket Médio" value={formatCurrency(items.reduce((s, p) => s + p.price, 0) / (items.length || 1))} icon={<BarChart3 />} />
-         <StatCard label="Disponibilidade" value="100%" icon={<ShieldCheck className="text-primary" />} />
-         <div className="flex items-center gap-4">
-            <div className="relative flex-1 group">
-               <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-all z-10" />
-               <Input
-                 placeholder="Filtrar inventário..."
-                 value={search}
-                 onChange={(e) => setSearch(e.target.value)}
-                 className="h-16 pl-14 pr-6 bg-card/40 backdrop-blur-md border-border rounded-2xl text-sm focus:ring-primary/20 outline-none transition-all placeholder:text-muted-foreground"
-               />
-            </div>
-            <Button
-              variant="outline"
-              onClick={toggleSort}
-              className="h-16 px-6 bg-secondary/50 border-border rounded-2xl text-muted-foreground hover:text-foreground transition-all"
-            >
-              <Filter className="h-4 w-4" />
-            </Button>
-         </div>
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard label="Total" value={String(items.length)} icon={<Boxes className="h-4 w-4" />} />
+        <StatCard label="Com Meta" value={String(items.filter(p => p.metadata?.goal).length)} icon={<Target className="h-4 w-4" />} accent />
+        <StatCard label="Sem Meta" value={String(items.filter(p => !p.metadata?.goal).length)} icon={<ShieldCheck className="h-4 w-4" />} warn />
+        <StatCard label="Categorias" value={String(allCategories.length)} icon={<BarChart3 className="h-4 w-4" />} />
       </div>
 
-      {/* Products Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-        <AnimatePresence mode="popLayout">
-          {filtered.map((p, i) => (
-            <motion.div
-              layout
-              key={p.id}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: i * 0.05 }}
-            >
-              <Card className="group bg-card/40 backdrop-blur-3xl rounded-[40px] border-border hover:border-primary/30 transition-all flex flex-col h-[500px] relative overflow-hidden shadow-2xl border-none">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl rounded-full -mr-16 -mt-16 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                
-                <CardHeader className="p-10 pb-0">
-                  <div className="flex items-start justify-between">
-                     <div className="h-16 w-16 bg-secondary border border-border rounded-2xl flex items-center justify-center text-primary group-hover:scale-110 transition-all shadow-inner">
-                        <ShoppingBag className="h-8 w-8" />
-                     </div>
-                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                        <Button variant="ghost" size="icon" onClick={() => { setEditingId(p.id); setForm({ ...form, name: p.name, description: p.description || "", price: String(p.price), sku: p.metadata?.sku || "", category: p.metadata?.category || "Software", cost_price: p.metadata?.cost_price || "", stock: p.metadata?.stock || "Disponível", technical_notes: p.metadata?.technical_notes || "" }); setIsModalOpen(true); }} className="h-10 w-10 rounded-xl bg-secondary/50 border border-border hover:text-primary"><Edit3 className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => remove(p.id)} className="h-10 w-10 rounded-xl bg-secondary/50 border border-border hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
-                     </div>
-                  </div>
-                  <div className="mt-8 space-y-1">
-                     <div className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">{p.metadata?.category || 'General Solution'}</div>
-                     <CardTitle className="text-2xl font-black text-foreground group-hover:text-primary transition-colors tracking-tighter italic uppercase">{p.name}</CardTitle>
-                  </div>
-                </CardHeader>
-                
-                <CardContent className="p-10 pt-6 flex-1 space-y-6">
-                  <p className="text-[11px] text-muted-foreground font-medium leading-relaxed line-clamp-4">
-                    {p.description || "Detalhes e especificações do produto selecionado para ambientes corporativos."}
-                  </p>
-                  <div className="flex items-center gap-4">
-                     <Badge variant="outline" className="bg-secondary/50 border-border text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full">SKU: {p.metadata?.sku || 'N/A'}</Badge>
-                     <Badge variant="outline" className="bg-emerald-500/5 border-emerald-500/10 text-emerald-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full">{p.metadata?.stock || 'Em Estoque'}</Badge>
-                  </div>
-                </CardContent>
-
-                <CardFooter className="p-10 pt-0 flex items-center justify-between mt-auto">
-                  <div className="space-y-1">
-                    <div className="text-[9px] font-black text-muted-foreground uppercase tracking-widest italic">Ticket Delta</div>
-                    <div className="text-4xl font-black font-mono text-foreground tracking-tighter">{formatCurrency(p.price)}</div>
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => nav({ to: "/pipeline" })} className="h-14 w-14 rounded-2xl bg-secondary border border-border flex items-center justify-center hover:bg-primary/5 group/btn transition-all shadow-inner">
-                    <ArrowUpRight className="h-6 w-6 text-muted-foreground group-hover/btn:text-primary transition-colors" />
-                  </Button>
-                </CardFooter>
-              </Card>
-            </motion.div>
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input placeholder="Pesquisar produto..." value={search} onChange={e => setSearch(e.target.value)}
+            className="h-9 pl-9 bg-card border-border text-xs" />
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {categories.map(cat => (
+            <button key={cat} onClick={() => setFilterCat(cat)}
+              className={cn("h-7 px-3 rounded-md text-[11px] font-medium border transition-colors",
+                filterCat === cat ? "bg-[#3ecf8e]/10 border-[#3ecf8e]/30 text-[#3ecf8e]"
+                  : "bg-secondary border-border text-muted-foreground hover:text-foreground")}>
+              {cat}
+            </button>
           ))}
-        </AnimatePresence>
-
-        {loading && (
-          <div className="col-span-full py-40 text-center space-y-6">
-            <Loader2 className="h-10 w-10 animate-spin text-[#3ecf8e] mx-auto" />
-            <div className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.5em]">Acessando Vault de Inventário...</div>
-          </div>
-        )}
+        </div>
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-xs text-muted-foreground">{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</span>
+          <Button variant="outline" onClick={() => setIsCatModalOpen(true)}
+            className="h-7 px-3 text-[11px] font-medium border-border bg-secondary gap-1.5 text-muted-foreground hover:text-foreground">
+            <Settings2 className="h-3 w-3" /> Categorias
+          </Button>
+        </div>
       </div>
 
-      {/* Complex Product Modal */}
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="bg-background border border-border/50 rounded-[48px] p-0 overflow-hidden max-w-4xl shadow-[0_0_120px_rgba(0,0,0,0.6)] border-none">
-          <div className="flex h-[800px]">
-            {/* Left Strategic Side */}
-            <div className="w-[280px] bg-secondary/30 border-r border-border/50 p-12 flex flex-col justify-between relative">
-               <div className="absolute inset-0 bg-gradient-to-b from-primary/10 to-transparent pointer-events-none" />
-               <div className="relative z-10 space-y-12">
-                  <div className="h-20 w-20 bg-background border border-border rounded-3xl flex items-center justify-center text-primary shadow-2xl">
-                    <Cpu className="h-10 w-10" />
+      {/* Grid */}
+      {loading ? (
+        <div className="flex items-center justify-center py-24">
+          <Loader2 className="h-5 w-5 animate-spin text-[#3ecf8e]" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 gap-3 border border-dashed border-border rounded-lg">
+          <Package className="h-8 w-8 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">Nenhum produto encontrado</p>
+        </div>
+      ) : (() => {
+        const withGoal = filtered.filter(p => p.metadata?.goal_active && p.metadata?.goal);
+        const withoutGoal = filtered.filter(p => !p.metadata?.goal_active || !p.metadata?.goal);
+        return (
+          <div className="space-y-8">
+            {/* ── Com Meta Ativa ── */}
+            {withGoal.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-[#3ecf8e] shadow-[0_0_6px_#3ecf8e]" />
+                    <span className="text-xs font-semibold text-[#3ecf8e]">Com Meta Ativa</span>
+                    <span className="h-5 min-w-5 px-1.5 rounded bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 text-[#3ecf8e] text-[10px] font-bold flex items-center justify-center">
+                      {withGoal.length}
+                    </span>
                   </div>
-                  <div className="space-y-4">
-                    <h3 className="text-3xl font-black tracking-tighter uppercase italic text-foreground leading-tight">
-                       Cadastro de <span className="text-primary">Produto</span>
-                    </h3>
-                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-[0.4em] leading-relaxed">Registro Delta-Stock // v4.2</p>
-                  </div>
-                  
-                  <div className="space-y-6 pt-10 border-t border-border/30">
-                     <div className="flex items-center gap-4 text-primary">
-                        <Shield className="h-5 w-5" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Painel Financeiro</span>
-                     </div>
-                     <p className="text-[10px] text-muted-foreground leading-relaxed uppercase font-black tracking-widest italic">A precificação e a margem bruta são fundamentais para o cálculo de Net Revenue no Comando HQ.</p>
-                  </div>
-               </div>
-
-               <div className="relative z-10 flex items-center gap-4">
-                  <div className="h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_10px_#3b82f6]" />
-                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground italic">Sincronização Ativa</span>
-               </div>
-            </div>
-
-            {/* Main Form Body */}
-            <div className="flex-1 p-16 overflow-y-auto no-scrollbar bg-card/10 backdrop-blur-3xl relative">
-              <div className="absolute top-0 right-0 p-10">
-              </div>
-
-              <form onSubmit={handleSubmit} className="space-y-12">
-                <section className="space-y-8">
-                   <div className="flex items-center gap-4 mb-10">
-                      <div className="h-1 w-12 bg-primary rounded-full shadow-[0_0_10px_#10b981]" />
-                      <h4 className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.4em]">Especificação Base</h4>
-                   </div>
-                   
-                   <div className="grid grid-cols-2 gap-8">
-                      <div className="space-y-3">
-                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-1">Nomenclatura Técnica</Label>
-                        <Input 
-                           required 
-                           placeholder="Ex: FortShield Core v9"
-                           value={form.name}
-                           onChange={e => setForm({...form, name: e.target.value})}
-                           className="h-18 px-8 bg-secondary/40 border-border rounded-[24px] text-xl font-black italic tracking-tight focus:ring-primary/20 transition-all outline-none"
-                        />
-                      </div>
-                      <div className="space-y-3">
-                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-1">Part Number / SKU</Label>
-                        <Input 
-                           required 
-                           placeholder="FS-PROD-XXXX"
-                           value={form.sku}
-                           onChange={e => setForm({...form, sku: e.target.value})}
-                           className="h-18 px-8 bg-secondary/40 border-border rounded-[24px] text-lg font-mono font-bold focus:ring-primary/20 transition-all outline-none"
-                        />
-                      </div>
-                   </div>
-
-                   <div className="grid grid-cols-2 gap-8">
-                      <div className="space-y-3">
-                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-1">Categoria de Ativo</Label>
-                        <Select value={form.category} onValueChange={v => setForm({...form, category: v})}>
-                          <SelectTrigger className="h-18 bg-secondary/40 border-border rounded-[24px] text-xs font-black uppercase tracking-widest px-8">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card border-border">
-                            <SelectItem value="Software">Software / SaaS</SelectItem>
-                            <SelectItem value="Hardware">Hardware / Appliance</SelectItem>
-                            <SelectItem value="Serviços">Serviços Profissionais</SelectItem>
-                            <SelectItem value="Suporte">Suporte e Manutenção</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-3">
-                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-1">Status de Estoque</Label>
-                        <Select value={form.stock} onValueChange={v => setForm({...form, stock: v})}>
-                          <SelectTrigger className="h-18 bg-secondary/40 border-border rounded-[24px] text-xs font-black uppercase tracking-widest px-8">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-card border-border">
-                            <SelectItem value="Disponível">Disponível</SelectItem>
-                            <SelectItem value="Sob Consulta">Sob Consulta</SelectItem>
-                            <SelectItem value="EOL">End of Life (EOL)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                   </div>
-                </section>
-
-                <section className="space-y-8">
-                   <div className="flex items-center gap-4 mb-10">
-                      <div className="h-1 w-12 bg-blue-500 rounded-full shadow-[0_0_10px_#3b82f6]" />
-                      <h4 className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.4em]">Arquitetura Financeira</h4>
-                   </div>
-
-                   <div className="grid grid-cols-2 gap-8">
-                      <div className="space-y-3">
-                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-1">Preço de Venda (MSRP)</Label>
-                        <div className="relative group">
-                           <span className="absolute left-6 top-1/2 -translate-y-1/2 text-lg font-black text-muted-foreground italic group-focus-within:text-primary transition-colors">R$</span>
-                           <Input 
-                              required 
-                              type="number"
-                              placeholder="0,00"
-                              value={form.price}
-                              onChange={e => setForm({...form, price: e.target.value})}
-                              className="h-18 pl-16 bg-secondary/40 border-border rounded-[24px] text-2xl font-black font-mono focus:ring-primary/20 transition-all outline-none"
-                           />
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-1">Custo Operacional Estimado</Label>
-                        <div className="relative group">
-                           <span className="absolute left-6 top-1/2 -translate-y-1/2 text-lg font-black text-muted-foreground italic group-focus-within:text-blue-500 transition-colors">R$</span>
-                           <Input 
-                              type="number"
-                              placeholder="0,00"
-                              value={form.cost_price}
-                              onChange={e => setForm({...form, cost_price: e.target.value})}
-                              className="h-18 pl-16 bg-secondary/40 border-border rounded-[24px] text-2xl font-black font-mono focus:ring-blue-500/20 transition-all outline-none"
-                           />
-                        </div>
-                      </div>
-                   </div>
-                </section>
-
-                <section className="space-y-6">
-                   <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-1">Especificações Técnicas</Label>
-                   <Textarea 
-                     placeholder="Detalhes da solução, integrações suportadas e compliance..."
-                     value={form.technical_notes}
-                     onChange={e => setForm({...form, technical_notes: e.target.value})}
-                     className="bg-secondary/40 border-border rounded-[32px] p-8 text-sm font-medium leading-relaxed min-h-[160px] focus:ring-primary/20 transition-all outline-none resize-none shadow-inner"
-                   />
-                </section>
-
-                <div className="pt-10 flex gap-6">
-                   <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="flex-1 h-20 rounded-[24px] border-border text-[11px] font-black uppercase tracking-widest hover:bg-secondary transition-all text-muted-foreground">Abortar</Button>
-                   <Button 
-                    type="submit" 
-                    disabled={busy}
-                    className="flex-[2] h-20 bg-primary text-primary-foreground rounded-[24px] font-black uppercase tracking-[0.2em] text-sm shadow-2xl shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all gap-4"
-                   >
-                     {busy ? <Loader2 className="h-6 w-6 animate-spin" /> : editingId ? <RefreshCw className="h-5 w-5" /> : <Save className="h-5 w-5" />}
-                     {editingId ? 'Sincronizar Atualização' : 'Efetivar Registro de Produto'}
-                   </Button>
+                  <div className="flex-1 h-px bg-[#3ecf8e]/15" />
                 </div>
-              </form>
-            </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <AnimatePresence mode="popLayout">
+                    {withGoal.map((p, i) => <ProductCard key={p.id} p={p} i={i} onEdit={openEdit} onDelete={remove} nav={nav} />)}
+                  </AnimatePresence>
+                </div>
+              </div>
+            )}
+
+            {/* ── Sem Meta ── */}
+            {withoutGoal.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-yellow-500/70" />
+                    <span className="text-xs font-semibold text-muted-foreground">Sem Meta Configurada</span>
+                    <span className="h-5 min-w-5 px-1.5 rounded bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 text-[10px] font-bold flex items-center justify-center">
+                      {withoutGoal.length}
+                    </span>
+                  </div>
+                  <div className="flex-1 h-px bg-border" />
+                  <span className="text-[10px] text-muted-foreground italic">Edite o produto para ativar a meta</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <AnimatePresence mode="popLayout">
+                    {withoutGoal.map((p, i) => <ProductCard key={p.id} p={p} i={i} onEdit={openEdit} onDelete={remove} nav={nav} dimmed />)}
+                  </AnimatePresence>
+                </div>
+              </div>
+            )}
           </div>
+        );
+      })()}
+
+      {/* ── Category Manager Modal ── */}
+      <Dialog open={isCatModalOpen} onOpenChange={v => { setIsCatModalOpen(v); setRenamingCat(null); }}>
+        <DialogContent className="max-w-md bg-card border-border p-0 overflow-hidden rounded-xl">
+          <DialogHeader className="px-6 py-4 border-b border-border bg-muted/30">
+            <div className="flex items-center gap-3">
+              <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center">
+                <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+              <div>
+                <DialogTitle className="text-sm font-semibold">Gerenciar Categorias</DialogTitle>
+                <DialogDescription className="text-[11px] mt-0.5">
+                  Renomeie ou exclua categorias personalizadas.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="p-5 space-y-2 max-h-[70vh] overflow-y-auto no-scrollbar">
+            {/* Default (locked) */}
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pb-1">Padrão (bloqueadas)</p>
+            {DEFAULT_CATEGORIES.map(cat => {
+              const count = items.filter(p => p.metadata?.category === cat).length;
+              return (
+                <div key={cat} className="flex items-center gap-3 p-2.5 rounded-lg bg-secondary/40 border border-border/50">
+                  <div className="h-6 w-6 rounded-md bg-secondary flex items-center justify-center shrink-0">
+                    <Shield className="h-3 w-3 text-muted-foreground/50" />
+                  </div>
+                  <span className="text-sm font-medium text-foreground flex-1">{cat}</span>
+                  <span className="text-[10px] font-mono text-muted-foreground">{count} produto{count !== 1 ? "s" : ""}</span>
+                  <span className="text-[9px] text-muted-foreground/50 font-medium border border-border/50 rounded px-1.5 py-0.5">bloqueada</span>
+                </div>
+              );
+            })}
+
+            {/* Custom */}
+            {allCategories.filter(c => !DEFAULT_CATEGORIES.includes(c)).length > 0 && (
+              <>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pb-1 pt-3">Personalizadas</p>
+                {allCategories.filter(c => !DEFAULT_CATEGORIES.includes(c)).map(cat => {
+                  const count = items.filter(p => p.metadata?.category === cat).length;
+                  const isRenaming = renamingCat === cat;
+                  return (
+                    <div key={cat} className="flex items-center gap-3 p-2.5 rounded-lg bg-secondary/40 border border-border hover:border-border/80 transition-colors group">
+                      <div className="h-6 w-6 rounded-md bg-secondary flex items-center justify-center shrink-0">
+                        <Boxes className="h-3 w-3 text-muted-foreground" />
+                      </div>
+                      {isRenaming ? (
+                        <Input
+                          autoFocus
+                          value={renameValue}
+                          onChange={e => setRenameValue(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === "Enter") renameCategory(cat, renameValue);
+                            if (e.key === "Escape") setRenamingCat(null);
+                          }}
+                          onBlur={() => renameCategory(cat, renameValue)}
+                          className="h-7 flex-1 bg-background border-border text-sm"
+                        />
+                      ) : (
+                        <span className="text-sm font-medium text-foreground flex-1 truncate">{cat}</span>
+                      )}
+                      <span className="text-[10px] font-mono text-muted-foreground shrink-0">{count} produto{count !== 1 ? "s" : ""}</span>
+                      {count > 0 && !isRenaming && (
+                        <span title={`${count} produto(s) nesta categoria`}>
+                          <AlertTriangle className="h-3 w-3 text-yellow-500/70 shrink-0" />
+                        </span>
+                      )}
+                      {!isRenaming && (
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => { setRenamingCat(cat); setRenameValue(cat); }}
+                            className="h-6 w-6 rounded-md flex items-center justify-center hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+                            title="Renomear"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={() => deleteCategory(cat)}
+                            className="h-6 w-6 rounded-md flex items-center justify-center hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+                            title="Excluir"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            {allCategories.filter(c => !DEFAULT_CATEGORIES.includes(c)).length === 0 && (
+              <div className="py-8 flex flex-col items-center gap-2 text-muted-foreground">
+                <Boxes className="h-6 w-6 opacity-30" />
+                <p className="text-xs">Nenhuma categoria personalizada criada.</p>
+                <p className="text-[10px] opacity-70">Adicione via "Nova Categoria" ao criar/editar um produto.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="px-5 py-4 border-t border-border bg-muted/20 flex justify-end">
+            <Button onClick={() => setIsCatModalOpen(false)} className="h-8 px-5 bg-secondary text-xs font-medium text-foreground hover:bg-accent border border-border">
+              Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="max-w-xl bg-card border-border p-0 overflow-hidden rounded-xl">
+          <DialogHeader className="px-6 py-4 border-b border-border bg-muted/30">
+            <div className="flex items-center gap-3">
+              <div className="h-7 w-7 rounded-md bg-[#3ecf8e]/10 text-[#3ecf8e] flex items-center justify-center">
+                <Package className="h-3.5 w-3.5" />
+              </div>
+              <div>
+                <DialogTitle className="text-sm font-semibold">{editingId ? "Editar Produto" : "Novo Produto"}</DialogTitle>
+                <DialogDescription className="text-[11px] mt-0.5">Configure nome, categoria, meta e cor no gráfico.</DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto max-h-[78vh] no-scrollbar">
+            {/* Image upload */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Imagem do Produto</Label>
+              <input ref={fileRef} type="file" accept="image/*" className="hidden"
+                onChange={e => e.target.files?.[0] && handleImageFile(e.target.files[0])} />
+              {imagePreview ? (
+                <div className="relative group rounded-lg overflow-hidden border border-border h-32">
+                  <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
+                  <button type="button" onClick={() => { setImagePreview(""); setForm(f => ({ ...f, image: "" })); }}
+                    className="absolute top-2 right-2 h-6 w-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => fileRef.current?.click()}
+                  className="w-full h-20 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-2 hover:border-[#3ecf8e]/40 hover:bg-[#3ecf8e]/5 transition-colors text-muted-foreground hover:text-[#3ecf8e]">
+                  <ImagePlus className="h-5 w-5" />
+                  <span className="text-xs">Clique para selecionar imagem (max 2MB)</span>
+                </button>
+              )}
+            </div>
+
+            {/* Name */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Nome do Produto</Label>
+              <Input required placeholder="Ex: FortShield EDR Pro" value={form.name}
+                onChange={e => setForm({ ...form, name: e.target.value })}
+                className="h-9 bg-background border-border text-sm" />
+            </div>
+
+            {/* Category + custom */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">Categoria</Label>
+                <Select value={form.category} onValueChange={v => setForm({ ...form, category: v, new_category: "" })}>
+                  <SelectTrigger className="h-9 bg-background border-border text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    {allCategories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">Nova Categoria</Label>
+                <Input placeholder="Ex: Consulting" value={form.new_category}
+                  onChange={e => setForm({ ...form, new_category: e.target.value })}
+                  className="h-9 bg-background border-border text-xs" />
+              </div>
+            </div>
+
+            {/* Goal */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                <Target className="h-3 w-3" /> Meta do Produto (BRL)
+              </Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">R$</span>
+                <Input type="text" placeholder="R$ 0,00" value={form.goal}
+                  onChange={e => setForm({ ...form, goal: e.target.value })}
+                  onBlur={e => setForm({ ...form, goal: formatCurrencyBRL(e.target.value) })}
+                  className="h-9 pl-9 bg-background border-border text-sm font-mono" />
+              </div>
+              <p className="text-[10px] text-muted-foreground">Valor alvo de receita para este produto no dashboard.</p>
+            </div>
+
+            {/* Ativar Meta toggle */}
+            <div
+              className={cn(
+                "flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer select-none",
+                form.goal_active
+                  ? "bg-[#3ecf8e]/5 border-[#3ecf8e]/25"
+                  : "bg-secondary/30 border-border"
+              )}
+              onClick={() => {
+                const next = !form.goal_active;
+                if (next && !form.goal) {
+                  toast.warning("Defina um valor de meta antes de ativar.");
+                  return;
+                }
+                setForm({ ...form, goal_active: next });
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "h-8 w-8 rounded-md flex items-center justify-center transition-colors",
+                  form.goal_active ? "bg-[#3ecf8e]/15 text-[#3ecf8e]" : "bg-secondary text-muted-foreground"
+                )}>
+                  <Target className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-foreground">Ativar Meta no Dashboard</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {form.goal_active
+                      ? "Este produto aparecerá no gráfico de receita por produto"
+                      : "Ative para incluir este produto no acompanhamento de metas"}
+                  </p>
+                </div>
+              </div>
+              <div className={cn(
+                "h-5 w-9 rounded-full transition-colors relative shrink-0",
+                form.goal_active ? "bg-[#3ecf8e]" : "bg-border"
+              )}>
+                <div className={cn(
+                  "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
+                  form.goal_active ? "translate-x-4" : "translate-x-0.5"
+                )} />
+              </div>
+            </div>
+
+            {/* Color */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Cor no Gráfico</Label>
+              <div className="p-3 bg-secondary/40 border border-border rounded-lg">
+                <ColorPicker value={form.color} onChange={c => setForm({ ...form, color: c })} />
+              </div>
+              <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                <div className="h-3 w-3 rounded-full" style={{ backgroundColor: form.color }} />
+                Esta cor aparecerá no gráfico de receita por produto no Dashboard.
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Descrição</Label>
+              <Textarea placeholder="Resumo do produto para vendedores e clientes..." value={form.description}
+                onChange={e => setForm({ ...form, description: e.target.value })}
+                className="bg-background border-border text-sm min-h-[70px] resize-none" />
+            </div>
+
+            {/* Tech notes */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Especificações Técnicas</Label>
+              <Textarea placeholder="Detalhes técnicos, integrações e compliance..." value={form.technical_notes}
+                onChange={e => setForm({ ...form, technical_notes: e.target.value })}
+                className="bg-background border-border text-sm min-h-[70px] resize-none" />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}
+                className="flex-1 h-9 border-border text-xs text-muted-foreground">Cancelar</Button>
+              <Button type="submit" disabled={busy}
+                className="flex-[2] h-9 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-black font-semibold text-xs gap-2">
+                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : editingId ? <RefreshCw className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}
+                {editingId ? "Salvar Alterações" : "Registrar Produto"}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
   );
 }
 
-function StatCard({ label, value, icon }: any) {
+function StatCard({ label, value, icon, accent, warn }: { label: string; value: string; icon: React.ReactNode; accent?: boolean; warn?: boolean }) {
   return (
-    <Card className="bg-card/40 backdrop-blur-md rounded-3xl border-border hover:border-primary/20 transition-all group shadow-xl relative overflow-hidden border-none">
-       <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 blur-2xl rounded-full -mr-12 -mt-12 opacity-0 group-hover:opacity-100 transition-opacity" />
-       <CardContent className="p-8">
-          <div className="flex justify-between items-start mb-6">
-             <div className="h-12 w-12 rounded-2xl bg-secondary border border-border flex items-center justify-center text-muted-foreground group-hover:text-primary transition-all group-hover:border-primary/30 shadow-inner">{icon}</div>
-          </div>
-          <div className="text-4xl font-black font-mono text-foreground mb-1 tracking-tighter">{value}</div>
-          <div className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">{label}</div>
-       </CardContent>
-    </Card>
+    <div className={cn("bg-card border rounded-lg p-4 flex items-center gap-3",
+      accent ? "border-[#3ecf8e]/20" : warn ? "border-yellow-500/20" : "border-border")}>
+      <div className={cn("h-8 w-8 rounded-md flex items-center justify-center shrink-0",
+        accent ? "bg-[#3ecf8e]/10 text-[#3ecf8e]" : warn ? "bg-yellow-500/10 text-yellow-500" : "bg-secondary text-muted-foreground")}>
+        {icon}
+      </div>
+      <div>
+        <p className="text-xs text-muted-foreground font-medium">{label}</p>
+        <p className="text-lg font-bold font-mono text-foreground leading-tight">{value}</p>
+      </div>
+    </div>
   );
 }
 
+function ProductCard({ p, i, onEdit, onDelete, nav, dimmed }: {
+  p: any; i: number;
+  onEdit: (p: any) => void;
+  onDelete: (id: string) => void;
+  nav: any;
+  dimmed?: boolean;
+}) {
+  const color = p.metadata?.color || "#3ecf8e";
+  const hasGoal = !!p.metadata?.goal;
+  const image = p.metadata?.image;
+
+  return (
+    <motion.div layout key={p.id}
+      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }} transition={{ delay: i * 0.04, duration: 0.2 }}>
+      <div className={cn(
+        "group bg-card border rounded-lg transition-colors flex flex-col overflow-hidden",
+        dimmed
+          ? "border-border hover:border-yellow-500/20 opacity-75 hover:opacity-100"
+          : "border-border hover:border-[#3ecf8e]/30"
+      )}>
+        {/* Color bar */}
+        <div className="h-1 w-full" style={{ backgroundColor: dimmed ? "#444" : color }} />
+
+        {/* Image */}
+        {image && (
+          <div className="h-28 overflow-hidden bg-secondary">
+            <img src={image} alt={p.name} className="w-full h-full object-cover" />
+          </div>
+        )}
+
+        {/* Header */}
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-8 w-8 rounded-md flex items-center justify-center shrink-0"
+              style={{ backgroundColor: (dimmed ? "#444" : color) + "20", color: dimmed ? "#666" : color }}>
+              <ShoppingBag className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground truncate">{p.name}</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <Badge variant="outline" className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0 border"
+                  style={{
+                    borderColor: (dimmed ? "#666" : color) + "40",
+                    color: dimmed ? "#666" : color,
+                    backgroundColor: (dimmed ? "#444" : color) + "10"
+                  }}>
+                  {p.metadata?.category || "Geral"}
+                </Badge>
+                {dimmed
+                  ? <span className="text-[9px] text-yellow-500/80 font-semibold flex items-center gap-0.5">⚠ Meta inativa</span>
+                  : <span className="text-[9px] text-[#3ecf8e] font-bold flex items-center gap-0.5"><Check className="h-2.5 w-2.5" /> Meta ativa</span>
+                }
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            <Button variant="ghost" size="icon" onClick={() => onEdit(p)} className="h-7 w-7 rounded-md hover:bg-accent">
+              <Edit3 className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => onDelete(p.id)} className="h-7 w-7 rounded-md hover:bg-destructive/10 hover:text-destructive">
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="p-4 flex-1 flex flex-col gap-3">
+          {p.description && <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{p.description}</p>}
+
+          {/* Goal value + progress (only for "com meta" section) */}
+          {!dimmed && hasGoal && (
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
+                <span>Meta do produto</span>
+                <span className="font-mono font-bold text-foreground">
+                  {Number(p.metadata.goal).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}
+                </span>
+              </div>
+              <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                <div className="h-full rounded-full" style={{ width: "0%", backgroundColor: color }} />
+              </div>
+            </div>
+          )}
+
+          {/* CTA for "sem meta" */}
+          {dimmed && (
+            <button onClick={() => onEdit(p)}
+              className="text-[10px] text-yellow-500/70 hover:text-yellow-400 font-medium flex items-center gap-1 transition-colors w-fit">
+              <Target className="h-3 w-3" /> Configurar meta →
+            </button>
+          )}
+
+          {p.metadata?.technical_notes && (
+            <div className="bg-secondary/50 border border-border rounded-md p-2.5">
+              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest mb-1">Especificações</p>
+              <p className="text-xs text-foreground/80 leading-relaxed line-clamp-2">{p.metadata.technical_notes}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-4 py-3 border-t border-border flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <div className="h-3 w-3 rounded-full" style={{ backgroundColor: dimmed ? "#444" : color }} />
+            <span className="text-[10px] text-muted-foreground font-mono">{dimmed ? "—" : color}</span>
+          </div>
+          <Button variant="ghost" size="icon" onClick={() => nav({ to: "/pipeline" })}
+            className="h-7 w-7 rounded-md hover:text-[#3ecf8e] transition-colors">
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}

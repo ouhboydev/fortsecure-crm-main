@@ -57,6 +57,7 @@ function Dashboard() {
   const [sellerData, setSellerData] = useState<any[]>([]);
   const [stageData, setStageData] = useState<any[]>([]);
   const [trendData, setTrendData] = useState<any[]>([]);
+  const [productData, setProductData] = useState<any[]>([]);
   const [meetingCount, setMeetingCount] = useState(0);
   const [conversionRate, setConversionRate] = useState(0);
   const [selectedSeller, setSelectedSeller] = useState("all");
@@ -89,13 +90,14 @@ function Dashboard() {
       // For goal lookup we pass the 3 months (1-indexed)
       const goalMonths = qMonths.map(m => m + 1);
 
-      const [oppsRes, profilesRes, goalsRes, meetingsRes, settingsRes, activitiesRes] = await Promise.all([
+      const [oppsRes, profilesRes, goalsRes, meetingsRes, settingsRes, activitiesRes, prodsRes] = await Promise.all([
         supabase.from("opportunities").select("*"),
         supabase.from("profiles").select("id, full_name"),
         supabase.from("goals").select("target_amount, user_id, month").in("month", goalMonths).eq("year", now.getFullYear()),
         supabase.from("meetings").select("id", { count: "exact", head: true }).gte("scheduled_at", firstDay).lte("scheduled_at", lastDay),
         supabase.from("app_settings").select("*").eq("key", "global_revenue_goal").single(),
         supabase.from("activities").select("*, profiles(full_name)").in("type", ["reuniao"]).gte("due_date", firstDay).lte("due_date", lastDay).order("due_date", { ascending: false }),
+        supabase.from("products").select("id, name, metadata"),
       ]);
 
       if (oppsRes.error) throw oppsRes.error;
@@ -176,6 +178,29 @@ function Dashboard() {
         };
       });
       setTrendData(trend);
+
+      // ── Product revenue breakdown (products with goal_active) ──
+      const prods = prodsRes.data ?? [];
+      const allOppsForProducts = oppsRes.data ?? [];
+      const productBreakdown = prods
+        .filter(prod => prod.metadata?.goal_active)
+        .map(prod => {
+          const linked = allOppsForProducts.filter(o =>
+            o.metadata?.product_id === prod.id &&
+            o.stage === "ganho" &&
+            o.closed_at &&
+            qMonths.includes(new Date(o.closed_at).getMonth()) &&
+            new Date(o.closed_at).getFullYear() === now.getFullYear()
+          );
+          return {
+            name: prod.name,
+            Receita: linked.reduce((s: number, o: any) => s + Number(o.value), 0),
+            Meta: prod.metadata?.goal ?? 0,
+            color: prod.metadata?.color ?? "#3ecf8e",
+          };
+        })
+        .sort((a, b) => b.Receita - a.Receita);
+      setProductData(productBreakdown);
     } catch (err: any) {
       toast.error("Erro ao sincronizar: " + err.message);
     } finally {
@@ -303,6 +328,146 @@ function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* ── Product Performance Widget ── */}
+      {productData.length > 0 && (
+        <div className="bg-card border border-border rounded-lg overflow-hidden">
+          {/* Header */}
+          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-medium text-foreground">Performance por Produto</h2>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Receita vs Meta · {QUARTER_LABELS[parseInt(selectedPeriod)]}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-[10px]">
+              <span className="flex items-center gap-1.5 text-muted-foreground font-medium">
+                <span className="h-2.5 w-2.5 rounded-sm bg-[#3ecf8e] shrink-0" /> Receita
+              </span>
+              <span className="flex items-center gap-1.5 text-muted-foreground font-medium">
+                <span className="h-2.5 w-2.5 rounded-sm bg-[#2e2e2e] border border-[#3e3e3e] shrink-0" /> Meta
+              </span>
+            </div>
+          </div>
+
+          {/* Chart */}
+          <div className="px-5 pt-5 h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={productData} barGap={6} barCategoryGap="35%">
+                <CartesianGrid strokeDasharray="3 3" stroke="#1c1c1c" vertical={false} />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fill: "#737373", fontSize: 11, fontWeight: 500 }}
+                  axisLine={false}
+                  tickLine={false}
+                  dy={8}
+                  tickFormatter={(v: string) => v.length > 14 ? v.slice(0, 14) + "…" : v}
+                />
+                <YAxis
+                  tick={{ fill: "#737373", fontSize: 10 }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={48}
+                  tickFormatter={(v: number) => {
+                    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+                    if (v >= 1_000) return `${(v / 1_000).toFixed(0)}k`;
+                    return String(v);
+                  }}
+                />
+                <Tooltip
+                  cursor={{ fill: "rgba(255,255,255,0.02)", radius: 4 } as any}
+                  content={({ active, payload }: any) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0].payload;
+                    const pct = d.Meta > 0 ? Math.round((d.Receita / d.Meta) * 100) : 0;
+                    const gap = d.Meta - d.Receita;
+                    const isOver = pct >= 100;
+                    return (
+                      <div className="bg-[#171717] border border-[#2a2a2a] rounded-lg p-3 shadow-2xl min-w-[180px]">
+                        <div className="flex items-center gap-2 mb-3 pb-2 border-b border-[#2a2a2a]">
+                          <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                          <p className="text-xs font-bold text-foreground">{d.name}</p>
+                        </div>
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between gap-10">
+                            <span className="text-[10px] text-muted-foreground">Receita</span>
+                            <span className="text-[10px] font-mono font-bold" style={{ color: d.color }}>{formatCurrency(d.Receita)}</span>
+                          </div>
+                          <div className="flex justify-between gap-10">
+                            <span className="text-[10px] text-muted-foreground">Meta</span>
+                            <span className="text-[10px] font-mono font-semibold text-foreground">{formatCurrency(d.Meta)}</span>
+                          </div>
+                          <div className="flex justify-between gap-10 pt-1.5 border-t border-[#2a2a2a]">
+                            <span className="text-[10px] text-muted-foreground">Atingimento</span>
+                            <span className={cn("text-[11px] font-black", isOver ? "text-[#3ecf8e]" : "text-yellow-400")}>{pct}%</span>
+                          </div>
+                          {!isOver && gap > 0 && (
+                            <p className="text-[9px] text-muted-foreground/70 italic pt-0.5">
+                              Faltam {formatCurrency(gap)}
+                            </p>
+                          )}
+                          {isOver && <p className="text-[9px] text-[#3ecf8e] italic pt-0.5">🎯 Meta superada!</p>}
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+                {/* Background bar = Meta */}
+                <Bar dataKey="Meta" fill="#262626" radius={[4, 4, 0, 0]} />
+                {/* Foreground bar = Receita with product color */}
+                <Bar dataKey="Receita" radius={[4, 4, 0, 0]}>
+                  {productData.map((entry: any, i: number) => (
+                    <Cell key={i} fill={entry.color} fillOpacity={0.85} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Attainment cards */}
+          <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {productData.map((p: any) => {
+              const pct = p.Meta > 0 ? Math.min(Math.round((p.Receita / p.Meta) * 100), 999) : 0;
+              const isOver = pct >= 100;
+              return (
+                <div key={p.name} className="bg-secondary/20 border border-border/50 rounded-lg p-3 hover:border-border transition-colors">
+                  {/* Name + badge */}
+                  <div className="flex items-center justify-between gap-2 mb-2.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+                      <span className="text-[11px] font-semibold text-foreground truncate">{p.name}</span>
+                    </div>
+                    <span className={cn(
+                      "text-[10px] font-black px-1.5 py-0.5 rounded shrink-0",
+                      isOver ? "bg-[#3ecf8e]/10 text-[#3ecf8e]" : "bg-yellow-500/10 text-yellow-400"
+                    )}>
+                      {pct}%
+                    </span>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="h-1 bg-secondary rounded-full overflow-hidden mb-2.5">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: isOver ? p.color : "#f59e0b" }}
+                    />
+                  </div>
+
+                  {/* Values */}
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-[12px] font-bold font-mono" style={{ color: p.color }}>
+                      {formatCurrency(p.Receita)}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground font-mono">
+                      / {formatCurrency(p.Meta)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Bottom Row ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
