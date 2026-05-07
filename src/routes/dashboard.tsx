@@ -97,21 +97,29 @@ function Dashboard() {
       // For goal lookup we pass the 3 months (1-indexed)
       const goalMonths = qMonths.map(m => m + 1);
 
-      const [oppsRes, profilesRes, goalsRes, meetingsRes, settingsRes, activitiesRes, prodsRes] = await Promise.all([
+      const [oppsRes, profilesRes, goalsRes, meetingsRes, settingsRes, activitiesRes, rolesRes, prodsRes] = await Promise.all([
         supabase.from("opportunities").select("*"),
-        supabase.from("profiles").select("id, full_name, role"),
+        supabase.from("profiles").select("id, full_name"),
         supabase.from("goals").select("target_amount, user_id, month").in("month", goalMonths).eq("year", now.getFullYear()),
         supabase.from("meetings").select("id", { count: "exact", head: true }).gte("scheduled_at", firstDay).lte("scheduled_at", lastDay),
         supabase.from("app_settings").select("*").eq("key", "global_revenue_goal").single(),
-        supabase.from("activities").select("id, title, due_date, owner_id, metadata, profiles(full_name)").in("type", ["reuniao"]).gte("due_date", firstDay).lte("due_date", lastDay).order("due_date", { ascending: false }).limit(30),
-        supabase.from("products").select("id, name, metadata"),
+        supabase.from("activities").select("*, profiles(full_name)").in("type", ["reuniao"]).gte("due_date", firstDay).lte("due_date", lastDay).order("due_date", { ascending: false }).limit(30),
+        supabase.from("user_roles").select("user_id, role"),
+        supabase.from("products").select("*"),
       ]);
 
       if (oppsRes.error) throw oppsRes.error;
 
-      setSellers((profilesRes.data || []).filter((p: any) => {
-        // Exclude managers/admins from the seller filter list
-        return p.role !== 'manager' && p.role !== 'admin';
+      const allProfiles = profilesRes.data || [];
+      const allRoles = rolesRes.data || [];
+      
+      const sellersWithRoles = allProfiles.map(p => ({
+        ...p,
+        role: allRoles.find(r => r.user_id === p.id)?.role || 'vendedor'
+      }));
+
+      setSellers(sellersWithRoles.filter((p: any) => {
+        return p.role !== 'manager' && p.role !== 'admin' && p.role !== 'gestor';
       }));
 
       let opps = oppsRes.data || [];
@@ -140,7 +148,7 @@ function Dashboard() {
       setMeetingCount(meetingsRes.count || 0);
 
       // Field activities (reuniões & visitas do tracker)
-      const acts = activitiesRes.data || [];
+      const acts = (activitiesRes.data || []) as any[];
       const filteredActs = selectedSeller !== "all" ? acts.filter((a: any) => a.owner_id === selectedSeller) : acts;
       setFieldActivities(filteredActs);
 
@@ -156,8 +164,8 @@ function Dashboard() {
       })));
 
       // Ranking: exclude managers/admins
-      const sData = (profilesRes.data || [])
-        .filter((p: any) => p.role !== 'manager' && p.role !== 'admin')
+      const sData = sellersWithRoles
+        .filter((p: any) => p.role !== 'manager' && p.role !== 'admin' && p.role !== 'gestor')
         .map(p => ({
           name: formatDisplayName(p.full_name || "").split(" ")[0],
           value: (oppsRes.data || []).filter(o => o.owner_id === p.id && o.stage === "ganho").reduce((s, o) => s + Number(o.value), 0),
@@ -188,8 +196,8 @@ function Dashboard() {
       setTrendData(trend);
 
       // ── Product revenue breakdown (products with goal_active) ──
-      const prods = prodsRes.data ?? [];
-      const allOppsForProducts = oppsRes.data ?? [];
+      const prods = (prodsRes.data || []) as any[];
+      const allOppsForProducts = (oppsRes.data || []) as any[];
       const productBreakdown = prods
         .filter(prod => prod.metadata?.goal_active)
         .map(prod => {
@@ -272,19 +280,24 @@ function Dashboard() {
         <DashKpi label="Forecast" value={metrics.pipelineCount} hint={formatCurrency(metrics.pipelineValue)} icon={<TrendingUp className="h-4 w-4" />} />
         <DashKpi label="Reuniões" value={meetingCount} hint="Agendadas no período" icon={<PhoneCall className="h-4 w-4" />} />
         <DashKpi label="Conversão" value={`${conversionRate.toFixed(1)}%`} hint="Proposta → Fechado" icon={<PieChartIcon className="h-4 w-4" />} />
-        {!canFilter && (
-          <div className="bg-[#3ecf8e]/5 border border-[#3ecf8e]/20 rounded-lg p-4 flex flex-col justify-center">
-            <div className="flex items-center gap-2 mb-1">
-              <Clock className="h-3.5 w-3.5 text-[#3ecf8e]" />
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Fim do Trimestre</p>
-            </div>
-            <p className="text-xl font-bold font-mono text-[#3ecf8e]">{daysUntilEndOfQuarter}d</p>
-            <p className="text-[10px] text-muted-foreground mt-1">{QUARTER_LABELS[parseInt(selectedPeriod)]} · {daysUntilEndOfQuarter === 1 ? 'último dia' : `${daysUntilEndOfQuarter} dias restantes`}</p>
+        
+        {/* Countdown - Always visible */}
+        <div className="bg-[#3ecf8e]/5 border border-[#3ecf8e]/20 rounded-lg p-4 flex flex-col justify-center relative overflow-hidden group">
+          <div className="absolute -right-2 -bottom-2 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity">
+            <Clock className="h-16 w-16 text-[#3ecf8e]" />
           </div>
-        )}
-        {canFilter && (
-          <DashKpi label="Pipeline Total" value={formatCurrency(metrics.pipelineValue)} hint={`${metrics.pipelineCount} oportunidades`} icon={<Activity className="h-4 w-4" />} />
-        )}
+          <div className="flex items-center gap-2 mb-1.5">
+            <Clock className="h-3.5 w-3.5 text-[#3ecf8e]" />
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Fim do Trimestre</p>
+          </div>
+          <div className="flex items-baseline gap-1">
+            <p className="text-xl font-bold font-mono text-[#3ecf8e]">{daysUntilEndOfQuarter}</p>
+            <span className="text-[10px] font-bold text-[#3ecf8e]/70">dias</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            {QUARTER_LABELS[parseInt(selectedPeriod)]} · {daysUntilEndOfQuarter === 1 ? 'Último dia!' : 'Restantes'}
+          </p>
+        </div>
       </div>
 
       {/* ── Charts Row ── */}
