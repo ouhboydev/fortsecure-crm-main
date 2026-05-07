@@ -112,7 +112,7 @@ function Dashboard() {
 
       const allProfiles = profilesRes.data || [];
       const allRoles = rolesRes.data || [];
-      
+
       const sellersWithRoles = allProfiles.map(p => ({
         ...p,
         role: allRoles.find(r => r.user_id === p.id)?.role || 'vendedor'
@@ -280,7 +280,7 @@ function Dashboard() {
         <DashKpi label="Forecast" value={metrics.pipelineCount} hint={formatCurrency(metrics.pipelineValue)} icon={<TrendingUp className="h-4 w-4" />} />
         <DashKpi label="Reuniões" value={meetingCount} hint="Agendadas no período" icon={<PhoneCall className="h-4 w-4" />} />
         <DashKpi label="Conversão" value={`${conversionRate.toFixed(1)}%`} hint="Proposta → Fechado" icon={<PieChartIcon className="h-4 w-4" />} />
-        
+
         {/* Countdown - Always visible */}
         <div className="bg-[#3ecf8e]/5 border border-[#3ecf8e]/20 rounded-lg p-4 flex flex-col justify-center relative overflow-hidden group">
           <div className="absolute -right-2 -bottom-2 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity">
@@ -361,25 +361,28 @@ function Dashboard() {
           </div>
         </WidgetCard>
 
-        {/* Funnel bar chart — sem grid */}
-        <div className="bg-card border border-border rounded-lg overflow-hidden">
+        {/* Atingimento Global — replaces Funil */}
+        <div className="bg-card border border-border rounded-lg overflow-hidden flex flex-col">
           <div className="px-5 py-4 border-b border-border">
-            <h2 className="text-sm font-medium text-foreground">Funil por Valor</h2>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Volume total por estágio</p>
+            <h2 className="text-sm font-medium text-foreground">Atingimento Global</h2>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Progresso em relação à meta do período</p>
           </div>
-          <div className="p-5 h-[280px]">
+          <div className="p-4 flex flex-col items-center justify-center flex-1 relative min-h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={funnelData} layout="vertical">
-                <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: "#a3a3a3", fontSize: 11 }} width={76} />
-                <Tooltip {...TOOLTIP_STYLE} cursor={{ fill: "rgba(255,255,255,0.02)" }} formatter={(v: any) => formatCurrency(Number(v))} />
-                <Bar dataKey="value" name="Valor" radius={[0, 4, 4, 0]} barSize={18}>
-                  {funnelData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
+              <RadialBarChart cx="50%" cy="50%" innerRadius="72%" outerRadius="100%" barSize={12} data={[{ value: Math.min(100, metrics.attainment), fill: metrics.attainment >= 100 ? "#3ecf8e" : metrics.attainment >= 60 ? "#f59e0b" : "#e53e3e" }]}>
+                <RadialBar background={{ fill: "#262626" }} dataKey="value" cornerRadius={6} />
+                <text x="50%" y="46%" textAnchor="middle" dominantBaseline="middle" fill="#ededed" fontSize="26" fontWeight="800" fontFamily="monospace">
+                  {metrics.attainment}%
+                </text>
+                <text x="50%" y="60%" textAnchor="middle" dominantBaseline="middle" fill="#737373" fontSize="10">
+                  da meta total
+                </text>
+              </RadialBarChart>
             </ResponsiveContainer>
+          </div>
+          <div className="px-5 pb-4 mt-auto flex justify-between text-[10px] text-muted-foreground border-t border-border/30 pt-3">
+            <span>Realizado: <span className="text-foreground font-mono">{formatCurrency(metrics.revenue)}</span></span>
+            <span>Meta: <span className="text-foreground font-mono">{formatCurrency(metrics.goal)}</span></span>
           </div>
         </div>
       </div>
@@ -546,55 +549,7 @@ function Dashboard() {
         </div>
 
 
-        {/* Attainment radial — span 2 */}
-        <div className="bg-card border border-border rounded-lg overflow-hidden lg:col-span-2">
-          <div className="px-5 py-4 border-b border-border">
-            <h2 className="text-sm font-medium text-foreground">Atingimento Global</h2>
-          </div>
-          <div className="p-4 flex flex-col items-center justify-center h-[180px] relative">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadialBarChart cx="50%" cy="50%" innerRadius="72%" outerRadius="100%" barSize={10} data={[{ value: Math.min(100, metrics.attainment), fill: metrics.attainment >= 100 ? "#3ecf8e" : metrics.attainment >= 60 ? "#f59e0b" : "#e53e3e" }]}>
-                <RadialBar background={{ fill: "#262626" }} dataKey="value" cornerRadius={5} />
-                <text x="50%" y="46%" textAnchor="middle" dominantBaseline="middle" fill="#ededed" fontSize="22" fontWeight="700" fontFamily="monospace">
-                  {metrics.attainment}%
-                </text>
-                <text x="50%" y="60%" textAnchor="middle" dominantBaseline="middle" fill="#737373" fontSize="10">
-                  da meta
-                </text>
-              </RadialBarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="px-5 pb-4 flex justify-between text-[10px] text-muted-foreground">
-            <span>Realizado: <span className="text-foreground font-mono">{formatCurrency(metrics.revenue)}</span></span>
-            <span>Meta: <span className="text-foreground font-mono">{formatCurrency(metrics.goal)}</span></span>
-          </div>
-        </div>
 
-
-        {/* System status */}
-        <div className="bg-card border border-border rounded-lg overflow-hidden">
-          <div className="px-5 py-4 border-b border-border">
-            <h2 className="text-sm font-medium text-foreground">Status da Operação</h2>
-          </div>
-          <div className="p-5 space-y-3">
-            {[
-              { label: "Sincronização", status: "Ativa", ok: true },
-              { label: "Realtime CDC", status: "Online", ok: true },
-              { label: "Dados", status: isSyncing ? "Atualizando..." : "Sincronizado", ok: !isSyncing },
-            ].map(item => (
-              <div key={item.label} className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">{item.label}</span>
-                <span className="flex items-center gap-1.5 text-xs font-medium">
-                  <span className={cn("h-1.5 w-1.5 rounded-full", item.ok ? "bg-[#3ecf8e] animate-pulse" : "bg-[#f59e0b]")} />
-                  <span className={item.ok ? "text-[#3ecf8e]" : "text-[#f59e0b]"}>{item.status}</span>
-                </span>
-              </div>
-            ))}
-            <div className="pt-3 border-t border-border">
-              <p className="text-[9px] text-muted-foreground font-mono">FortSecure CRM v4.2 · Cluster BR</p>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
