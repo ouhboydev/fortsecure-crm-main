@@ -70,7 +70,7 @@ const nav: NavGroup[] = [
 export function Sidebar() {
   const loc = useLocation();
   const nav2 = useNavigate();
-  const { user, isAdmin, isManager } = useAuth();
+  const { user, isAdmin, isManager, isViewer } = useAuth();
   const [profile, setProfile] = useState<any>(null);
 
   useEffect(() => {
@@ -102,6 +102,10 @@ export function Sidebar() {
               if (it.admin) return isAdmin;
               if (it.manager) return isManager || isAdmin;
               if (it.hideForAdmin && isAdmin) return false;
+              if (isViewer) {
+                const allowed = ["/dashboard", "/ranking", "/tv", "/products", "/performance"];
+                return allowed.includes(it.to);
+              }
               return true;
             });
 
@@ -159,7 +163,7 @@ export function Sidebar() {
                 {profile?.full_name ? formatDisplayName(profile.full_name) : user?.email ? formatDisplayName(user.email.split("@")[0]) : "Usuário"}
               </p>
               <p className="text-[11px] text-muted-foreground truncate leading-none mt-0.5">
-                {isAdmin ? "Administrador" : isManager ? "Gestor" : "Vendedor"}
+                {isAdmin ? "Administrador" : isManager ? "Gestor" : isViewer ? "Visualização" : "Vendedor"}
               </p>
             </div>
           </Link>

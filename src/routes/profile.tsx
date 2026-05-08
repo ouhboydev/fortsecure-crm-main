@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/ui-kit/PageHeader";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { fetchRanking } from "@/lib/sales";
 import {
   User, Camera, Shield, MapPin,
   Save, BadgeCheck, Zap, Plus, X,
@@ -29,7 +30,7 @@ export const Route = createFileRoute("/profile")({
 });
 
 function ProfilePage() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isViewer } = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -58,7 +59,7 @@ function ProfilePage() {
       if (!user) return;
       const [profRes, rankRes, badgesRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user.id).single(),
-        supabase.rpc('get_ranking'),
+        fetchRanking(),
         supabase.from("badges").select("*").eq("user_id", user.id)
       ]);
 
@@ -155,14 +156,18 @@ function ProfilePage() {
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="text-center px-4 py-2 bg-secondary border border-border rounded-md">
-              <div className="text-lg font-bold font-mono text-foreground">{realRank}</div>
-              <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Ranking</div>
-            </div>
-            <div className="text-center px-4 py-2 bg-[#3ecf8e]/5 border border-[#3ecf8e]/20 rounded-md">
-              <div className="text-lg font-bold font-mono text-[#3ecf8e]">{realXP}</div>
-              <div className="text-[9px] text-muted-foreground uppercase tracking-wider">XP Total</div>
-            </div>
+            {!isViewer && (
+              <>
+                <div className="text-center px-4 py-2 bg-secondary border border-border rounded-md">
+                  <div className="text-lg font-bold font-mono text-foreground">{realRank}</div>
+                  <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Ranking</div>
+                </div>
+                <div className="text-center px-4 py-2 bg-[#3ecf8e]/5 border border-[#3ecf8e]/20 rounded-md">
+                  <div className="text-lg font-bold font-mono text-[#3ecf8e]">{realXP}</div>
+                  <div className="text-[9px] text-muted-foreground uppercase tracking-wider">XP Total</div>
+                </div>
+              </>
+            )}
             <Button onClick={handleSave} disabled={saving || uploading} className="h-9 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-[#000] font-semibold text-xs rounded-md px-5 shadow-sm">
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-2" />}
               {saving ? "Salvando..." : "Salvar"}

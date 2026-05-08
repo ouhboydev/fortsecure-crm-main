@@ -3,7 +3,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { formatCurrency } from "@/components/ui-kit/PageHeader";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAppSettings } from "@/lib/sales";
+import { fetchAppSettings, fetchRanking } from "@/lib/sales";
 import { useAuth } from "@/hooks/useAuth";
 import { motion } from "framer-motion";
 import {
@@ -61,7 +61,7 @@ function MyPanel() {
       supabase.from("activities").select("*").eq("owner_id", user.id).order("due_date", { ascending: true }).limit(5),
       supabase.from("badges").select("*, badges(*)").eq("user_id", user.id),
       fetchAppSettings(),
-      supabase.rpc("get_ranking"),
+      fetchRanking(),
       supabase.from("products").select("*"),
     ]);
 

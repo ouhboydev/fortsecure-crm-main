@@ -434,7 +434,7 @@ export type Database = {
     Enums: {
       activity_status: "pendente" | "concluida" | "atrasada"
       activity_type: "ligacao" | "email" | "reuniao" | "tarefa" | "followup"
-      app_role: "admin" | "gestor" | "vendedor"
+      app_role: "admin" | "gestor" | "vendedor" | "viewer"
       opp_stage:
         | "prospect"
         | "qualificado"
@@ -571,7 +571,7 @@ export const Constants = {
     Enums: {
       activity_status: ["pendente", "concluida", "atrasada"],
       activity_type: ["ligacao", "email", "reuniao", "tarefa", "followup"],
-      app_role: ["admin", "gestor", "vendedor"],
+      app_role: ["admin", "gestor", "vendedor", "viewer"],
       opp_stage: [
         "prospect",
         "qualificado",

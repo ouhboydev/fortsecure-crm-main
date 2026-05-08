@@ -121,7 +121,7 @@ function Dashboard() {
       }));
 
       setSellers(sellersWithRoles.filter((p: any) => {
-        return p.role !== 'manager' && p.role !== 'admin' && p.role !== 'gestor';
+        return p.role === 'vendedor';
       }));
 
       let opps = oppsRes.data || [];
@@ -167,9 +167,9 @@ function Dashboard() {
         color: s.color,
       })));
 
-      // Ranking: exclude managers/admins
+      // Ranking: only vendedor
       const sData = sellersWithRoles
-        .filter((p: any) => p.role !== 'manager' && p.role !== 'admin' && p.role !== 'gestor')
+        .filter((p: any) => p.role === 'vendedor')
         .map(p => ({
           name: formatDisplayName(p.full_name || "").split(" ")[0],
           value: (oppsRes.data || []).filter(o => o.owner_id === p.id && o.stage === "ganho").reduce((s, o) => s + Number(o.value), 0),

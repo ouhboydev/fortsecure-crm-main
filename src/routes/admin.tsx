@@ -1,4 +1,4 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/layout/AppShell";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -275,7 +275,7 @@ function Admin() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
-                          {["vendedor", "gestor", "admin"].map(r => (
+                          {["vendedor", "gestor", "admin", "viewer"].map(r => (
                             <Button
                               key={r}
                               size="sm"
@@ -481,8 +481,9 @@ function RoleBadge({ role }: { role: string }) {
     admin: "bg-red-500/10 text-red-500 border-red-500/20",
     gestor: "bg-blue-500/10 text-blue-500 border-blue-500/20",
     vendedor: "bg-[#3ecf8e]/10 text-[#3ecf8e] border-[#3ecf8e]/20",
+    viewer: "bg-purple-500/10 text-purple-500 border-purple-500/20",
   };
-  const labels: Record<string, string> = { admin: "Admin", gestor: "Gestor", vendedor: "Vendedor" };
+  const labels: Record<string, string> = { admin: "Admin", gestor: "Gestor", vendedor: "Vendedor", viewer: "Visualização" };
   return (
     <Badge className={cn("text-[10px] font-medium border px-2 py-0.5 rounded-md", config[role] || config.vendedor)}>
       {labels[role] || role}

@@ -113,8 +113,7 @@ function Products() {
       
       const sellersOnly = (profs || []).filter(p => {
         const r = roles?.find(r => r.user_id === p.id);
-        // Exclude managers and admins
-        return !r || (r.role !== "manager" && r.role !== "admin" && r.role !== "gestor");
+        return r?.role === "vendedor";
       });
       setSellers(sellersOnly);
     } catch { toast.error("Erro ao carregar produtos"); }

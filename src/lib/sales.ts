@@ -42,9 +42,9 @@ export async function fetchRanking(): Promise<RankingRow[]> {
 
   const allProfiles = profilesRes.data ?? [];
   const roles = rolesRes.data ?? [];
-  const admins = roles.filter(r => r.role === 'admin').map(r => r.user_id);
+  const sellerIds = roles.filter(r => r.role === 'vendedor').map(r => r.user_id);
   
-  const profiles = allProfiles.filter(p => !admins.includes(p.id));
+  const profiles = allProfiles.filter(p => sellerIds.includes(p.id));
   const opps = oppsRes.data ?? [];
   const goals = goalsRes.data ?? [];
 
@@ -90,8 +90,8 @@ export async function fetchTeamMetrics() {
     supabase.from("user_roles").select("user_id, role"),
   ]);
   const roles = rolesRes.data ?? [];
-  const admins = roles.filter(r => r.role === 'admin').map(r => r.user_id);
-  const sellers = (profilesRes.data ?? []).filter(p => !admins.includes(p.id));
+  const sellerIds = roles.filter(r => r.role === 'vendedor').map(r => r.user_id);
+  const sellers = (profilesRes.data ?? []).filter(p => sellerIds.includes(p.id));
   
   const opps = oppsRes.data ?? [];
   const closedMonth = opps.filter((o) => o.stage === "ganho" && o.closed_at && o.closed_at >= startMonth);
