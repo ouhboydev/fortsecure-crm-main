@@ -16,7 +16,6 @@ export interface RankingRow {
 export async function fetchAppSettings(): Promise<Record<string, any>> {
   const { data } = await supabase.from("app_settings").select("*");
   const map: Record<string, any> = {
-    commission_rate: 15,
     tax_rate: 18,
     global_revenue_goal: 2000000,
   };

@@ -69,8 +69,6 @@ function MyPanel() {
     const won = opps.filter(o => o.stage === "ganho");
     const revenue = won.reduce((sum, o) => sum + Number(o.value), 0);
     const pipe = opps.filter(o => !["ganho", "perdido"].includes(o.stage)).reduce((sum, o) => sum + Number(o.value), 0);
-    const rate = Number(settings.commission_rate || 15);
-    const commission = (revenue * rate) / 100;
     const points = won.length;
 
     // Conversion rate
@@ -84,7 +82,7 @@ function MyPanel() {
       if (myIndex !== -1) setRank(`#${String(myIndex + 1).padStart(2, "0")}`);
     }
 
-    setMetrics({ revenue, pipeline: pipe, count: won.length, points, commission, conversionRate });
+    setMetrics({ revenue, pipeline: pipe, count: won.length, points, conversionRate });
     setActivities(actsRes.data ?? []);
     setBadges(badgeRes.data ?? []);
     setPipelineOpps(opps.filter(o => ["proposta", "negociacao"].includes(o.stage)));
@@ -206,277 +204,207 @@ function MyPanel() {
       </div>
 
       {/* ── Layout Grid ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8">
+      <div className="flex flex-col gap-8">
         
-        {/* Main Column */}
-        <div className="flex flex-col gap-8">
+        {/* Main KPIs Row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <KpiCard
+            label="Receita Liquidada"
+            value={formatCurrency(metrics.revenue)}
+            sub={`${metrics.count} negócios ganhos`}
+            icon={<TrendingUp className="h-4 w-4" />}
+            accent
+          />
+          <KpiCard
+            label="Fila de Negociação"
+            value={formatCurrency(metrics.pipeline)}
+            sub={`${pipelineOpps.length} oportunidades`}
+            icon={<Target className="h-4 w-4" />}
+          />
+          <KpiCard
+            label="Taxa de Conversão"
+            value={`${metrics.conversionRate.toFixed(1)}%`}
+            sub="Média do período"
+            icon={<ArrowUpRight className="h-4 w-4" />}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           
-          {/* Main KPIs (3) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <KpiCard
-              label="Receita Liquidada"
-              value={formatCurrency(metrics.revenue)}
-              sub={`${metrics.count} negócios ganhos`}
-              icon={<TrendingUp className="h-4 w-4" />}
-              accent
-            />
-            <KpiCard
-              label="Fila de Negociação"
-              value={formatCurrency(metrics.pipeline)}
-              sub={`${pipelineOpps.length} oportunidades`}
-              icon={<Target className="h-4 w-4" />}
-            />
-            <KpiCard
-              label="Taxa de Conversão"
-              value={`${metrics.conversionRate.toFixed(1)}%`}
-              sub="Média do período"
-              icon={<ArrowUpRight className="h-4 w-4" />}
-            />
+          {/* Left/Middle: Products & Kanban */}
+          <div className="xl:col-span-2 flex flex-col gap-8">
+            
+            {/* ── Product Performance Grid ── */}
+            {productData.length > 0 && (
+              <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+                <div className="px-6 py-5 border-b border-border flex items-center justify-between bg-secondary/10">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                      <Package className="h-4 w-4 text-purple-400" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Performance por Produto</h2>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">Atingimento de metas do trimestre</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {productData.map((p: any) => {
+                    const isOver = p.pct >= 100;
+                    return (
+                      <div key={p.name} className="bg-secondary/30 border border-border/50 rounded-xl p-5 hover:border-[#3ecf8e]/30 transition-all group">
+                        <div className="flex items-center justify-between gap-3 mb-4">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="h-2 w-2 rounded-full shrink-0 animate-pulse" style={{ backgroundColor: p.color }} />
+                            <span className="text-xs font-black text-foreground truncate">{p.name}</span>
+                          </div>
+                          <span className={cn(
+                            "text-[10px] font-black px-2 py-0.5 rounded-full font-mono",
+                            isOver ? "bg-[#3ecf8e]/10 text-[#3ecf8e]" : "bg-yellow-500/10 text-yellow-500"
+                          )}>
+                            {p.pct}%
+                          </span>
+                        </div>
+                        <div className="h-2 bg-background border border-border/50 rounded-full overflow-hidden mb-4">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.min(p.pct, 100)}%` }}
+                            transition={{ duration: 1.2, ease: "backOut" }}
+                            className="h-full rounded-full"
+                            style={{ backgroundColor: p.color, boxShadow: `0 0 10px ${p.color}40` }}
+                          />
+                        </div>
+                        <div className="flex justify-between items-end">
+                          <div className="flex flex-col">
+                            <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest mb-0.5">Realizado</span>
+                            <span className="text-sm font-black font-mono" style={{ color: p.color }}>{formatCurrency(p.realized)}</span>
+                          </div>
+                          <div className="flex flex-col items-end text-right">
+                            <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest mb-0.5">Meta</span>
+                            <span className="text-[11px] font-black font-mono text-foreground/70">{formatCurrency(p.goal)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ── Mini Kanban (Foco Comercial) ── */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {["proposta", "negociacao"].map(stage => (
+                <div key={stage} className="bg-card border border-border rounded-2xl overflow-hidden flex flex-col shadow-sm">
+                  <div className="px-5 py-4 border-b border-border bg-secondary/30 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className={cn("h-1.5 w-1.5 rounded-full", stage === "proposta" ? "bg-blue-500" : "bg-purple-500")} />
+                      <h3 className="text-[10px] font-black uppercase tracking-widest text-foreground">
+                        {stage === "proposta" ? "Em Proposta" : "Em Negociação"}
+                      </h3>
+                    </div>
+                    <Badge variant="secondary" className="text-[10px] h-5 px-2 bg-background border-border font-mono font-bold text-[#3ecf8e]">
+                      {formatCurrency(pipelineOpps.filter(o => o.stage === stage).reduce((s, o) => s + Number(o.value), 0)).replace(",00", "")}
+                    </Badge>
+                  </div>
+                  <div className="p-4 space-y-3 flex-1 min-h-[140px]">
+                    {pipelineOpps.filter(o => o.stage === stage).map(o => (
+                      <div key={o.id} className="bg-secondary/40 border border-border/50 rounded-xl p-3.5 hover:border-[#3ecf8e]/30 transition-all cursor-pointer group"
+                        onClick={() => window.location.href = "/pipeline"}>
+                        <div className="flex justify-between items-start gap-2 mb-1.5">
+                          <p className="text-xs font-bold text-foreground truncate">{o.client_name}</p>
+                          <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-[#3ecf8e] transition-colors" />
+                        </div>
+                        <p className="text-[10px] text-muted-foreground truncate mb-3 leading-relaxed">{o.title}</p>
+                        <div className="flex justify-between items-center pt-2 border-t border-white/5">
+                          <span className="text-[11px] font-black font-mono text-[#3ecf8e]">{formatCurrency(o.value)}</span>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-8 h-1 bg-white/5 rounded-full overflow-hidden">
+                              <div className="h-full bg-blue-500" style={{ width: `${o.probability}%` }} />
+                            </div>
+                            <span className="text-[9px] text-muted-foreground font-bold">{o.probability}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {pipelineOpps.filter(o => o.stage === stage).length === 0 && (
+                      <div className="h-full flex items-center justify-center py-10 opacity-40">
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest italic">Vazio</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* ── Product Performance Grid ── */}
-          {productData.length > 0 && (
-            <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-              <div className="px-6 py-5 border-b border-border flex items-center justify-between bg-secondary/10">
+          {/* Right: Agenda & Activities */}
+          <div className="flex flex-col gap-8">
+            <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm h-full flex flex-col">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-border bg-secondary/10 shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-purple-500/10 flex items-center justify-center">
-                    <Package className="h-4 w-4 text-purple-400" />
+                  <div className="h-9 w-9 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                    <ListTodo className="h-4 w-4 text-blue-400" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Performance por Produto</h2>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Metas individuais do quarter</p>
+                    <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Agenda</h2>
                   </div>
                 </div>
+                <Button
+                  size="icon"
+                  onClick={() => setIsModalOpen(true)}
+                  className="h-8 w-8 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-black rounded-lg transition-transform hover:scale-105"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
               </div>
-              <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {productData.map((p: any) => {
-                  const isOver = p.pct >= 100;
-                  return (
-                    <div key={p.name} className="bg-secondary/30 border border-border/50 rounded-xl p-5 hover:border-[#3ecf8e]/30 transition-all group">
-                      <div className="flex items-center justify-between gap-3 mb-4">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="h-2 w-2 rounded-full shrink-0 animate-pulse" style={{ backgroundColor: p.color }} />
-                          <span className="text-xs font-black text-foreground truncate">{p.name}</span>
-                        </div>
-                        <span className={cn(
-                          "text-[10px] font-black px-2 py-0.5 rounded-full font-mono",
-                          isOver ? "bg-[#3ecf8e]/10 text-[#3ecf8e]" : "bg-yellow-500/10 text-yellow-500"
-                        )}>
-                          {p.pct}%
-                        </span>
-                      </div>
-                      <div className="h-2 bg-background border border-border/50 rounded-full overflow-hidden mb-4">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${Math.min(p.pct, 100)}%` }}
-                          transition={{ duration: 1.2, ease: "backOut" }}
-                          className="h-full rounded-full"
-                          style={{ backgroundColor: p.color, boxShadow: `0 0 10px ${p.color}40` }}
-                        />
-                      </div>
-                      <div className="flex justify-between items-end">
-                        <div className="flex flex-col">
-                          <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest mb-0.5">Realizado</span>
-                          <span className="text-sm font-black font-mono" style={{ color: p.color }}>{formatCurrency(p.realized)}</span>
-                        </div>
-                        <div className="flex flex-col items-end text-right">
-                          <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest mb-0.5">Meta</span>
-                          <span className="text-[11px] font-black font-mono text-foreground/70">{formatCurrency(p.goal)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
-          {/* ── Mini Kanban (Foco Comercial) ── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {["proposta", "negociacao"].map(stage => (
-              <div key={stage} className="bg-card border border-border rounded-2xl overflow-hidden flex flex-col shadow-sm">
-                <div className="px-5 py-4 border-b border-border bg-secondary/30 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className={cn("h-1.5 w-1.5 rounded-full", stage === "proposta" ? "bg-blue-500" : "bg-purple-500")} />
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-foreground">
-                      {stage === "proposta" ? "Em Proposta" : "Em Negociação"}
-                    </h3>
-                  </div>
-                  <Badge variant="secondary" className="text-[10px] h-5 px-2 bg-background border-border font-mono font-bold text-[#3ecf8e]">
-                    {formatCurrency(pipelineOpps.filter(o => o.stage === stage).reduce((s, o) => s + Number(o.value), 0)).replace(",00", "")}
-                  </Badge>
-                </div>
-                <div className="p-4 space-y-3 flex-1 min-h-[140px]">
-                  {pipelineOpps.filter(o => o.stage === stage).map(o => (
-                    <div key={o.id} className="bg-secondary/40 border border-border/50 rounded-xl p-3.5 hover:border-[#3ecf8e]/30 transition-all cursor-pointer group"
-                      onClick={() => window.location.href = "/pipeline"}>
-                      <div className="flex justify-between items-start gap-2 mb-1.5">
-                        <p className="text-xs font-bold text-foreground truncate">{o.client_name}</p>
-                        <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-[#3ecf8e] transition-colors" />
-                      </div>
-                      <p className="text-[10px] text-muted-foreground truncate mb-3 leading-relaxed">{o.title}</p>
-                      <div className="flex justify-between items-center pt-2 border-t border-white/5">
-                        <span className="text-[11px] font-black font-mono text-[#3ecf8e]">{formatCurrency(o.value)}</span>
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-8 h-1 bg-white/5 rounded-full overflow-hidden">
-                            <div className="h-full bg-blue-500" style={{ width: `${o.probability}%` }} />
-                          </div>
-                          <span className="text-[9px] text-muted-foreground font-bold">{o.probability}%</span>
+              <div className="flex-1 overflow-auto no-scrollbar">
+                <div className="divide-y divide-border/40">
+                  {activities.map(a => {
+                    const cfg = TYPE_CONFIG[a.type] || TYPE_CONFIG.tarefa;
+                    const Icon = cfg.icon;
+                    const isDone = a.status === "concluida";
+                    return (
+                      <div key={a.id} className="flex items-center gap-4 px-6 py-4 hover:bg-accent/20 transition-colors group">
+                        <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-110", cfg.bg, cfg.color)}>
+                          <Icon className="h-3.5 w-3.5" />
                         </div>
+
+                        <div className="flex-1 min-w-0">
+                          <p className={cn("text-[11px] font-bold truncate tracking-tight", isDone ? "line-through text-muted-foreground" : "text-foreground")}>{a.title}</p>
+                          {a.due_date && (
+                            <p className="text-[9px] text-muted-foreground mt-0.5 flex items-center gap-1 font-medium">
+                              {new Date(a.due_date).toLocaleDateString("pt-BR", { day: '2-digit', month: '2-digit' })} · {new Date(a.due_date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={() => completeActivity(a.id, a.status)}
+                          className={cn(
+                            "h-6 w-6 rounded-full border flex items-center justify-center transition-all shrink-0",
+                            isDone ? "bg-[#3ecf8e] border-[#3ecf8e] text-black" : "border-border text-transparent hover:border-[#3ecf8e] hover:text-[#3ecf8e]"
+                          )}
+                        >
+                          <CheckCircle2 className={cn("h-3 w-3", isDone ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
+                        </button>
                       </div>
-                    </div>
-                  ))}
-                  {pipelineOpps.filter(o => o.stage === stage).length === 0 && (
-                    <div className="h-full flex items-center justify-center py-10 opacity-40">
-                      <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest italic">Vazio</p>
+                    );
+                  })}
+
+                  {activities.length === 0 && (
+                    <div className="py-20 text-center flex flex-col items-center">
+                      <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest italic opacity-40">Sem pendências</p>
                     </div>
                   )}
                 </div>
               </div>
-            ))}
-          </div>
-
-          {/* Left: Activities */}
-          <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-border bg-secondary/10">
-              <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                  <ListTodo className="h-4 w-4 text-blue-400" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Agenda</h2>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Atividades e Tarefas</p>
-                </div>
+              
+              <div className="p-4 border-t border-border bg-secondary/10 shrink-0">
+                <Button variant="ghost" className="w-full text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-[#3ecf8e]" onClick={() => window.location.href = "/activities"}>
+                  Ver Agenda Completa
+                </Button>
               </div>
-              <Button
-                size="sm"
-                onClick={() => setIsModalOpen(true)}
-                className="h-8 px-4 gap-2 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-black font-bold text-[10px] rounded-lg transition-transform hover:scale-105 active:scale-95"
-              >
-                <Plus className="h-3.5 w-3.5" /> Nova Atividade
-              </Button>
-            </div>
-
-            <div className="divide-y divide-border/40">
-              {activities.map(a => {
-                const cfg = TYPE_CONFIG[a.type] || TYPE_CONFIG.tarefa;
-                const Icon = cfg.icon;
-                const isDone = a.status === "concluida";
-                return (
-                  <div key={a.id} className="flex items-center gap-5 px-6 py-4 hover:bg-accent/20 transition-colors group">
-                    <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-110", cfg.bg, cfg.color)}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <p className={cn("text-xs font-bold truncate tracking-tight", isDone ? "line-through text-muted-foreground" : "text-foreground")}>{a.title}</p>
-                      {a.due_date && (
-                        <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1.5 font-medium">
-                          <Clock className="h-3 w-3" />
-                          {new Date(a.due_date).toLocaleDateString("pt-BR")} às {new Date(a.due_date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-border text-muted-foreground hidden sm:flex h-5 px-2">
-                        {cfg.icon === ListTodo ? "Tarefa" : a.type}
-                      </Badge>
-
-                      <button
-                        onClick={() => completeActivity(a.id, a.status)}
-                        className={cn(
-                          "h-8 w-8 rounded-full border-2 flex items-center justify-center transition-all shrink-0",
-                          isDone ? "bg-[#3ecf8e] border-[#3ecf8e] text-black" : "border-border text-transparent hover:border-[#3ecf8e] hover:text-[#3ecf8e] hover:bg-[#3ecf8e]/5"
-                        )}
-                      >
-                        <CheckCircle2 className={cn("h-4 w-4", isDone ? "opacity-100" : "opacity-0 group-hover:opacity-100")} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {activities.length === 0 && (
-                <div className="py-20 text-center flex flex-col items-center">
-                  <div className="h-16 w-16 rounded-3xl bg-secondary/30 flex items-center justify-center mb-4 border border-border border-dashed">
-                    <ListTodo className="h-6 w-6 text-muted-foreground/30" />
-                  </div>
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Nada pendente</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Sidebar Column */}
-        <div className="flex flex-col gap-6">
-
-          {/* Next level progress */}
-          <div className="bg-[#3ecf8e]/5 border border-[#3ecf8e]/15 rounded-2xl p-6 relative overflow-hidden group">
-            <div className="absolute right-4 top-4 text-[#3ecf8e]/10 group-hover:text-[#3ecf8e]/15 transition-colors">
-              <Zap className="h-16 w-16" />
-            </div>
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-4">
-                <div className="h-10 w-10 rounded-xl bg-background border border-border flex items-center justify-center shadow-sm">
-                  <Award className="h-5 w-5 text-[#3ecf8e]" />
-                </div>
-                <div className="text-right">
-                  <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">Nível Atual</p>
-                  <p className="text-xs font-bold text-foreground">Vendedor Senior</p>
-                </div>
-              </div>
-              <p className="text-sm font-bold text-foreground mb-1.5">Progresso do Escalão</p>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Você já completou <span className="text-[#3ecf8e] font-bold">{metrics.points} negócios</span>. 
-                Faltam {Math.max(0, 5 - metrics.points)} para o próximo nível.
-              </p>
-              <div className="h-2 w-full bg-background rounded-full mt-5 overflow-hidden border border-border">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(100, (metrics.points / 5) * 100)}%` }}
-                  transition={{ duration: 1, ease: "circOut" }}
-                  className="h-full bg-[#3ecf8e] rounded-full shadow-[0_0_10px_rgba(62,207,142,0.4)]"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Specialized Skills (Badges) */}
-          <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-            <div className="px-5 py-4 border-b border-border bg-secondary/20">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Especializações</h2>
-            </div>
-            <div className="p-4 grid grid-cols-2 gap-3">
-              {badges.slice(0, 4).map(b => (
-                <div key={b.id} className="bg-secondary/40 border border-border rounded-xl p-4 flex flex-col items-center text-center hover:border-[#3ecf8e]/30 transition-all hover:-translate-y-0.5">
-                  <div className="text-3xl mb-2 drop-shadow-md">{b.badges?.icon || "🏅"}</div>
-                  <div className="text-[10px] font-black text-foreground leading-tight uppercase tracking-tight">{b.badges?.name || "Conquista"}</div>
-                </div>
-              ))}
-              {badges.length === 0 && (
-                <div className="col-span-2 py-10 text-center text-[10px] text-muted-foreground border border-dashed border-border rounded-xl">
-                  Nenhuma especialização ativa
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Stats Summary */}
-          <div className="bg-card border border-border rounded-2xl p-6 space-y-5 shadow-sm">
-            <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Performance Rápida</h2>
-            <div className="space-y-4">
-              {[
-                { label: "Taxa de Sucesso", value: `${metrics.conversionRate.toFixed(1)}%`, accent: true },
-                { label: "Ticket Médio", value: metrics.count > 0 ? formatCurrency(metrics.revenue / metrics.count) : "—" },
-                { label: "Crescimento Mensal", value: "+12.4%", color: "text-[#3ecf8e]" },
-              ].map(item => (
-                <div key={item.label} className="flex items-center justify-between pb-3 border-b border-white/5 last:border-0 last:pb-0">
-                  <span className="text-[11px] font-medium text-muted-foreground">{item.label}</span>
-                  <span className={cn("text-xs font-black font-mono", item.accent ? "text-[#3ecf8e]" : (item.color || "text-foreground"))}>{item.value}</span>
-                </div>
-              ))}
             </div>
           </div>
         </div>
@@ -552,18 +480,25 @@ function MyPanel() {
   );
 }
 
-function KpiCard({ label, value, sub, icon, accent = false }: {
-  label: string; value: string; sub: string; icon: React.ReactNode; accent?: boolean;
+function KpiCard({ label, value, sub, icon, accent = false, accentColor }: {
+  label: string; value: string; sub: string; icon: React.ReactNode; accent?: boolean; accentColor?: string;
 }) {
   return (
     <div className={cn("bg-card border rounded-lg p-5 hover:border-[#3ecf8e]/20 transition-colors group", accent ? "border-[#3ecf8e]/15" : "border-border")}>
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <div className={cn("h-8 w-8 rounded-md flex items-center justify-center transition-colors", accent ? "bg-[#3ecf8e]/10 text-[#3ecf8e]" : "bg-secondary text-muted-foreground group-hover:text-[#3ecf8e]")}>
+        <div className={cn(
+          "h-8 w-8 rounded-md flex items-center justify-center transition-colors",
+          accent ? "bg-[#3ecf8e]/10 text-[#3ecf8e]" : "bg-secondary text-muted-foreground group-hover:text-[#3ecf8e]",
+          accentColor && `bg-opacity-10 ${accentColor}`
+        )}>
           {icon}
         </div>
       </div>
-      <p className={cn("text-2xl font-bold font-mono tracking-tight", accent ? "text-[#3ecf8e]" : "text-foreground")}>{value}</p>
+      <p className={cn(
+        "text-2xl font-bold font-mono tracking-tight",
+        accent ? "text-[#3ecf8e]" : (accentColor || "text-foreground")
+      )}>{value}</p>
       <p className="text-xs text-muted-foreground mt-1">{sub}</p>
     </div>
   );

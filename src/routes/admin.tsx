@@ -154,7 +154,6 @@ function Admin() {
     if (!confirm("ATENÇÃO: Apagar todos os dados comerciais? Esta ação é irreversível.")) return;
     setBusy(true);
     try {
-      await supabase.from("commissions").delete().neq("id", "00000000-0000-0000-0000-000000000000");
       await supabase.from("badges").delete().neq("id", "00000000-0000-0000-0000-000000000000");
       await supabase.from("activities").delete().neq("id", "00000000-0000-0000-0000-000000000000");
       await supabase.from("meetings").delete().neq("id", "00000000-0000-0000-0000-000000000000");
