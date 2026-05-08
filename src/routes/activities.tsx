@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import {
   CheckCircle2, Plus, Clock, ListTodo,
   Phone, Mail, Users, Target, Trash2, Loader2,
-  Calendar as CalendarIcon, ChevronRight, ChevronLeft
+  Calendar as CalendarIcon, ChevronRight, ChevronLeft, Pencil
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -42,6 +42,7 @@ function Activities() {
   const [view, setView] = useState<"list" | "calendar">("list");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
   const [filter, setFilter] = useState<"all" | "pendente" | "concluida">("all");
   const [form, setForm] = useState({ title: "", type: "tarefa", due_date: "", is_public: false });
 
@@ -69,30 +70,56 @@ function Activities() {
 
   useEffect(() => { load(); }, [user, isManager]);
 
-  async function add(e: React.FormEvent) {
+  async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title || !user) return;
     setBusy(true);
     try {
-      const payload = {
-        owner_id: user.id,
+      const payload: any = {
         title: form.title,
         type: form.type as any,
         due_date: form.due_date ? new Date(form.due_date).toISOString() : null,
         description: form.is_public ? `[PÚBLICO] ${new Date().toISOString()}` : null,
-        status: "pendente" as any,
       };
-      const { error } = await supabase.from("activities").insert(payload);
-      if (error) throw error;
-      toast.success("Atividade agendada!");
+
+      if (editingItem) {
+        const { error } = await supabase.from("activities").update(payload).eq("id", editingItem.id);
+        if (error) throw error;
+        toast.success("Atividade atualizada!");
+      } else {
+        payload.owner_id = user.id;
+        payload.status = "pendente";
+        const { error } = await supabase.from("activities").insert(payload);
+        if (error) throw error;
+        toast.success("Atividade agendada!");
+      }
+
       setForm({ title: "", type: "tarefa", due_date: "", is_public: false });
+      setEditingItem(null);
       setIsModalOpen(false);
       load();
     } catch (err: any) {
-      toast.error(err.message || "Erro ao adicionar");
+      toast.error(err.message || "Erro ao salvar");
     } finally {
       setBusy(false);
     }
+  }
+
+  function openEdit(a: any) {
+    setEditingItem(a);
+    setForm({
+      title: a.title || "",
+      type: a.type || "tarefa",
+      due_date: a.due_date ? new Date(a.due_date).toISOString().slice(0, 16) : "",
+      is_public: a.description?.includes("[PÚBLICO]") || false
+    });
+    setIsModalOpen(true);
+  }
+
+  function openNew() {
+    setEditingItem(null);
+    setForm({ title: "", type: "tarefa", due_date: "", is_public: false });
+    setIsModalOpen(true);
   }
 
   async function complete(id: string, currentStatus: string) {
@@ -138,7 +165,7 @@ function Activities() {
             </button>
           </div>
           <Button
-            onClick={() => setIsModalOpen(true)}
+            onClick={openNew}
             className="h-9 gap-2 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-black font-semibold text-xs px-4 rounded-md shadow-sm"
           >
             <Plus className="h-3.5 w-3.5" /> Nova Atividade
@@ -186,7 +213,14 @@ function Activities() {
             <div className="space-y-2">
               <AnimatePresence mode="popLayout">
                 {displayed.map(a => (
-                  <ActivityRow key={a.id} a={a} onComplete={complete} onRemove={remove} currentUserId={user?.id} />
+                  <ActivityRow 
+                    key={a.id} 
+                    a={a} 
+                    onComplete={complete} 
+                    onRemove={remove} 
+                    onEdit={openEdit}
+                    currentUserId={user?.id} 
+                  />
                 ))}
               </AnimatePresence>
               {displayed.length === 0 && (
@@ -198,7 +232,7 @@ function Activities() {
           )}
         </div>
       ) : (
-        <CalendarView items={items} selectedDate={selectedDate} onSelect={setSelectedDate} onNew={() => setIsModalOpen(true)} />
+        <CalendarView items={items} selectedDate={selectedDate} onSelect={setSelectedDate} onNew={openNew} onEdit={openEdit} user={user} />
       )}
 
       {/* Add Activity Modal */}
@@ -206,11 +240,15 @@ function Activities() {
         <DialogContent className="bg-background border border-border rounded-xl p-0 overflow-hidden max-w-lg shadow-xl">
           <div className="p-6 space-y-5">
             <DialogHeader>
-              <DialogTitle className="text-base font-semibold text-foreground">Nova Atividade</DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground">Crie uma nova tarefa ou compromisso.</DialogDescription>
+              <DialogTitle className="text-base font-semibold text-foreground">
+                {editingItem ? "Editar Atividade" : "Nova Atividade"}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                {editingItem ? "Altere as informações do compromisso." : "Crie uma nova tarefa ou compromisso."}
+              </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={add} className="space-y-4">
+            <form onSubmit={save} className="space-y-4">
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-muted-foreground">Título</Label>
                 <Input
@@ -260,8 +298,8 @@ function Activities() {
               <DialogFooter className="gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="flex-1 h-9 border-border text-xs">Cancelar</Button>
                 <Button type="submit" disabled={busy} className="flex-[2] h-9 bg-[#3ecf8e] text-black font-semibold text-xs hover:bg-[#3ecf8e]/90 gap-2">
-                  {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                  Confirmar
+                  {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (editingItem ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />)}
+                  {editingItem ? "Salvar Alterações" : "Confirmar"}
                 </Button>
               </DialogFooter>
             </form>
@@ -272,7 +310,7 @@ function Activities() {
   );
 }
 
-function ActivityRow({ a, onComplete, onRemove, currentUserId }: { a: any; onComplete: any; onRemove: any; currentUserId?: string }) {
+function ActivityRow({ a, onComplete, onRemove, onEdit, currentUserId }: { a: any; onComplete: any; onRemove: any; onEdit: any; currentUserId?: string }) {
   const isDone = a.status === "concluida";
   const isOwner = a.owner_id === currentUserId;
   const isShared = a.description?.includes("[PÚBLICO]");
@@ -301,7 +339,7 @@ function ActivityRow({ a, onComplete, onRemove, currentUserId }: { a: any; onCom
           <Icon className="h-3.5 w-3.5" />
         </div>
 
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0" onClick={() => isOwner && onEdit(a)} style={{ cursor: isOwner ? 'pointer' : 'default' }}>
           <div className={cn("text-sm font-medium truncate", isDone ? "line-through text-muted-foreground" : "text-foreground")}>
             {a.title}
           </div>
@@ -319,20 +357,30 @@ function ActivityRow({ a, onComplete, onRemove, currentUserId }: { a: any; onCom
           </div>
         </div>
 
-        {isOwner && (
-          <button
-            onClick={() => onRemove(a.id)}
-            className="h-7 w-7 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        )}
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+          {isOwner && (
+            <button
+              onClick={() => onEdit(a)}
+              className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-[#3ecf8e] hover:bg-[#3ecf8e]/10 transition-all"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {isOwner && (
+            <button
+              onClick={() => onRemove(a.id)}
+              className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
     </motion.div>
   );
 }
 
-function CalendarView({ items, selectedDate, onSelect, onNew }: { items: any[]; selectedDate: Date; onSelect: any; onNew: any }) {
+function CalendarView({ items, selectedDate, onSelect, onNew, onEdit, user }: { items: any[]; selectedDate: Date; onSelect: any; onNew: any; onEdit: any; user: any }) {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const daysInMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate();
   const firstDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1).getDay();
@@ -442,13 +490,13 @@ function CalendarView({ items, selectedDate, onSelect, onNew }: { items: any[]; 
                 const authorName = it.profiles?.full_name || null;
                 return (
                   <div key={it.id} className={cn(
-                    "flex items-center gap-4 p-3 bg-secondary/50 border border-border/60 rounded-lg",
+                    "flex items-center gap-4 p-3 bg-secondary/50 border border-border/60 rounded-lg group transition-all",
                     isDone && "opacity-60"
                   )}>
                     <div className={cn("h-8 w-8 rounded-md flex items-center justify-center shrink-0", cfg.color.split(" ")[1], iconColor)}>
                       <cfg.icon className="h-4 w-4" />
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => it.owner_id === user?.id && onEdit(it)}>
                       <p className={cn("text-sm font-medium truncate", isDone && "line-through text-muted-foreground")}>{it.title}</p>
                       <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                         <span className="text-[10px] text-muted-foreground flex items-center gap-1">
@@ -464,7 +512,14 @@ function CalendarView({ items, selectedDate, onSelect, onNew }: { items: any[]; 
                         )}>{cfg.label}</span>
                       </div>
                     </div>
-                    {isDone && <CheckCircle2 className="h-4 w-4 text-[#3ecf8e] shrink-0" />}
+                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                      {it.owner_id === user?.id && (
+                        <button onClick={() => onEdit(it)} className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-[#3ecf8e]">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      {isDone && <CheckCircle2 className="h-4 w-4 text-[#3ecf8e] shrink-0" />}
+                    </div>
                   </div>
                 );
               })
