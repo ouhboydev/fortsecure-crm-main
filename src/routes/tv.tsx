@@ -9,6 +9,10 @@ import { formatCurrency } from "@/components/ui-kit/PageHeader";
 import { Trophy, TrendingUp, Target, Zap, Activity, CheckCircle2, ArrowUpRight, Flame, ChevronRight, ChevronLeft, Maximize, Minimize, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  Tooltip, ReferenceLine, Legend, LineChart, Line
+} from "recharts";
 import logo from "../public/logo.png";
 
 export const Route = createFileRoute("/tv")({
@@ -81,35 +85,50 @@ function WinsTicker({ wins }: { wins: any[] }) {
   );
 }
 
-// ── Slide 1: Atingimento Global (Equipe) ──
-function SlideAchievement({ metrics, q }: { metrics: any; q: string }) {
+// ── Slide 1: Visão Geral (KPIs) ──
+function SlideOverview({ metrics, q }: { metrics: any; q: string }) {
   return (
-    <div className="flex-1 grid gap-4 p-6 relative z-10" style={{ gridTemplateColumns: "320px 1fr", gridTemplateRows: "1fr" }}>
-      <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-2xl p-6 flex flex-col gap-4 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#3ecf8e]/3 to-transparent pointer-events-none rounded-2xl" />
-        <div className="flex flex-col flex-1 gap-4">
-          <div>
-            <p className="text-[10px] text-[#505050] uppercase tracking-widest font-bold">Meta {q}</p>
-            <h2 className="text-base font-semibold text-[#ededed] mt-0.5">Atingimento Global</h2>
-          </div>
-          <div className="flex-1 flex items-center justify-center">
-            <div className="w-52 h-52">
-              <RadialRing pct={metrics.attainment} />
-            </div>
-          </div>
-          <div className="space-y-3 border-t border-[#1a1a1a] pt-4">
-            <MetaRow label="Realizado" value={formatCurrency(metrics.revenue)} accent />
-            <MetaRow label="Meta" value={formatCurrency(metrics.goal)} />
-            <MetaRow label="Forecast" value={formatCurrency(metrics.forecast ?? 0)} />
-            <MetaRow label="Conversão" value={`${(metrics.conversion ?? 0).toFixed(1)}%`} />
-          </div>
+    <div className="flex-1 p-6 relative z-10 flex flex-col gap-6">
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <p className="text-[10px] text-[#505050] uppercase tracking-widest font-bold">Dashboard</p>
+          <h2 className="text-xl font-bold text-[#ededed]">Visão Geral {q}</h2>
+        </div>
+        <div className="flex items-center gap-4 bg-[#0d0d0d] border border-[#1a1a1a] px-4 py-2 rounded-xl">
+           <div className="text-right">
+              <p className="text-[9px] text-[#505050] uppercase font-bold tracking-widest">Atingimento Global</p>
+              <p className="text-lg font-black font-mono text-[#3ecf8e] leading-none mt-0.5">{Math.round(metrics.attainment)}%</p>
+           </div>
+           <div className="h-8 w-px bg-[#1a1a1a]" />
+           <div className="text-right">
+              <p className="text-[9px] text-[#505050] uppercase font-bold tracking-widest">Meta Trimestre</p>
+              <p className="text-lg font-black font-mono text-[#ededed] leading-none mt-0.5">{formatCurrency(metrics.goal)}</p>
+           </div>
         </div>
       </div>
-      <div className="grid grid-cols-2 grid-rows-2 gap-4">
-        <KpiBox label="Receita Total" value={formatCurrency(metrics.revenue)} icon={<TrendingUp className="h-4 w-4" />} accent />
-        <KpiBox label="Pipeline" value={formatCurrency(metrics.pipelineValue)} sub={`${metrics.pipelineCount} opps`} icon={<Activity className="h-4 w-4" />} />
-        <KpiBox label="Forecast" value={formatCurrency(metrics.forecast ?? 0)} icon={<Zap className="h-4 w-4" />} />
-        <KpiBox label="Conversão" value={`${(metrics.conversion ?? 0).toFixed(1)}%`} icon={<ArrowUpRight className="h-4 w-4" />} accent />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 flex-1">
+        <KpiBox label="Receita Total" value={formatCurrency(metrics.revenue)} sub="Valor líquido ganho" icon={<TrendingUp className="h-4 w-4" />} accent />
+        <KpiBox label="Pipeline Ativo" value={formatCurrency(metrics.pipelineValue)} sub={`${metrics.pipelineCount} oportunidades`} icon={<Activity className="h-4 w-4" />} />
+        <KpiBox label="Forecast" value={formatCurrency(metrics.forecast ?? 0)} sub="Previsão de fechamento" icon={<Zap className="h-4 w-4" />} />
+        <KpiBox label="Taxa de Conversão" value={`${(metrics.conversion ?? 0).toFixed(1)}%`} sub="Média da equipe" icon={<ArrowUpRight className="h-4 w-4" />} accent />
+      </div>
+
+      <div className="grid grid-cols-3 gap-4 h-32">
+         <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-2xl p-4 flex flex-col justify-center">
+            <p className="text-[9px] text-[#505050] uppercase font-bold tracking-widest mb-1">Gap para Meta</p>
+            <p className="text-xl font-mono font-bold text-red-500/80">{formatCurrency(Math.max(0, metrics.goal - metrics.revenue))}</p>
+         </div>
+         <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-2xl p-4 flex flex-col justify-center">
+            <p className="text-[9px] text-[#505050] uppercase font-bold tracking-widest mb-1">Receita Hoje</p>
+            <p className="text-xl font-mono font-bold text-[#3ecf8e]">{formatCurrency(metrics.todayRevenue)}</p>
+         </div>
+         <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-2xl p-4 flex flex-col justify-center">
+            <p className="text-[9px] text-[#505050] uppercase font-bold tracking-widest mb-1">Dias Restantes</p>
+            <p className="text-xl font-mono font-bold text-[#3ecf8e]">
+               {Math.ceil((new Date(new Date().getFullYear(), Math.floor(new Date().getMonth() / 3) * 3 + 3, 0).getTime() - new Date().getTime()) / (1000 * 3600 * 24))}
+            </p>
+         </div>
       </div>
     </div>
   );
@@ -200,11 +219,13 @@ function SlideProductGrid({ products }: { products: any[] }) {
   );
 }
 
-// ── Slide 2: Ranking ──
-function SlideRanking({ ranking }: { ranking: RankingRow[] }) {
+// ── Slide 3: Performance Mix (Ranking + Funil) ──
+function SlidePerformanceMix({ ranking, funnel, metrics }: { ranking: RankingRow[]; funnel: any[]; metrics: any }) {
+  const funnelMax = Math.max(...funnel.map(f => f.value), 1);
   return (
-    <div className="flex-1 p-6 relative z-10">
-      <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-2xl h-full flex flex-col overflow-hidden">
+    <div className="flex-1 grid grid-cols-2 gap-6 p-6 relative z-10">
+      {/* Ranking */}
+      <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-2xl flex flex-col overflow-hidden">
         <div className="px-5 py-4 border-b border-[#1a1a1a] flex items-center justify-between shrink-0">
           <div>
             <p className="text-[10px] text-[#505050] uppercase tracking-widest font-bold">Classificação</p>
@@ -213,19 +234,19 @@ function SlideRanking({ ranking }: { ranking: RankingRow[] }) {
           <Trophy className="h-5 w-5 text-yellow-500/60" />
         </div>
         <div className="flex-1 overflow-hidden flex flex-col divide-y divide-[#131313]">
-          {ranking.slice(0, 8).map((r, i) => (
+          {ranking.slice(0, 7).map((r, i) => (
             <motion.div key={r.user_id} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}
-              className={cn("flex items-center gap-3 px-4 py-3", i === 0 ? "bg-[#3ecf8e]/4" : "")}>
+              className={cn("flex items-center gap-3 px-4 py-2.5", i === 0 ? "bg-[#3ecf8e]/4" : "")}>
               <span className={cn("text-xl font-black font-mono w-8 text-center tabular-nums shrink-0",
                 i === 0 ? "text-[#3ecf8e]" : i === 1 ? "text-[#a0a0a0]" : i === 2 ? "text-[#cd7f32]" : "text-[#2e2e2e]")}>
                 {i + 1}
               </span>
-              <Avatar className="h-8 w-8 rounded-lg border border-[#1e1e1e] shrink-0">
+              <Avatar className="h-7 w-7 rounded-lg border border-[#1e1e1e] shrink-0">
                 <AvatarImage src={r.avatar_url || undefined} className="object-cover" />
                 <AvatarFallback className="bg-[#1a1a1a] text-[10px] font-bold text-[#ededed]">{r.full_name?.[0]}</AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-[#ededed] truncate flex items-center gap-1.5">
+                <p className="text-xs font-semibold text-[#ededed] truncate flex items-center gap-1.5">
                   {r.full_name}{i === 0 && <Trophy className="h-3 w-3 text-yellow-500 shrink-0" />}
                 </p>
                 <div className="flex items-center gap-1.5 mt-0.5">
@@ -235,35 +256,25 @@ function SlideRanking({ ranking }: { ranking: RankingRow[] }) {
                       animate={{ width: `${Math.min(100, r.attainment ?? 0)}%` }}
                       transition={{ duration: 1, ease: "circOut", delay: i * 0.06 }} />
                   </div>
-                  <span className="text-[9px] text-[#505050] font-mono shrink-0">{(r.attainment ?? 0).toFixed(0)}%</span>
+                  <span className="text-[8px] text-[#505050] font-mono shrink-0">{(r.attainment ?? 0).toFixed(0)}%</span>
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-sm font-bold font-mono text-[#ededed]">{formatCurrency(r.closed_value)}</p>
-                <p className="text-[9px] text-[#3ecf8e] font-bold mt-0.5">{r.points} XP</p>
+                <p className="text-xs font-bold font-mono text-[#ededed]">{formatCurrency(r.closed_value)}</p>
+                <p className="text-[8px] text-[#3ecf8e] font-bold mt-0.5">{r.points} XP</p>
               </div>
             </motion.div>
           ))}
-          {ranking.length === 0 && (
-            <div className="flex-1 flex items-center justify-center text-xs text-[#404040]">Sem dados de ranking</div>
-          )}
         </div>
       </div>
-    </div>
-  );
-}
 
-// ── Slide 3: Funil de Vendas ──
-function SlideFunnel({ funnel, metrics }: { funnel: any[]; metrics: any }) {
-  const funnelMax = Math.max(...funnel.map(f => f.value), 1);
-  return (
-    <div className="flex-1 p-6 relative z-10">
-      <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-2xl h-full flex flex-col p-6 gap-5">
+      {/* Funil */}
+      <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-2xl flex flex-col p-6 gap-6">
         <div>
           <p className="text-[10px] text-[#505050] uppercase tracking-widest font-bold">Pipeline</p>
           <h2 className="text-sm font-semibold text-[#ededed]">Funil de Vendas</h2>
         </div>
-        <div className="flex-1 flex flex-col justify-center gap-5">
+        <div className="flex-1 flex flex-col justify-center gap-6">
           {funnel.map((f, i) => (
             <motion.div key={f.stage} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.07 }}>
               <div className="flex items-center justify-between text-xs mb-2">
@@ -284,17 +295,13 @@ function SlideFunnel({ funnel, metrics }: { funnel: any[]; metrics: any }) {
             </motion.div>
           ))}
         </div>
-        <div className="border-t border-[#1a1a1a] pt-4 grid grid-cols-3 gap-4">
+        <div className="border-t border-[#1a1a1a] pt-4 grid grid-cols-2 gap-4">
           <div className="text-center">
-            <p className="text-[10px] text-[#505050] uppercase tracking-widest">Atingimento</p>
-            <p className="text-lg font-black font-mono text-[#3ecf8e]">{Math.round(metrics.attainment)}%</p>
-          </div>
-          <div className="text-center">
-            <p className="text-[10px] text-[#505050] uppercase tracking-widest">Conversão</p>
+            <p className="text-[9px] text-[#505050] uppercase tracking-widest font-bold">Conversão</p>
             <p className="text-lg font-black font-mono text-[#f59e0b]">{(metrics.conversion ?? 0).toFixed(1)}%</p>
           </div>
           <div className="text-center">
-            <p className="text-[10px] text-[#505050] uppercase tracking-widest">Forecast</p>
+            <p className="text-[9px] text-[#505050] uppercase tracking-widest font-bold">Forecast</p>
             <p className="text-lg font-black font-mono text-[#ededed]">{formatCurrency(metrics.forecast ?? 0)}</p>
           </div>
         </div>
@@ -303,7 +310,137 @@ function SlideFunnel({ funnel, metrics }: { funnel: any[]; metrics: any }) {
   );
 }
 
-const SLIDES = ["atingimento", "produtos", "ranking", "funil"] as const;
+// ── Slide 4: Evolução de Receita (Bulletproof Line Chart) ──
+function SlideGoalVsRevenue({ metrics, chartData, q }: { metrics: any; chartData: any[]; q: string }) {
+  const fmt = (v: number) => {
+    if (v >= 1_000_000) return `R$${(v / 1_000_000).toFixed(1)}M`;
+    if (v >= 1_000) return `R$${(v / 1_000).toFixed(0)}k`;
+    return `R$${v}`;
+  };
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded-xl px-4 py-3 shadow-2xl backdrop-blur-md">
+        <p className="text-[10px] text-[#505050] uppercase font-bold mb-2">Dia {label}</p>
+        {payload.map((p: any) => (
+          <div key={p.name} className="flex items-center gap-2 mb-1">
+            <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: p.color }} />
+            <p className="text-sm font-mono font-bold" style={{ color: p.color }}>
+              {p.name === "receita" ? "Realizado" : "Meta"}: {formatCurrency(p.value)}
+            </p>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  if (!chartData || chartData.length === 0) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-4">
+        <Activity className="h-12 w-12 text-[#3ecf8e] animate-pulse opacity-20" />
+        <p className="text-[#505050] font-mono text-sm uppercase tracking-widest">Aguardando dados de performance...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 p-10 flex flex-col items-center justify-center min-h-0 overflow-hidden">
+      {/* Header */}
+      <div className="w-full max-w-6xl flex items-end justify-between mb-12 shrink-0">
+        <div>
+          <p className="text-[12px] text-[#505050] uppercase tracking-[0.4em] font-black mb-3">Performance Executive {q}</p>
+          <h2 className="text-6xl font-black text-[#ededed] tracking-tighter">Evolução de Meta</h2>
+        </div>
+        
+        <div className="flex items-center gap-12">
+          <div className="text-right">
+            <p className="text-[11px] text-[#505050] uppercase font-bold tracking-widest mb-1">Realizado</p>
+            <p className="text-5xl font-black font-mono text-[#3ecf8e] tracking-tighter">{formatCurrency(metrics.revenue)}</p>
+          </div>
+          <div className="h-16 w-px bg-[#1a1a1a]" />
+          <div className="text-right">
+            <p className="text-[11px] text-[#505050] uppercase font-bold tracking-widest mb-1">Meta Global</p>
+            <p className="text-5xl font-black font-mono text-[#ededed] opacity-30 tracking-tighter">{formatCurrency(metrics.goal)}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Chart Section */}
+      <div className="w-full max-w-6xl flex-1 min-h-[450px] relative bg-[#090909] border border-[#161616] rounded-[32px] p-8 shadow-2xl">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+            <defs>
+              <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#3ecf8e" stopOpacity={0.15} />
+                <stop offset="95%" stopColor="#3ecf8e" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fill: "#333", fontSize: 12, fontWeight: 600, fontFamily: "monospace" }}
+              axisLine={{ stroke: "#1a1a1a" }}
+              tickLine={false}
+              dy={15}
+            />
+            <YAxis
+              tickFormatter={fmt}
+              tick={{ fill: "#333", fontSize: 12, fontWeight: 600, fontFamily: "monospace" }}
+              axisLine={false}
+              tickLine={false}
+              width={85}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            
+            <Area
+              type="monotone"
+              dataKey="meta"
+              name="meta"
+              stroke="#2a2a2a"
+              strokeWidth={2}
+              strokeDasharray="10 5"
+              fill="transparent"
+              dot={false}
+              activeDot={false}
+            />
+
+            <Area
+              type="monotone"
+              dataKey="receita"
+              name="receita"
+              stroke="#3ecf8e"
+              strokeWidth={4}
+              fill="url(#colorRevenue)"
+              dot={{ r: 5, fill: '#090909', stroke: '#3ecf8e', strokeWidth: 2 }}
+              activeDot={{ r: 8, fill: '#3ecf8e', stroke: '#090909', strokeWidth: 3 }}
+              connectNulls
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+
+        {/* Legend Overlay */}
+        <div className="absolute top-8 right-8 flex flex-col gap-4">
+          <div className="flex items-center gap-3 justify-end">
+            <span className="text-[10px] text-[#ededed] uppercase font-black tracking-widest">Receita Realizada</span>
+            <div className="h-1.5 w-10 rounded-full bg-[#3ecf8e] shadow-[0_0_15px_rgba(62,207,142,0.4)]" />
+          </div>
+          <div className="flex items-center gap-3 justify-end">
+            <span className="text-[10px] text-[#505050] uppercase font-black tracking-widest">Meta Projetada</span>
+            <div className="h-[2px] w-10 border-t-2 border-dashed border-[#333]" />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-8 flex items-center gap-3 opacity-30">
+        <CheckCircle2 className="h-4 w-4 text-[#3ecf8e]" />
+        <p className="text-[10px] text-[#ededed] uppercase tracking-[0.2em] font-bold">Monitoramento de Meta em Tempo Real</p>
+      </div>
+    </div>
+  );
+}
+
+const SLIDES = ["overview", "produtos", "performance", "objetivo"] as const;
 const SLIDE_DURATION = 15000; // 15s per slide
 
 function TV() {
@@ -314,6 +451,7 @@ function TV() {
   const [funnel, setFunnel] = useState<any[]>([]);
   const [recentWins, setRecentWins] = useState<any[]>([]);
   const [productGoals, setProductGoals] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<any[]>([]);
   const [time, setTime] = useState(new Date());
   const [slide, setSlide] = useState(0);
   const [productIdx, setProductIdx] = useState(0);
@@ -384,6 +522,28 @@ function TV() {
       };
     });
     setProductGoals(pGoals);
+
+    // Daily cumulative revenue chart data for current month
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const dailyGoal = m.goal / daysInMonth;
+    const monthWins = opps.filter(o =>
+      o.stage === "ganho" && o.closed_at &&
+      new Date(o.closed_at).getMonth() === now.getMonth() &&
+      new Date(o.closed_at).getFullYear() === now.getFullYear()
+    );
+    let cumRevenue = 0;
+    const cd: any[] = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dayWins = monthWins.filter(o => new Date(o.closed_at!).getDate() === d);
+      cumRevenue += dayWins.reduce((s: number, o: any) => s + Number(o.value), 0);
+      cd.push({
+        day: d,
+        label: `${d}/${now.getMonth() + 1}`,
+        receita: d <= now.getDate() ? cumRevenue : null,
+        meta: Math.round(dailyGoal * d),
+      });
+    }
+    setChartData(cd);
   }
 
   useEffect(() => {
@@ -490,10 +650,10 @@ function TV() {
       <AnimatePresence mode="wait">
         <motion.div key={slide} initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}
           transition={{ duration: 0.4 }} className="flex flex-col flex-1">
-          {currentSlideName === "atingimento" && <SlideAchievement metrics={metrics} q={q} />}
+          {currentSlideName === "overview" && <SlideOverview metrics={metrics} q={q} />}
           {currentSlideName === "produtos" && <SlideProductGrid products={productGoals} />}
-          {currentSlideName === "ranking" && <SlideRanking ranking={ranking} />}
-          {currentSlideName === "funil" && <SlideFunnel funnel={funnel} metrics={metrics} />}
+          {currentSlideName === "performance" && <SlidePerformanceMix ranking={ranking} funnel={funnel} metrics={metrics} />}
+          {currentSlideName === "objetivo" && <SlideGoalVsRevenue metrics={metrics} chartData={chartData} q={q} />}
         </motion.div>
       </AnimatePresence>
 
