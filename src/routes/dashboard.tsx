@@ -102,7 +102,7 @@ function Dashboard() {
       const [oppsRes, profilesRes, goalsRes, meetingsRes, settingsRes, activitiesRes, rolesRes, prodsRes] = await Promise.all([
         supabase.from("opportunities").select("*"),
         supabase.from("profiles").select("id, full_name"),
-        supabase.from("goals").select("target_amount, user_id, month").in("month", goalMonths).eq("year", now.getFullYear()),
+        supabase.from("goals").select("target_amount, user_id, month").eq("year", now.getFullYear()),
         supabase.from("meetings").select("id", { count: "exact", head: true }).gte("scheduled_at", firstDay).lte("scheduled_at", lastDay),
         supabase.from("app_settings").select("*").eq("key", "global_revenue_goal").single(),
         supabase.from("activities").select("*, profiles(full_name)").eq("type", "reuniao").gte("due_date", firstDay).lte("due_date", lastDay).order("due_date", { ascending: false }).limit(50),
@@ -142,11 +142,15 @@ function Dashboard() {
 
       const hqGoal = settingsRes.data?.value ? Number(settingsRes.data.value) : 6000000; // stored as quarterly total
       const sellerGoal = selectedSeller !== "all"
-        ? goalMonths.reduce((sum, m) => sum + Number((goalsRes.data || []).find(g => g.user_id === selectedSeller && g.month === m)?.target_amount || 0), 0)
+        ? (goalsRes.data || [])
+            .filter(g => g.user_id === selectedSeller && (g.month === 0 || goalMonths.includes(g.month)))
+            .reduce((sum, g) => sum + Number(g.target_amount), 0)
         : 0;
-      const realMeta = selectedSeller === "all" ? hqGoal : (sellerGoal || hqGoal / Math.max(1, (profilesRes.data || []).length));
 
-      setMetrics({ revenue, pipelineValue, pipelineCount, weighted, goal: realMeta, attainment: Math.round((revenue / realMeta) * 100) });
+      const realMeta = selectedSeller === "all" ? hqGoal : (sellerGoal || 0);
+      const attainment = realMeta > 0 ? Math.round((revenue / realMeta) * 100) : 0;
+
+      setMetrics({ revenue, pipelineValue, pipelineCount, weighted, goal: realMeta, attainment });
       setMeetingCount(meetingsRes.count || 0);
 
       // Field activities (reuniões & visitas do tracker)

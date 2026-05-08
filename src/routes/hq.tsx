@@ -148,11 +148,16 @@ function Goals() {
     setBusy("global");
     try {
       // Save directly as the quarterly goal
-      await supabase.from("app_settings").upsert({ key: "global_revenue_goal", value: val }, { onConflict: "key" });
+      const { error } = await supabase.from("app_settings").upsert({ key: "global_revenue_goal", value: val }, { onConflict: "key" });
+      
+      if (error) throw error;
+
       setSavedGlobalGoal(val);
       setGlobalGoal(formatCurrencyBRL(val));
       toast.success("Meta global trimestral salva!");
-    } catch { toast.error("Erro ao salvar"); }
+    } catch (err: any) { 
+      toast.error("Erro ao salvar: " + (err.message || "Tente novamente")); 
+    }
     finally { setBusy(null); }
   }
 
@@ -204,16 +209,21 @@ function Goals() {
     setBusy(userId);
     try {
       // Upsert a yearly goal row (month=0 = annual)
-      await supabase.from("goals").upsert({
+      const { error } = await supabase.from("goals").upsert({
         user_id: userId,
         target_amount: val,
         month: 0,
         year: now.getFullYear(),
       }, { onConflict: "user_id,month,year" });
+
+      if (error) throw error;
+
       setSavedSellerGoals(prev => ({ ...prev, [userId]: val }));
       setSellerGoals(prev => ({ ...prev, [userId]: formatCurrencyBRL(val) }));
       toast.success("Meta do vendedor salva!");
-    } catch { toast.error("Erro ao salvar"); }
+    } catch (err: any) { 
+      toast.error("Erro ao salvar meta: " + (err.message || "Tente novamente")); 
+    }
     finally { setBusy(null); }
   }
 
