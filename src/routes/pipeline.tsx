@@ -55,6 +55,7 @@ function SalesPipeline() {
   const canManage = isManager || isAdmin;
   const [opps, setOpps] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
@@ -63,6 +64,7 @@ function SalesPipeline() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     client_name: "",
+    customer_id: "",
     title: "",
     value: "",
     stage: "prospect",
@@ -77,12 +79,14 @@ function SalesPipeline() {
 
   async function load() {
     setLoading(true);
-    const [oppsRes, prodsRes] = await Promise.all([
+    const [oppsRes, prodsRes, custRes] = await Promise.all([
       supabase.from("opportunities").select("*, profiles(full_name)"),
       supabase.from("products").select("id, name, metadata").order("name"),
+      supabase.from("customers" as any).select("id, name, company").order("name")
     ]);
     setOpps(oppsRes.data ?? []);
     setProducts(prodsRes.data ?? []);
+    setCustomers(custRes.data ?? []);
     setLoading(false);
   }
 
@@ -101,6 +105,7 @@ function SalesPipeline() {
       const payload = {
         owner_id: user.id,
         client_name: form.client_name,
+        customer_id: form.customer_id || null,
         title: form.title,
         value: parseCurrency(form.value),
         stage: form.stage as any,
@@ -128,7 +133,7 @@ function SalesPipeline() {
 
       setIsModalOpen(false);
       setEditingId(null);
-      setForm({ client_name: "", title: "", value: "", stage: "prospect", probability: 20, expected_closing: "", source: "Direto", product_id: "", contact_email: "", contact_phone: "", description: "" });
+      setForm({ client_name: "", customer_id: "", title: "", value: "", stage: "prospect", probability: 20, expected_closing: "", source: "Direto", product_id: "", contact_email: "", contact_phone: "", description: "" });
       load();
     } catch (err: any) {
       toast.error(err.message);
@@ -139,7 +144,7 @@ function SalesPipeline() {
 
   const openNew = () => {
     setEditingId(null);
-    setForm({ client_name: "", title: "", value: "", stage: "prospect", probability: 20, expected_closing: "", source: "Direto", product_id: "", contact_email: "", contact_phone: "", description: "" });
+    setForm({ client_name: "", customer_id: "", title: "", value: "", stage: "prospect", probability: 20, expected_closing: "", source: "Direto", product_id: "", contact_email: "", contact_phone: "", description: "" });
     setIsModalOpen(true);
   };
 
@@ -147,6 +152,7 @@ function SalesPipeline() {
     setEditingId(o.id);
     setForm({
       client_name: o.client_name,
+      customer_id: o.customer_id || "",
       title: o.title,
       value: String(o.value),
       stage: o.stage,
@@ -412,12 +418,38 @@ function SalesPipeline() {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium text-muted-foreground">Cliente / Empresa</Label>
-                  <Input required value={form.client_name} onChange={e => setForm({ ...form, client_name: e.target.value })} className="h-9 bg-background border-border text-sm" />
+                  <Label className="text-xs font-medium text-muted-foreground">Vincular Cliente</Label>
+                  <Select 
+                    value={form.customer_id || "new"} 
+                    onValueChange={v => {
+                      if (v === "new") {
+                        setForm(f => ({ ...f, customer_id: "" }));
+                      } else {
+                        const c = customers.find(x => x.id === v);
+                        setForm(f => ({ ...f, customer_id: v, client_name: c?.name || f.client_name }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-9 bg-background border-border text-xs">
+                      <SelectValue placeholder="Selecionar cliente..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border">
+                      <SelectItem value="new">-- Digitar nome manualmente --</SelectItem>
+                      {customers.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.name} {c.company ? `(${c.company})` : ''}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium text-muted-foreground">Título do Negócio</Label>
-                  <Input required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="h-9 bg-background border-border text-sm" />
+                  <Label className="text-xs font-medium text-muted-foreground">Nome do Cliente/Empresa</Label>
+                  <Input 
+                    required 
+                    value={form.client_name} 
+                    onChange={e => setForm({ ...form, client_name: e.target.value })} 
+                    className="h-9 bg-background border-border text-sm" 
+                    placeholder="Nome que aparecerá no card"
+                  />
                 </div>
               </div>
 

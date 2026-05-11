@@ -39,6 +39,7 @@ const nav: NavGroup[] = [
     group: "Pessoal", items: [
       { to: "/me", label: "Meu Painel", icon: UserCircle },
       { to: "/tracker", label: "Tracker", icon: PhoneCall },
+      { to: "/customers", label: "Clientes", icon: Users },
       { to: "/pipeline", label: "Pipeline", icon: Kanban },
       { to: "/activities", label: "Agenda", icon: ListTodo },
     ]
@@ -103,7 +104,7 @@ export function Sidebar() {
               if (it.manager) return isManager || isAdmin;
               if (it.hideForAdmin && isAdmin) return false;
               if (isViewer) {
-                const allowed = ["/dashboard", "/ranking", "/tv", "/products", "/performance"];
+                const allowed = ["/dashboard", "/ranking", "/tv", "/products", "/performance", "/customers"];
                 return allowed.includes(it.to);
               }
               return true;
