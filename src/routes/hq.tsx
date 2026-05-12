@@ -154,7 +154,7 @@ function Goals() {
 
       setSavedGlobalGoal(val);
       setGlobalGoal(formatCurrencyBRL(val));
-      toast.success("Meta global trimestral salva!");
+      toast.success("Meta global anual salva!");
     } catch (err: any) { 
       toast.error("Erro ao salvar: " + (err.message || "Tente novamente")); 
     }
@@ -242,7 +242,7 @@ function Goals() {
     <div className="p-6 lg:p-8 space-y-8 max-w-[1100px] mx-auto">
       <PageHeader
         title="Metas"
-        subtitle={`Configuração de metas de receita · ${qLabel} ${now.getFullYear()}`}
+        subtitle={`Configuração de metas de receita · Ano ${now.getFullYear()}`}
       />
 
       {loading ? (
@@ -260,7 +260,7 @@ function Goals() {
               </div>
               <div>
                 <h2 className="text-sm font-semibold text-foreground">Meta Global de Receita</h2>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Meta trimestral da empresa — utilizada no atingimento do dashboard</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Meta anual da empresa — utilizada no atingimento do dashboard (Time Todo)</p>
               </div>
             </div>
             <div className="p-6 flex flex-col md:flex-row items-start md:items-center gap-6">
@@ -271,7 +271,7 @@ function Goals() {
                   <span className={cn("text-lg font-black font-mono leading-none", globalAttainment >= 100 ? "text-[#3ecf8e]" : "text-yellow-400")}>
                     {globalAttainment}%
                   </span>
-                  <span className="text-[8px] text-muted-foreground">do {qLabel}</span>
+                  <span className="text-[8px] text-muted-foreground">do Ano</span>
                 </div>
               </div>
 
@@ -279,11 +279,11 @@ function Goals() {
               <div className="flex-1 space-y-4 w-full">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-secondary/30 border border-border rounded-lg p-3">
-                    <p className="text-[10px] text-muted-foreground font-medium mb-1">Receita {qLabel}</p>
+                    <p className="text-[10px] text-muted-foreground font-medium mb-1">Receita Realizada (QTD)</p>
                     <p className="text-base font-black font-mono text-foreground">{formatCurrency(revenue)}</p>
                   </div>
                   <div className="bg-secondary/30 border border-border rounded-lg p-3">
-                    <p className="text-[10px] text-muted-foreground font-medium mb-1">Meta {qLabel} (Total)</p>
+                    <p className="text-[10px] text-muted-foreground font-medium mb-1">Meta Anual (Total)</p>
                     <p className="text-base font-black font-mono text-foreground">{savedGlobalGoal ? formatCurrency(savedGlobalGoal) : "—"}</p>
                   </div>
                 </div>
@@ -291,7 +291,7 @@ function Goals() {
                 {/* Edit */}
                 <div className="flex items-end gap-3">
                   <div className="flex-1 space-y-1.5">
-                    <Label className="text-xs text-muted-foreground font-medium">Meta do Trimestre (BRL)</Label>
+                    <Label className="text-xs text-muted-foreground font-medium">Meta do Ano (BRL)</Label>
                     <Input
                       value={globalGoal}
                       onChange={e => setGlobalGoal(e.target.value)}
@@ -299,7 +299,7 @@ function Goals() {
                       placeholder="R$ 0,00"
                       className="h-9 bg-background border-border font-mono text-sm"
                     />
-                    <p className="text-[10px] text-muted-foreground">Valor total desejado para os 3 meses de {qLabel}</p>
+                    <p className="text-[10px] text-muted-foreground">Valor total desejado para o ano de {now.getFullYear()}</p>
                   </div>
                   <Button onClick={saveGlobalGoal} disabled={busy === "global"}
                     className="h-9 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-black font-semibold text-xs gap-2 shrink-0">

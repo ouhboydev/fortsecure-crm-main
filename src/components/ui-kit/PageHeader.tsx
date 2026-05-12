@@ -95,5 +95,5 @@ export function Section({ title, children, action, className }: { title: string;
 }
 
 export function formatCurrency(n: number): string {
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
 }

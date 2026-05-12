@@ -772,7 +772,7 @@ function ProductCard({ p, i, onEdit, onDelete, nav, dimmed }: {
               <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
                 <span>Meta do produto</span>
                 <span className="font-mono font-bold text-foreground">
-                  {Number(p.metadata.goal).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}
+                  {Number(p.metadata.goal).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                 </span>
               </div>
               <div className="h-1.5 bg-secondary rounded-full overflow-hidden">

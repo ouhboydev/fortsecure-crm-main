@@ -285,6 +285,25 @@
   scrollbar-width: none;
 }
 
+.scrollbar-custom::-webkit-scrollbar {
+  height: 10px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-track {
+  background: var(--secondary);
+  border-radius: 10px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 10px;
+  border: 2px solid var(--secondary);
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
 /* ─── SELECTION ─────────────────────────────────── */
 ::selection {
   background-color: rgba(62, 207, 142, 0.2);

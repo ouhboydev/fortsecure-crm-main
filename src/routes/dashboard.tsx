@@ -64,6 +64,7 @@ function Dashboard() {
   const [sellers, setSellers] = useState<any[]>([]);
   const [fieldActivities, setFieldActivities] = useState<any[]>([]);
   const [activityFilter, setActivityFilter] = useState<"all" | "reuniao" | "visita">("all");
+  const [focusedOpps, setFocusedOpps] = useState<any[]>([]);
   const getQuarterIndex = (month: number) => Math.floor(month / 3);
   const [selectedPeriod, setSelectedPeriod] = useState(getQuarterIndex(new Date().getMonth()).toString());
 
@@ -129,12 +130,14 @@ function Dashboard() {
         opps = opps.filter(o => o.owner_id === selectedSeller);
       }
 
-      // Revenue = sum of won deals closed in any of the 3 quarter months
-      const revenue = opps.filter(o =>
+      // Revenue Calculation: Strictly filtered by the selected period
+      const periodWonOpps = opps.filter(o =>
         o.stage === "ganho" && o.closed_at &&
-        qMonths.includes(new Date(o.closed_at).getMonth()) &&
-        new Date(o.closed_at).getFullYear() === now.getFullYear()
-      ).reduce((s, o) => s + Number(o.value), 0);
+        qMonths.includes(new Date(o.closed_at).getUTCMonth()) &&
+        new Date(o.closed_at).getUTCFullYear() === now.getFullYear()
+      );
+      
+      const revenue = periodWonOpps.reduce((s, o) => s + Number(o.value), 0);
 
       const pipelineValue = opps.filter(o => o.stage !== "ganho" && o.stage !== "perdido").reduce((s, o) => s + Number(o.value), 0);
       const pipelineCount = opps.filter(o => o.stage !== "ganho" && o.stage !== "perdido").length;
@@ -164,35 +167,57 @@ function Dashboard() {
       const winCount = opps.filter(o => o.stage === "ganho").length;
       setConversionRate(proposalCount > 0 ? (winCount / proposalCount) * 100 : 0);
 
-      setFunnelData(STAGES.map(s => ({
-        name: s.label,
-        value: opps.filter(o => o.stage === s.key).reduce((sum, o) => sum + Number(o.value), 0),
-        count: opps.filter(o => o.stage === s.key).length,
-        color: s.color,
-      })));
+      setFunnelData(STAGES.map(s => {
+        const stageOpps = opps.filter(o => {
+          if (o.stage !== s.key) return false;
+          // If stage is 'ganho' (fechado) or 'perdido', filter by date
+          if (s.key === "ganho" || s.key === "perdido") {
+            return o.closed_at &&
+              qMonths.includes(new Date(o.closed_at).getUTCMonth()) &&
+              new Date(o.closed_at).getUTCFullYear() === now.getFullYear();
+          }
+          // Otherwise show active deals in this stage
+          return true;
+        });
+        return {
+          name: s.label,
+          value: stageOpps.reduce((sum, o) => sum + Number(o.value), 0),
+          count: stageOpps.length,
+          color: s.color,
+        };
+      }));
 
-      // Ranking: only vendedor
+      // Ranking: only vendedor, filtered by selected period
       const sData = sellersWithRoles
         .filter((p: any) => p.role === 'vendedor')
-        .map(p => ({
-          name: formatDisplayName(p.full_name || "").split(" ")[0],
-          value: (oppsRes.data || []).filter(o => o.owner_id === p.id && o.stage === "ganho").reduce((s, o) => s + Number(o.value), 0),
-        })).sort((a, b) => b.value - a.value).slice(0, 5);
+        .map(p => {
+          const pWonOpps = (oppsRes.data || []).filter(o => 
+            o.owner_id === p.id && 
+            o.stage === "ganho" &&
+            o.closed_at &&
+            qMonths.includes(new Date(o.closed_at).getUTCMonth()) &&
+            new Date(o.closed_at).getUTCFullYear() === now.getFullYear()
+          );
+          return {
+            name: formatDisplayName(p.full_name || "").split(" ")[0],
+            value: pWonOpps.reduce((s, o) => s + Number(o.value), 0),
+          };
+        }).sort((a, b) => b.value - a.value).slice(0, 5);
       setSellerData(sData);
 
 
       // Quarter trend: show the 3 months of the selected quarter
-      const monthlyHqGoal = settingsRes.data?.value ? Number(settingsRes.data.value) : 2000000;
+      const monthlyHqGoal = settingsRes.data?.value ? Number(settingsRes.data.value) / 12 : 500000;
       const trend = qMonths.map((mIndex) => {
         const d = new Date(now.getFullYear(), mIndex, 1);
         const allOpps = selectedSeller === "all" ? (oppsRes.data || []) : (oppsRes.data || []).filter(o => o.owner_id === selectedSeller);
         const mOpps = allOpps.filter(o =>
           o.stage === "ganho" && o.closed_at &&
-          new Date(o.closed_at).getMonth() === d.getMonth() &&
-          new Date(o.closed_at).getFullYear() === d.getFullYear()
+          new Date(o.closed_at).getUTCMonth() === mIndex &&
+          new Date(o.closed_at).getUTCFullYear() === now.getFullYear()
         );
         const personalMeta = (goalsRes.data || []).find(g =>
-          g.month === d.getMonth() + 1 && selectedSeller !== "all" && g.user_id === selectedSeller
+          g.month === mIndex + 1 && selectedSeller !== "all" && g.user_id === selectedSeller
         )?.target_amount;
         return {
           name: MONTH_SHORT[mIndex],
@@ -214,8 +239,8 @@ function Dashboard() {
             o.stage === "ganho" &&
             o.closed_at &&
             (selectedSeller === "all" || o.owner_id === selectedSeller) &&
-            qMonths.includes(new Date(o.closed_at).getMonth()) &&
-            new Date(o.closed_at).getFullYear() === now.getFullYear()
+            qMonths.includes(new Date(o.closed_at).getUTCMonth()) &&
+            new Date(o.closed_at).getUTCFullYear() === now.getFullYear()
           );
           const sGoal = (selectedSeller !== "all" && prod.metadata?.seller_goals?.[selectedSeller]);
           return {
@@ -227,6 +252,10 @@ function Dashboard() {
         })
         .sort((a, b) => b.Receita - a.Receita);
       setProductData(productBreakdown);
+
+      // Foco Comercial (Proposta & Negociação)
+      const focus = opps.filter(o => ["proposta", "negociacao"].includes(o.stage));
+      setFocusedOpps(focus);
     } catch (err: any) {
       toast.error("Erro ao sincronizar: " + err.message);
     } finally {
@@ -286,8 +315,25 @@ function Dashboard() {
 
       {/* ── KPI Row ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <DashKpi label="Receita (Real)" value={formatCurrency(metrics.revenue)} hint={`Meta: ${formatCurrency(metrics.goal)}`} icon={<DollarSign className="h-4 w-4" />} trend={metrics.attainment} accent featured />
-        <DashKpi label="Forecast" value={metrics.pipelineCount} hint={formatCurrency(metrics.pipelineValue)} icon={<TrendingUp className="h-4 w-4" />} />
+        {selectedSeller === "all" ? (
+          <DashKpi
+            label="Receita (Anual)"
+            value={formatCurrency(metrics.revenue)}
+            hint={`Meta: ${formatCurrency(metrics.goal)}`}
+            icon={<DollarSign className="h-4 w-4" />}
+            trend={metrics.attainment}
+            accent
+            featured
+          />
+        ) : null}
+        <DashKpi
+          label="Forecast"
+          value={metrics.pipelineCount}
+          hint={formatCurrency(metrics.pipelineValue)}
+          icon={<TrendingUp className="h-4 w-4" />}
+          accent={selectedSeller !== "all"}
+          featured={selectedSeller !== "all"}
+        />
         <DashKpi label="Reuniões" value={meetingCount} hint="No período" icon={<PhoneCall className="h-4 w-4" />} />
         <DashKpi label="Visitas" value={visitCount} hint="No período" icon={<MapPin className="h-4 w-4" />} />
         <DashKpi label="Conversão" value={`${conversionRate.toFixed(1)}%`} hint="Proposta → Fechado" icon={<PieChartIcon className="h-4 w-4" />} />
@@ -585,6 +631,55 @@ function Dashboard() {
           </div>
         </div>
 
+        {/* Foco Comercial - Mini Kanban (Only when seller selected) */}
+        {selectedSeller !== "all" && (
+          <div className="lg:col-span-4 bg-card border border-border rounded-lg overflow-hidden flex flex-col">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between bg-muted/20">
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-[#3ecf8e]" />
+                <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Foco Comercial</h2>
+              </div>
+              <Badge variant="outline" className="text-[10px] bg-[#3ecf8e]/10 border-[#3ecf8e]/20 text-[#3ecf8e]">
+                {focusedOpps.length} Oportunidades Ativas
+              </Badge>
+            </div>
+            <div className="grid grid-cols-2 h-[260px] divide-x divide-border">
+              {["proposta", "negociacao"].map(stageKey => {
+                const stage = STAGES.find(s => s.key === stageKey);
+                const stageOpps = focusedOpps.filter(o => o.stage === stageKey);
+                return (
+                  <div key={stageKey} className="flex flex-col h-full overflow-hidden">
+                    <div className="px-4 py-2 border-b border-border bg-card/50 flex items-center justify-between shrink-0">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{stage?.label}</span>
+                      <span className="text-[10px] font-mono text-foreground font-bold">{formatCurrency(stageOpps.reduce((s, o) => s + Number(o.value), 0))}</span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-3 space-y-2 no-scrollbar bg-card/30">
+                      {stageOpps.length === 0 && (
+                        <div className="h-full flex flex-col items-center justify-center gap-2 opacity-30">
+                          <Clock className="h-5 w-5" />
+                          <span className="text-[9px] uppercase font-bold">Vazio</span>
+                        </div>
+                      )}
+                      {stageOpps.map(o => (
+                        <div key={o.id} className="p-3 bg-secondary/40 border border-border/50 rounded-lg hover:border-[#3ecf8e]/30 transition-all group">
+                          <p className="text-[10px] font-bold text-foreground line-clamp-1 mb-1">{o.client_name}</p>
+                          <div className="flex justify-between items-end">
+                            <span className="text-[11px] font-black text-[#3ecf8e] font-mono">{formatCurrency(o.value)}</span>
+                            <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                              <ArrowUpRight className="h-2.5 w-2.5" />
+                              {o.probability}%
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
 
 
       </div>
@@ -596,21 +691,43 @@ function DashKpi({ label, value, hint, icon, trend, accent = false, featured = f
   label: string; value: string | number; hint: string; icon: React.ReactNode; trend?: number; accent?: boolean; featured?: boolean;
 }) {
   return (
-    <WidgetCard featured={featured} className={cn("bg-card border rounded-lg p-4 hover:border-[#3ecf8e]/20 transition-colors group", accent ? "border-[#3ecf8e]/15" : "border-border")}>
+    <WidgetCard 
+      featured={featured} 
+      className={cn(
+        "bg-card border rounded-lg p-4 transition-all duration-300 group relative", 
+        accent 
+          ? "border-[#3ecf8e]/40 shadow-[0_0_15px_rgba(62,207,142,0.1)] bg-gradient-to-br from-[#3ecf8e]/5 to-transparent" 
+          : "border-border hover:border-[#3ecf8e]/20"
+      )}
+    >
+      {accent && (
+        <div className="absolute top-2 right-2 flex gap-1">
+          <div className="h-1 w-1 rounded-full bg-[#3ecf8e] animate-pulse" />
+        </div>
+      )}
       <div className="flex items-center justify-between mb-3">
-        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
-        <div className={cn("h-7 w-7 rounded-md flex items-center justify-center transition-colors", accent ? "bg-[#3ecf8e]/10 text-[#3ecf8e]" : "bg-secondary text-muted-foreground group-hover:text-[#3ecf8e]")}>
+        <p className={cn(
+          "text-[10px] font-bold uppercase tracking-wider",
+          accent ? "text-[#3ecf8e]" : "text-muted-foreground"
+        )}>{label}</p>
+        <div className={cn(
+          "h-7 w-7 rounded-md flex items-center justify-center transition-colors", 
+          accent ? "bg-[#3ecf8e] text-[#000]" : "bg-secondary text-muted-foreground group-hover:text-[#3ecf8e]"
+        )}>
           {icon}
         </div>
       </div>
-      <p className={cn("text-xl font-bold font-mono tracking-tight", accent ? "text-[#3ecf8e]" : "text-foreground")}>{value}</p>
+      <p className={cn(
+        "text-2xl font-black font-mono tracking-tight", 
+        accent ? "text-[#3ecf8e] drop-shadow-[0_0_8px_rgba(62,207,142,0.3)]" : "text-foreground"
+      )}>{value}</p>
       <div className="flex items-center gap-2 mt-1.5">
         {trend !== undefined && (
           <span className={cn("text-[10px] font-medium", trend >= 100 ? "text-[#3ecf8e]" : trend >= 60 ? "text-[#f59e0b]" : "text-muted-foreground")}>
             {trend}%
           </span>
         )}
-        <p className="text-[10px] text-muted-foreground truncate">{hint}</p>
+        <p className={cn("text-[10px] truncate font-medium", accent ? "text-[#3ecf8e]/70" : "text-muted-foreground")}>{hint}</p>
       </div>
     </WidgetCard>
   );

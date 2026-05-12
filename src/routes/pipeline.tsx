@@ -6,7 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { STAGES } from "@/lib/sales";
 import {
   Plus, Search,
-  Clock, Loader2, Kanban, List, X, Target, Package, ShieldCheck
+  Clock, Loader2, Kanban, List, X, Target, Package, ShieldCheck, Calendar,
+  ChevronRight, Phone, Mail, User, ArrowUpRight
 } from "lucide-react";
 import { cn, parseCurrency, formatCurrencyBRL } from "@/lib/utils";
 import { toast } from "sonner";
@@ -74,28 +75,45 @@ function SalesPipeline() {
     product_id: "",
     contact_email: "",
     contact_phone: "",
-    description: ""
+    description: "",
+    owner_id: "",
+    closed_at: ""
   });
+  const [sellers, setSellers] = useState<any[]>([]);
+  const [selectedSellerId, setSelectedSellerId] = useState<string>("all");
+  const [selectedStage, setSelectedStage] = useState<string>("all");
 
   async function load() {
     setLoading(true);
-    const [oppsRes, prodsRes, custRes] = await Promise.all([
+    const [oppsRes, prodsRes, custRes, profilesRes, rolesRes] = await Promise.all([
       supabase.from("opportunities").select("*, profiles(full_name)"),
       supabase.from("products").select("id, name, metadata").order("name"),
-      supabase.from("customers" as any).select("id, name, company").order("name")
+      supabase.from("customers" as any).select("id, name, company").order("name"),
+      supabase.from("profiles").select("id, full_name").order("full_name"),
+      supabase.from("user_roles").select("user_id, role")
     ]);
+
+    const validRoles = ["vendedor", "gestor"];
+    const allowedUserIds = (rolesRes.data ?? [])
+      .filter(r => validRoles.includes(r.role))
+      .map(r => r.user_id);
+
     setOpps(oppsRes.data ?? []);
     setProducts(prodsRes.data ?? []);
     setCustomers(custRes.data ?? []);
+    setSellers((profilesRes.data ?? []).filter(p => allowedUserIds.includes(p.id)));
     setLoading(false);
   }
 
   useEffect(() => { load(); }, []);
 
-  const filtered = opps.filter(o =>
-    o.client_name.toLowerCase().includes(search.toLowerCase()) ||
-    o.title.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = opps.filter(o => {
+    const matchesSearch = o.client_name.toLowerCase().includes(search.toLowerCase()) ||
+      o.title.toLowerCase().includes(search.toLowerCase());
+    const matchesSeller = selectedSellerId === "all" || o.owner_id === selectedSellerId;
+    const matchesStage = selectedStage === "all" || o.stage === selectedStage;
+    return matchesSearch && matchesSeller && matchesStage;
+  });
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -103,7 +121,7 @@ function SalesPipeline() {
     setBusy(true);
     try {
       const payload = {
-        owner_id: user.id,
+        owner_id: form.owner_id || user.id,
         client_name: form.client_name,
         customer_id: form.customer_id || null,
         title: form.title,
@@ -118,7 +136,9 @@ function SalesPipeline() {
           contact_email: form.contact_email,
           contact_phone: form.contact_phone,
         },
-        closed_at: (form.stage === 'ganho' || form.stage === 'perdido') ? new Date().toISOString() : null
+        closed_at: (form.stage === 'ganho' || form.stage === 'perdido') 
+          ? (form.closed_at ? new Date(form.closed_at).toISOString() : new Date().toISOString()) 
+          : null
       } as any;
 
       if (editingId) {
@@ -133,7 +153,7 @@ function SalesPipeline() {
 
       setIsModalOpen(false);
       setEditingId(null);
-      setForm({ client_name: "", customer_id: "", title: "", value: "", stage: "prospect", probability: 20, expected_closing: "", source: "Direto", product_id: "", contact_email: "", contact_phone: "", description: "" });
+      setForm({ client_name: "", customer_id: "", title: "", value: "", stage: "prospect", probability: 20, expected_closing: "", source: "Direto", product_id: "", contact_email: "", contact_phone: "", description: "", owner_id: "", closed_at: "" });
       load();
     } catch (err: any) {
       toast.error(err.message);
@@ -144,7 +164,7 @@ function SalesPipeline() {
 
   const openNew = () => {
     setEditingId(null);
-    setForm({ client_name: "", customer_id: "", title: "", value: "", stage: "prospect", probability: 20, expected_closing: "", source: "Direto", product_id: "", contact_email: "", contact_phone: "", description: "" });
+    setForm({ client_name: "", customer_id: "", title: "", value: "", stage: "prospect", probability: 20, expected_closing: "", source: "Direto", product_id: "", contact_email: "", contact_phone: "", description: "", owner_id: user?.id || "", closed_at: "" });
     setIsModalOpen(true);
   };
 
@@ -163,6 +183,8 @@ function SalesPipeline() {
       contact_email: o.metadata?.contact_email || "",
       contact_phone: o.metadata?.contact_phone || "",
       description: o.description || "",
+      owner_id: o.owner_id || "",
+      closed_at: o.closed_at ? o.closed_at.split('T')[0] : "",
     });
     setIsModalOpen(true);
   };
@@ -177,7 +199,12 @@ function SalesPipeline() {
       case 'ganho': prob = 100; break;
       case 'perdido': prob = 0; break;
     }
-    setForm(prev => ({ ...prev, stage: newStage, probability: prob }));
+    setForm(prev => ({ 
+      ...prev, 
+      stage: newStage, 
+      probability: prob,
+      closed_at: (newStage === 'ganho' || newStage === 'perdido') ? (prev.closed_at || new Date().toISOString().split('T')[0]) : ""
+    }));
   };
 
   async function onDragEnd(result: any) {
@@ -229,6 +256,30 @@ function SalesPipeline() {
                   className="h-9 pl-9 w-48 bg-card border-border text-xs"
                 />
               </div>
+              {canManage && (
+                <Select value={selectedSellerId} onValueChange={setSelectedSellerId}>
+                  <SelectTrigger className="h-9 w-48 bg-card border-border text-xs">
+                    <SelectValue placeholder="Filtrar por Vendedor" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    <SelectItem value="all">Todos os Vendedores</SelectItem>
+                    {sellers.map(s => (
+                      <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <Select value={selectedStage} onValueChange={setSelectedStage}>
+                <SelectTrigger className="h-9 w-40 bg-card border-border text-xs">
+                  <SelectValue placeholder="Estágio" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  <SelectItem value="all">Todos os Estágios</SelectItem>
+                  {STAGES.map(s => (
+                    <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <div className="flex bg-secondary border border-border p-1 rounded-md">
                 <Button variant={view === 'kanban' ? 'secondary' : 'ghost'} size="icon" onClick={() => setView('kanban')} className="h-7 w-7 rounded-sm">
                   <Kanban className="h-3.5 w-3.5" />
@@ -245,14 +296,14 @@ function SalesPipeline() {
         />
       </div>
 
-      <div className="flex-1 overflow-hidden px-6 lg:px-8 pb-8">
+      <div className="flex-1 overflow-y-auto min-h-0 px-6 lg:px-8 pb-8 scrollbar-custom">
         {loading ? (
           <div className="h-full flex items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-[#3ecf8e]" />
           </div>
         ) : view === 'kanban' ? (
           <DragDropContext onDragEnd={onDragEnd}>
-            <div className="flex gap-4 h-full overflow-x-auto pb-4 no-scrollbar">
+            <div className="flex gap-4 h-full overflow-x-auto pb-6 scrollbar-custom">
               {STAGES.map((s) => (
                 <Droppable key={s.key} droppableId={s.key}>
                   {(provided, snapshot) => (
@@ -373,7 +424,7 @@ function SalesPipeline() {
             </div>
           </DragDropContext>
         ) : (
-          <div className="bg-card border border-border rounded-lg overflow-hidden shadow-sm">
+          <div className="bg-card border border-border rounded-lg overflow-y-auto shadow-sm max-h-full scrollbar-custom">
             <Table>
               <TableHeader className="bg-muted/50">
                 <TableRow className="border-border">
@@ -455,6 +506,23 @@ function SalesPipeline() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Vendedor Responsável</Label>
+                  <Select 
+                    disabled={!canManage}
+                    value={form.owner_id} 
+                    onValueChange={v => setForm({ ...form, owner_id: v })}
+                  >
+                    <SelectTrigger className="h-9 bg-background border-border text-xs">
+                      <SelectValue placeholder="Selecionar vendedor..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border">
+                      {sellers.map(s => (
+                        <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label className="text-xs font-medium text-muted-foreground">Estágio</Label>
                   <Select value={form.stage} onValueChange={handleStageChange}>
                     <SelectTrigger className="h-9 bg-background border-border text-xs"><SelectValue /></SelectTrigger>
@@ -487,6 +555,27 @@ function SalesPipeline() {
                   <Input type="date" value={form.expected_closing} onChange={e => setForm({ ...form, expected_closing: e.target.value })} className="h-9 bg-background border-border text-sm" />
                 </div>
               </div>
+
+              {(form.stage === 'ganho' || form.stage === 'perdido') && (
+                <div className="p-4 bg-secondary/30 border border-border rounded-lg space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-[#3ecf8e]" />
+                    <Label className="text-xs font-bold text-foreground uppercase tracking-wider">Data do Fechamento</Label>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Input 
+                      type="date" 
+                      required
+                      value={form.closed_at} 
+                      onChange={e => setForm({ ...form, closed_at: e.target.value })} 
+                      className="h-9 bg-background border-[#3ecf8e]/30 text-sm font-mono" 
+                    />
+                    <p className="text-[10px] text-muted-foreground italic">
+                      * Esta data define em qual período (Mês/Quarter) o negócio aparecerá no Dashboard.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label className="text-xs font-medium text-muted-foreground">Produto Vinculado</Label>
@@ -521,7 +610,7 @@ function SalesPipeline() {
                     <Target className="h-4 w-4 shrink-0" />
                     <div>
                       {hasGoal && hasGoalValue
-                        ? <><span className="font-semibold">Meta ativa</span> <span className="text-[10px] opacity-80">— {Number(linkedProd.metadata.goal).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}</span></>
+                        ? <><span className="font-semibold">Meta ativa</span> <span className="text-[10px] opacity-80">— {Number(linkedProd.metadata.goal).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span></>
                         : hasGoal
                           ? <><span className="font-semibold">Meta ativa, mas sem valor definido</span> <span className="text-[10px] opacity-80">— configure em Produtos</span></>
                           : <><span className="font-semibold">Meta inativa neste produto</span> <span className="text-[10px] opacity-80">— ative em Produtos para aparecer no dashboard</span></>}
