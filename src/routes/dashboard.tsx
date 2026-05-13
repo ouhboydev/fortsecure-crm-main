@@ -149,14 +149,14 @@ function Dashboard() {
       const pipelineCount = opps.filter(o => o.stage !== "ganho" && o.stage !== "perdido").length;
       const weighted = opps.filter(o => o.stage !== "ganho" && o.stage !== "perdido").reduce((s, o) => s + (Number(o.value) * (Number(o.probability || 0) / 100)), 0);
 
-      const annualHqGoal = settingsRes.data?.value ? Number(settingsRes.data.value) : 6000000;
-      const hqGoal = (annualHqGoal / 12) * qMonths.length;
+      const annualHqGoal = settingsRes.data?.value ? Number(settingsRes.data.value) : 7500000;
+      const hqGoal = annualHqGoal; // Annual goal is fixed (no prorating)
 
       const sellerGoal = selectedSeller !== "all"
         ? (goalsRes.data || [])
           .filter(g => g.user_id === selectedSeller && (g.month === 0 || goalMonths.includes(g.month)))
           .reduce((sum, g) => {
-            if (g.month === 0) return sum + (Number(g.target_amount) / 12) * qMonths.length;
+            if (g.month === 0) return sum + Number(g.target_amount); // Annual meta
             return sum + Number(g.target_amount);
           }, 0)
         : 0;
@@ -239,9 +239,11 @@ function Dashboard() {
       });
       setTrendData(trend);
 
-      // ── Product revenue breakdown (products with goal_active) ──
+      // ── Product revenue breakdown (strictly quarterly) ──
       const prods = (prodsRes.data || []) as any[];
       const allOppsForProducts = (oppsRes.data || []) as any[];
+      const specificQMonths = QUARTER_MONTHS[selectedPeriod];
+      
       const productBreakdown = prods
         .filter(prod => prod.metadata?.goal_active)
         .map(prod => {
@@ -250,14 +252,20 @@ function Dashboard() {
             o.stage === "ganho" &&
             o.closed_at &&
             (selectedSeller === "all" || o.owner_id === selectedSeller) &&
-            qMonths.includes(new Date(o.closed_at).getUTCMonth()) &&
+            specificQMonths.includes(new Date(o.closed_at).getUTCMonth()) &&
             new Date(o.closed_at).getUTCFullYear() === now.getFullYear()
           );
+          
           const sGoal = (selectedSeller !== "all" && prod.metadata?.seller_goals?.[selectedSeller]);
+          
+          // Use explicit quarterly meta from product metadata (goal_q1, goal_q2, etc.)
+          const qKey = `goal_q${parseInt(selectedPeriod) + 1}`;
+          const quarterlyMeta = prod.metadata?.[qKey] ? Number(prod.metadata[qKey]) : 0;
+
           return {
             name: prod.name,
             Receita: linked.reduce((s: number, o: any) => s + Number(o.value), 0),
-            Meta: sGoal ? Number(sGoal) : (prod.metadata?.goal ?? 0),
+            Meta: quarterlyMeta,
             color: prod.metadata?.color ?? "#3ecf8e",
           };
         })

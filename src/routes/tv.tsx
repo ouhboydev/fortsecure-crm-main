@@ -481,8 +481,7 @@ function TV() {
   async function load() {
     const now = new Date();
     const quarter = Math.floor(now.getMonth() / 3);
-    const qMonths: number[] = [];
-    for (let i = 0; i <= (quarter * 3 + 2); i++) qMonths.push(i);
+    const qMonths = [quarter * 3, quarter * 3 + 1, quarter * 3 + 2];
 
     const [oppsRes, profilesRes, goalsRes, rolesRes, settingsRes, prodsRes, activitiesRes] = await Promise.all([
       supabase.from("opportunities").select("*"),
@@ -517,9 +516,9 @@ function TV() {
     const pipelineValue = pipeline.reduce((s, o) => s + Number(o.value), 0);
     const weighted = pipeline.reduce((s, o) => s + (Number(o.value) * (o.probability || 0)) / 100, 0);
 
-    // Goal calculation (Proportional)
-    const annualHqGoal = settingsRes.data?.value ? Number(settingsRes.data.value) : 6000000;
-    const goal = (annualHqGoal / 12) * qMonths.length;
+    // Goal calculation (Strictly Quarterly)
+    const annualHqGoal = settingsRes.data?.value ? Number(settingsRes.data.value) : 7500000;
+    const goal = (annualHqGoal / 12) * qMonths.length; // Will be 3 months
 
     const proposalOpps = opps.filter(o => ["proposta", "negociacao", "ganho", "perdido"].includes(o.stage));
     const conversion = proposalOpps.length > 0 ? (opps.filter(o => o.stage === "ganho").length / proposalOpps.length) * 100 : 0;
@@ -575,8 +574,8 @@ function TV() {
         new Date(o.closed_at).getUTCFullYear() === now.getFullYear()
       );
       const realized = pOpps.reduce((sum, o) => sum + Number(o.value), 0);
-      const annualProdGoal = Number(p.metadata?.goal || 0);
-      const pGoal = (annualProdGoal / 12) * qMonths.length;
+      const qKey = `goal_q${quarter + 1}`;
+      const pGoal = Number(p.metadata?.[qKey] || 0);
       return {
         name: p.name,
         realized,

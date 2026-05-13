@@ -83,7 +83,10 @@ function Products() {
     category: string;
     technical_notes: string;
     color: string;
-    goal: string;
+    goal_q1: string;
+    goal_q2: string;
+    goal_q3: string;
+    goal_q4: string;
     image: string;
     new_category: string;
     goal_active: boolean;
@@ -93,7 +96,8 @@ function Products() {
   const blankForm: ProductForm = {
     name: "", description: "", category: "Software",
     technical_notes: "", color: "#3ecf8e",
-    goal: "", image: "", new_category: "", goal_active: false,
+    goal_q1: "", goal_q2: "", goal_q3: "", goal_q4: "",
+    image: "", new_category: "", goal_active: false,
     seller_goals: {},
   };
   const [form, setForm] = useState<ProductForm>(blankForm);
@@ -148,7 +152,10 @@ function Products() {
           category: finalCategory,
           technical_notes: form.technical_notes,
           color: form.color,
-          goal: form.goal ? parseCurrency(form.goal) : null,
+          goal_q1: form.goal_q1 ? parseCurrency(form.goal_q1) : null,
+          goal_q2: form.goal_q2 ? parseCurrency(form.goal_q2) : null,
+          goal_q3: form.goal_q3 ? parseCurrency(form.goal_q3) : null,
+          goal_q4: form.goal_q4 ? parseCurrency(form.goal_q4) : null,
           goal_active: form.goal_active,
           image: form.image || undefined,
           seller_goals: Object.fromEntries(
@@ -230,7 +237,10 @@ function Products() {
       category: (p as any).metadata?.category || "Software",
       technical_notes: (p as any).metadata?.technical_notes || "",
       color: (p as any).metadata?.color || "#3ecf8e",
-      goal: (p as any).metadata?.goal ? formatCurrencyBRL((p as any).metadata.goal) : "",
+      goal_q1: (p as any).metadata?.goal_q1 ? formatCurrencyBRL((p as any).metadata.goal_q1) : "",
+      goal_q2: (p as any).metadata?.goal_q2 ? formatCurrencyBRL((p as any).metadata.goal_q2) : "",
+      goal_q3: (p as any).metadata?.goal_q3 ? formatCurrencyBRL((p as any).metadata.goal_q3) : "",
+      goal_q4: (p as any).metadata?.goal_q4 ? formatCurrencyBRL((p as any).metadata.goal_q4) : "",
       goal_active: (p as any).metadata?.goal_active || false,
       image: (p as any).metadata?.image || "",
       new_category: "",
@@ -273,8 +283,8 @@ function Products() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="Total" value={String(items.length)} icon={<Boxes className="h-4 w-4" />} />
-        <StatCard label="Com Meta" value={String(items.filter(p => p.metadata?.goal).length)} icon={<Target className="h-4 w-4" />} accent />
-        <StatCard label="Sem Meta" value={String(items.filter(p => !p.metadata?.goal).length)} icon={<ShieldCheck className="h-4 w-4" />} warn />
+        <StatCard label="Com Meta" value={String(items.filter(p => p.metadata?.goal_q1 || p.metadata?.goal_q2 || p.metadata?.goal_q3 || p.metadata?.goal_q4).length)} icon={<Target className="h-4 w-4" />} accent />
+        <StatCard label="Sem Meta" value={String(items.filter(p => !p.metadata?.goal_q1 && !p.metadata?.goal_q2 && !p.metadata?.goal_q3 && !p.metadata?.goal_q4).length)} icon={<ShieldCheck className="h-4 w-4" />} warn />
         <StatCard label="Categorias" value={String(allCategories.length)} icon={<BarChart3 className="h-4 w-4" />} />
       </div>
 
@@ -315,8 +325,8 @@ function Products() {
           <p className="text-sm text-muted-foreground">Nenhum produto encontrado</p>
         </div>
       ) : (() => {
-        const withGoal = filtered.filter(p => p.metadata?.goal_active && p.metadata?.goal);
-        const withoutGoal = filtered.filter(p => !p.metadata?.goal_active || !p.metadata?.goal);
+        const withGoal = filtered.filter(p => p.metadata?.goal_active && (p.metadata?.goal_q1 || p.metadata?.goal_q2 || p.metadata?.goal_q3 || p.metadata?.goal_q4));
+        const withoutGoal = filtered.filter(p => !p.metadata?.goal_active || (!p.metadata?.goal_q1 && !p.metadata?.goal_q2 && !p.metadata?.goal_q3 && !p.metadata?.goal_q4));
         return (
           <div className="space-y-8">
             {/* ── Com Meta Ativa ── */}
@@ -538,18 +548,42 @@ function Products() {
               </div>
             </div>
 
-            {/* Goal */}
-            <div className="space-y-1.5">
+            {/* Quarterly Goals */}
+            <div className="space-y-3">
               <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                <Target className="h-3 w-3" /> Meta do Produto (BRL)
+                <Target className="h-3 w-3" /> Metas Trimestrais (BRL)
               </Label>
-              <div className="relative">
-                <Input type="text" placeholder="R$ 0,00" value={form.goal}
-                  onChange={e => setForm({ ...form, goal: e.target.value })}
-                  onBlur={e => setForm({ ...form, goal: formatCurrencyBRL(e.target.value) })}
-                  className="h-9 px-3 bg-background border-border text-sm font-mono" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <span className="text-[9px] uppercase font-bold text-muted-foreground ml-1">Q1 (Jan-Mar)</span>
+                  <Input type="text" placeholder="R$ 0,00" value={form.goal_q1}
+                    onChange={e => setForm({ ...form, goal_q1: e.target.value })}
+                    onBlur={e => setForm({ ...form, goal_q1: formatCurrencyBRL(e.target.value) })}
+                    className="h-9 px-3 bg-background border-border text-sm font-mono" />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[9px] uppercase font-bold text-muted-foreground ml-1">Q2 (Abr-Jun)</span>
+                  <Input type="text" placeholder="R$ 0,00" value={form.goal_q2}
+                    onChange={e => setForm({ ...form, goal_q2: e.target.value })}
+                    onBlur={e => setForm({ ...form, goal_q2: formatCurrencyBRL(e.target.value) })}
+                    className="h-9 px-3 bg-background border-border text-sm font-mono" />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[9px] uppercase font-bold text-muted-foreground ml-1">Q3 (Jul-Set)</span>
+                  <Input type="text" placeholder="R$ 0,00" value={form.goal_q3}
+                    onChange={e => setForm({ ...form, goal_q3: e.target.value })}
+                    onBlur={e => setForm({ ...form, goal_q3: formatCurrencyBRL(e.target.value) })}
+                    className="h-9 px-3 bg-background border-border text-sm font-mono" />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[9px] uppercase font-bold text-muted-foreground ml-1">Q4 (Out-Dez)</span>
+                  <Input type="text" placeholder="R$ 0,00" value={form.goal_q4}
+                    onChange={e => setForm({ ...form, goal_q4: e.target.value })}
+                    onBlur={e => setForm({ ...form, goal_q4: formatCurrencyBRL(e.target.value) })}
+                    className="h-9 px-3 bg-background border-border text-sm font-mono" />
+                </div>
               </div>
-              <p className="text-[10px] text-muted-foreground">Valor alvo de receita para este produto no dashboard.</p>
+              <p className="text-[10px] text-muted-foreground">O dashboard exibirá a meta do quarter selecionado.</p>
             </div>
 
             {/* Ativar Meta toggle */}
@@ -562,8 +596,8 @@ function Products() {
               )}
               onClick={() => {
                 const next = !form.goal_active;
-                if (next && !form.goal) {
-                  toast.warning("Defina um valor de meta antes de ativar.");
+                if (next && !form.goal_q1 && !form.goal_q2 && !form.goal_q3 && !form.goal_q4) {
+                  toast.warning("Defina pelo menos uma meta trimestral antes de ativar.");
                   return;
                 }
                 setForm({ ...form, goal_active: next });
@@ -704,7 +738,7 @@ function ProductCard({ p, i, onEdit, onDelete, nav, dimmed }: {
   dimmed?: boolean;
 }) {
   const color = p.metadata?.color || "#3ecf8e";
-  const hasGoal = !!p.metadata?.goal;
+  const hasGoal = !!(p.metadata?.goal_q1 || p.metadata?.goal_q2 || p.metadata?.goal_q3 || p.metadata?.goal_q4);
   const image = p.metadata?.image;
 
   return (
@@ -767,12 +801,12 @@ function ProductCard({ p, i, onEdit, onDelete, nav, dimmed }: {
           {p.description && <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{p.description}</p>}
 
           {/* Goal value + progress (only for "com meta" section) */}
-          {!dimmed && hasGoal && (
+          {!dimmed && (p.metadata?.goal_q1 || p.metadata?.goal_q2 || p.metadata?.goal_q3 || p.metadata?.goal_q4) && (
             <div className="space-y-1.5">
               <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
-                <span>Meta do produto</span>
+                <span>Meta (Q{Math.floor(new Date().getMonth() / 3) + 1})</span>
                 <span className="font-mono font-bold text-foreground">
-                  {Number(p.metadata.goal).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  {Number(p.metadata[`goal_q${Math.floor(new Date().getMonth() / 3) + 1}`] || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                 </span>
               </div>
               <div className="h-1.5 bg-secondary rounded-full overflow-hidden">

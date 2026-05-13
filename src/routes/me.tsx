@@ -66,7 +66,12 @@ function MyPanel() {
     ]);
 
     const opps = oppsRes.data ?? [];
-    const won = opps.filter(o => o.stage === "ganho");
+    const won = opps.filter(o => 
+      o.stage === "ganho" && 
+      o.closed_at && 
+      qMonths.includes(new Date(o.closed_at).getUTCMonth()) &&
+      new Date(o.closed_at).getUTCFullYear() === now.getFullYear()
+    );
     const revenue = won.reduce((sum, o) => sum + Number(o.value), 0);
     const pipe = opps.filter(o => !["ganho", "perdido"].includes(o.stage)).reduce((sum, o) => sum + Number(o.value), 0);
     const points = won.length;
@@ -96,17 +101,18 @@ function MyPanel() {
           (o as any).metadata?.product_id === prod.id &&
           o.stage === "ganho" &&
           o.closed_at &&
-          qMonths.includes(new Date(o.closed_at).getMonth()) &&
-          new Date(o.closed_at).getFullYear() === now.getFullYear()
+          qMonths.includes(new Date(o.closed_at).getUTCMonth()) &&
+          new Date(o.closed_at).getUTCFullYear() === now.getFullYear()
         );
         const realized = linked.reduce((s: number, o: any) => s + Number(o.value), 0);
-        const sellerGoal = (prod as any).metadata?.seller_goals?.[user.id];
-        const goal = sellerGoal !== undefined && sellerGoal !== null ? Number(sellerGoal) : Number((prod as any).metadata?.goal ?? 0);
-        const pct = goal > 0 ? Math.min(Math.round((realized / goal) * 100), 999) : 0;
+        const qKey = `goal_q${quarter + 1}`;
+        const quarterlyMeta = Number(prod.metadata?.[qKey] || 0);
+        
+        const pct = quarterlyMeta > 0 ? Math.min(Math.round((realized / quarterlyMeta) * 100), 999) : 0;
         return {
           name: prod.name,
           realized,
-          goal,
+          goal: quarterlyMeta,
           pct,
           color: (prod as any).metadata?.color ?? "#3ecf8e",
         };
