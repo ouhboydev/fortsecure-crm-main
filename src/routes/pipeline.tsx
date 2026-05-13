@@ -174,7 +174,7 @@ function SalesPipeline() {
       client_name: o.client_name,
       customer_id: o.customer_id || "",
       title: o.title,
-      value: String(o.value),
+      value: new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(o.value || 0),
       stage: o.stage,
       probability: o.probability || 20,
       expected_closing: o.metadata?.expected_closing || "",
@@ -459,174 +459,265 @@ function SalesPipeline() {
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-2xl bg-card border-border p-0 overflow-hidden rounded-xl">
-          <DialogHeader className="p-6 border-b border-border bg-muted/50">
-            <DialogTitle className="text-lg font-semibold">{editingId ? "Editar Negócio" : "Registrar Oportunidade"}</DialogTitle>
-            <DialogDescription className="text-xs">Preencha os dados técnicos da oportunidade comercial.</DialogDescription>
+        <DialogContent className="max-w-2xl bg-card border-border p-0 overflow-hidden rounded-2xl shadow-2xl">
+          <DialogHeader className="p-8 border-b border-border bg-muted/30 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-[#3ecf8e]/5 blur-3xl -mr-16 -mt-16 rounded-full pointer-events-none" />
+            <div className="relative z-10">
+              <DialogTitle className="text-xl font-bold tracking-tight">
+                {editingId ? "Editar Negócio" : "Registrar Oportunidade"}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-1">
+                Configure os detalhes técnicos e financeiros do negócio.
+              </DialogDescription>
+            </div>
           </DialogHeader>
 
-          <div className="p-6 overflow-y-auto max-h-[70vh] no-scrollbar">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium text-muted-foreground">Vincular Cliente</Label>
-                  <Select 
-                    value={form.customer_id || "new"} 
-                    onValueChange={v => {
-                      if (v === "new") {
-                        setForm(f => ({ ...f, customer_id: "" }));
-                      } else {
-                        const c = customers.find(x => x.id === v);
-                        setForm(f => ({ ...f, customer_id: v, client_name: c?.name || f.client_name }));
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="h-9 bg-background border-border text-xs">
-                      <SelectValue placeholder="Selecionar cliente..." />
-                    </SelectTrigger>
-                    <SelectContent className="bg-card border-border">
-                      <SelectItem value="new">-- Digitar nome manualmente --</SelectItem>
-                      {customers.map(c => (
-                        <SelectItem key={c.id} value={c.id}>{c.name} {c.company ? `(${c.company})` : ''}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+          <div className="p-8 overflow-y-auto max-h-[75vh] scrollbar-custom">
+            <form onSubmit={handleSubmit} className="space-y-8">
+              {/* Section: Cliente */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="h-6 w-6 rounded-md bg-secondary flex items-center justify-center">
+                    <User className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-foreground/70">Identificação do Cliente</h3>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium text-muted-foreground">Nome do Cliente/Empresa</Label>
-                  <Input 
-                    required 
-                    value={form.client_name} 
-                    onChange={e => setForm({ ...form, client_name: e.target.value })} 
-                    className="h-9 bg-background border-border text-sm" 
-                    placeholder="Nome que aparecerá no card"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium text-muted-foreground">Vendedor Responsável</Label>
-                  <Select 
-                    disabled={!canManage}
-                    value={form.owner_id} 
-                    onValueChange={v => setForm({ ...form, owner_id: v })}
-                  >
-                    <SelectTrigger className="h-9 bg-background border-border text-xs">
-                      <SelectValue placeholder="Selecionar vendedor..." />
-                    </SelectTrigger>
-                    <SelectContent className="bg-card border-border">
-                      {sellers.map(s => (
-                        <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium text-muted-foreground">Estágio</Label>
-                  <Select value={form.stage} onValueChange={handleStageChange}>
-                    <SelectTrigger className="h-9 bg-background border-border text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent className="bg-card border-border">
-                      {STAGES.map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium text-muted-foreground">Probabilidade (%)</Label>
-                  <Input type="number" value={form.probability} onChange={e => setForm({ ...form, probability: Number(e.target.value) })} className="h-9 bg-background border-border text-sm" />
+                
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Vincular Cliente</Label>
+                    <Select 
+                      value={form.customer_id || "new"} 
+                      onValueChange={v => {
+                        if (v === "new") {
+                          setForm(f => ({ ...f, customer_id: "" }));
+                        } else {
+                          const c = customers.find(x => x.id === v);
+                          setForm(f => ({ ...f, customer_id: v, client_name: c?.name || f.client_name }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-10 bg-background/50 border-border text-xs focus:ring-[#3ecf8e]/20">
+                        <SelectValue placeholder="Selecionar cliente..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        <SelectItem value="new" className="text-xs">-- Digitar nome manualmente --</SelectItem>
+                        {customers.map(c => (
+                          <SelectItem key={c.id} value={c.id} className="text-xs">{c.name} {c.company ? `(${c.company})` : ''}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Nome do Cliente/Empresa</Label>
+                    <Input 
+                      required 
+                      value={form.client_name} 
+                      onChange={e => setForm({ ...form, client_name: e.target.value })} 
+                      className="h-10 bg-background/50 border-border text-sm focus-visible:ring-[#3ecf8e]/20" 
+                      placeholder="Ex: Nome da Empresa ou Pessoa"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium text-muted-foreground">Valor (BRL)</Label>
-                  <Input 
-                    required 
-                    type="text" 
-                    placeholder="R$ 0,00"
-                    value={form.value} 
-                    onChange={e => setForm({ ...form, value: e.target.value })}
-                    onBlur={e => setForm({ ...form, value: formatCurrencyBRL(e.target.value) })}
-                    className="h-9 bg-background border-border text-sm font-mono" 
-                  />
+              {/* Section: Detalhes do Negócio */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="h-6 w-6 rounded-md bg-secondary flex items-center justify-center">
+                    <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-foreground/70">Detalhes da Oportunidade</h3>
                 </div>
+
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Vendedor Responsável</Label>
+                    <Select 
+                      disabled={!canManage}
+                      value={form.owner_id} 
+                      onValueChange={v => setForm({ ...form, owner_id: v })}
+                    >
+                      <SelectTrigger className="h-10 bg-background/50 border-border text-xs focus:ring-[#3ecf8e]/20">
+                        <SelectValue placeholder="Selecionar vendedor..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        {sellers.map(s => (
+                          <SelectItem key={s.id} value={s.id} className="text-xs">{s.full_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Estágio Comercial</Label>
+                    <Select value={form.stage} onValueChange={handleStageChange}>
+                      <SelectTrigger className="h-10 bg-background/50 border-border text-xs focus:ring-[#3ecf8e]/20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        {STAGES.map(s => <SelectItem key={s.key} value={s.key} className="text-xs">{s.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Probabilidade (%)</Label>
+                    <Input 
+                      type="number" 
+                      value={form.probability} 
+                      onChange={e => setForm({ ...form, probability: Number(e.target.value) })} 
+                      className="h-10 bg-background/50 border-border text-sm font-mono focus-visible:ring-[#3ecf8e]/20" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Previsão de Fechamento</Label>
+                    <div className="relative">
+                      <Input 
+                        type="date" 
+                        value={form.expected_closing} 
+                        onChange={e => setForm({ ...form, expected_closing: e.target.value })} 
+                        className="h-10 bg-background/50 border-border text-sm font-mono focus-visible:ring-[#3ecf8e]/20 pl-10" 
+                      />
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50 pointer-events-none" />
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium text-muted-foreground">Previsão de Fechamento</Label>
-                  <Input type="date" value={form.expected_closing} onChange={e => setForm({ ...form, expected_closing: e.target.value })} className="h-9 bg-background border-border text-sm" />
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Valor Estimado (BRL)</Label>
+                  <div className="relative">
+                    <Input 
+                      required 
+                      type="text" 
+                      placeholder="0,00"
+                      value={form.value} 
+                      onChange={e => {
+                        const v = e.target.value.replace(/\D/g, "");
+                        if (!v) {
+                          setForm(f => ({ ...f, value: "" }));
+                          return;
+                        }
+                        const amount = parseInt(v) / 100;
+                        const formatted = new Intl.NumberFormat("pt-BR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
+                        }).format(amount);
+                        setForm(f => ({ ...f, value: formatted }));
+                      }}
+                      className="h-12 bg-background/50 border-border text-xl font-black text-[#3ecf8e] font-mono tracking-tighter pl-12 focus-visible:ring-[#3ecf8e]/20" 
+                    />
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground/50 font-bold text-sm">R$</span>
+                  </div>
                 </div>
               </div>
 
               {(form.stage === 'ganho' || form.stage === 'perdido') && (
-                <div className="p-4 bg-secondary/30 border border-border rounded-lg space-y-3">
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-5 bg-[#3ecf8e]/5 border border-[#3ecf8e]/20 rounded-xl space-y-4">
                   <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-[#3ecf8e]" />
-                    <Label className="text-xs font-bold text-foreground uppercase tracking-wider">Data do Fechamento</Label>
+                    <ShieldCheck className="h-4 w-4 text-[#3ecf8e]" />
+                    <Label className="text-xs font-black text-foreground uppercase tracking-[0.1em]">Finalização do Negócio</Label>
                   </div>
-                  <div className="space-y-1.5">
-                    <Input 
-                      type="date" 
-                      required
-                      value={form.closed_at} 
-                      onChange={e => setForm({ ...form, closed_at: e.target.value })} 
-                      className="h-9 bg-background border-[#3ecf8e]/30 text-sm font-mono" 
-                    />
-                    <p className="text-[10px] text-muted-foreground italic">
-                      * Esta data define em qual período (Mês/Quarter) o negócio aparecerá no Dashboard.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground">Produto Vinculado</Label>
-                <Select value={form.product_id || "none"} onValueChange={v => setForm({ ...form, product_id: v === "none" ? "" : v })}>
-                  <SelectTrigger className="h-9 bg-background border-border text-xs">
-                    <Package className="h-3.5 w-3.5 mr-2 text-muted-foreground shrink-0" />
-                    <SelectValue placeholder="Selecionar produto..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-card border-border">
-                    <SelectItem value="none">Nenhum produto vinculado</SelectItem>
-                    {products.map(p => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name} {p.metadata?.category ? `· ${p.metadata.category}` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {form.product_id && (() => {
-                const linkedProd = products.find(p => p.id === form.product_id);
-                if (!linkedProd) return null;
-                const hasGoal = !!linkedProd.metadata?.goal_active;
-                const hasGoalValue = !!linkedProd.metadata?.goal;
-                return (
-                  <div className={cn(
-                    "flex items-center gap-3 p-3 rounded-lg border text-xs",
-                    hasGoal && hasGoalValue
-                      ? "bg-[#3ecf8e]/5 border-[#3ecf8e]/20 text-[#3ecf8e]"
-                      : "bg-yellow-500/5 border-yellow-500/20 text-yellow-500"
-                  )}>
-                    <Target className="h-4 w-4 shrink-0" />
-                    <div>
-                      {hasGoal && hasGoalValue
-                        ? <><span className="font-semibold">Meta ativa</span> <span className="text-[10px] opacity-80">— {Number(linkedProd.metadata.goal).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span></>
-                        : hasGoal
-                          ? <><span className="font-semibold">Meta ativa, mas sem valor definido</span> <span className="text-[10px] opacity-80">— configure em Produtos</span></>
-                          : <><span className="font-semibold">Meta inativa neste produto</span> <span className="text-[10px] opacity-80">— ative em Produtos para aparecer no dashboard</span></>}
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[9px] font-bold uppercase tracking-widest text-[#3ecf8e]">Data do Fechamento Efetivo</Label>
+                      <Input 
+                        type="date" 
+                        required
+                        value={form.closed_at} 
+                        onChange={e => setForm({ ...form, closed_at: e.target.value })} 
+                        className="h-10 bg-background border-[#3ecf8e]/30 text-sm font-mono text-foreground focus-visible:ring-[#3ecf8e]/20" 
+                      />
+                      <p className="text-[10px] text-muted-foreground/70 leading-relaxed italic mt-1">
+                        * Esta data define em qual período o negócio será contabilizado no dashboard.
+                      </p>
                     </div>
                   </div>
-                );
-              })()}
+                </motion.div>
+              )}
 
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground">Observações Técnicas</Label>
-                <Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="bg-background border-border text-sm min-h-[80px]" />
+              {/* Section: Produto e Meta */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="h-6 w-6 rounded-md bg-secondary flex items-center justify-center">
+                    <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-foreground/70">Produto e Metas</h3>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Produto Vinculado</Label>
+                    <Select value={form.product_id || "none"} onValueChange={v => setForm({ ...form, product_id: v === "none" ? "" : v })}>
+                      <SelectTrigger className="h-10 bg-background/50 border-border text-xs focus:ring-[#3ecf8e]/20">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                          <SelectValue placeholder="Selecionar produto..." />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        <SelectItem value="none" className="text-xs font-medium italic">Nenhum produto vinculado</SelectItem>
+                        {products.map(p => (
+                          <SelectItem key={p.id} value={p.id} className="text-xs">
+                            {p.name} {p.metadata?.category ? `· ${p.metadata.category}` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {form.product_id && (() => {
+                    const linkedProd = products.find(p => p.id === form.product_id);
+                    if (!linkedProd) return null;
+                    const hasGoal = !!linkedProd.metadata?.goal_active;
+                    const hasGoalValue = !!linkedProd.metadata?.goal;
+                    return (
+                      <div className={cn(
+                        "flex items-start gap-4 p-4 rounded-xl border transition-all",
+                        hasGoal && hasGoalValue
+                          ? "bg-[#3ecf8e]/5 border-[#3ecf8e]/10"
+                          : "bg-orange-500/5 border-orange-500/10"
+                      )}>
+                        <div className={cn(
+                          "h-8 w-8 rounded-full flex items-center justify-center shrink-0 shadow-sm",
+                          hasGoal && hasGoalValue ? "bg-[#3ecf8e]/10 text-[#3ecf8e]" : "bg-orange-500/10 text-orange-500"
+                        )}>
+                          <Target className="h-4 w-4" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className={cn(
+                            "text-xs font-bold uppercase tracking-wide",
+                            hasGoal && hasGoalValue ? "text-[#3ecf8e]" : "text-orange-500"
+                          )}>
+                            {hasGoal && hasGoalValue ? "Meta de Venda Ativa" : hasGoal ? "Meta sem Valor" : "Meta Inativa"}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground leading-relaxed">
+                            {hasGoal && hasGoalValue
+                              ? <>Esta venda contribuirá para o atingimento da meta de <span className="font-bold text-foreground">{Number(linkedProd.metadata.goal).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span> deste produto.</>
+                              : hasGoal
+                                ? "O produto tem meta habilitada, mas o valor do objetivo não foi definido nas configurações."
+                                : "Este produto não possui monitoramento de metas ativo. As vendas não aparecerão nos rankings de produtos do dashboard."}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4">
-                <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)} className="text-xs">Cancelar</Button>
-                <Button type="submit" disabled={busy} className="bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-[#000] font-semibold text-xs px-6">
+              <div className="space-y-3 pt-2">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Observações Técnicas / Notas</Label>
+                <Textarea 
+                  value={form.description} 
+                  onChange={e => setForm({ ...form, description: e.target.value })} 
+                  placeholder="Descreva detalhes adicionais, requisitos do cliente ou próximos passos..."
+                  className="bg-background/50 border-border text-sm min-h-[100px] focus-visible:ring-[#3ecf8e]/20 p-4 leading-relaxed" 
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-6 border-t border-border mt-4">
+                <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)} className="text-xs font-medium hover:bg-muted/50">
+                  Descartar
+                </Button>
+                <Button type="submit" disabled={busy} className="bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-[#000] font-bold text-xs px-8 h-10 shadow-lg shadow-[#3ecf8e]/10">
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? "Salvar Alterações" : "Efetivar Negócio"}
                 </Button>
               </div>

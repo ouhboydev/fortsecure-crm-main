@@ -95,15 +95,15 @@ function SlideOverview({ metrics, q }: { metrics: any; q: string }) {
           <h2 className="text-xl font-bold text-foreground">Visão Geral {q}</h2>
         </div>
         <div className="flex items-center gap-4 bg-card border border-border px-4 py-2 rounded-xl">
-           <div className="text-right">
-              <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest">Atingimento Global</p>
-              <p className="text-lg font-black font-mono text-primary leading-none mt-0.5">{Math.round(metrics.attainment)}%</p>
-           </div>
-           <div className="h-8 w-px bg-border" />
-           <div className="text-right">
-              <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest">Meta Trimestre</p>
-              <p className="text-lg font-black font-mono text-foreground leading-none mt-0.5">{formatCurrency(metrics.goal)}</p>
-           </div>
+          <div className="text-right">
+            <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest">Atingimento Global</p>
+            <p className="text-lg font-black font-mono text-primary leading-none mt-0.5">{Math.round(metrics.attainment)}%</p>
+          </div>
+          <div className="h-8 w-px bg-border" />
+          <div className="text-right">
+            <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest">Meta Trimestre</p>
+            <p className="text-lg font-black font-mono text-foreground leading-none mt-0.5">{formatCurrency(metrics.goal)}</p>
+          </div>
         </div>
       </div>
 
@@ -115,20 +115,20 @@ function SlideOverview({ metrics, q }: { metrics: any; q: string }) {
       </div>
 
       <div className="grid grid-cols-3 gap-4 h-32">
-         <div className="bg-card border border-border rounded-2xl p-4 flex flex-col justify-center">
-            <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Gap para Meta</p>
-            <p className="text-xl font-mono font-bold text-destructive/80">{formatCurrency(Math.max(0, metrics.goal - metrics.revenue))}</p>
-         </div>
-         <div className="bg-card border border-border rounded-2xl p-4 flex flex-col justify-center">
-            <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Receita Hoje</p>
-            <p className="text-xl font-mono font-bold text-primary">{formatCurrency(metrics.todayRevenue)}</p>
-         </div>
-         <div className="bg-card border border-border rounded-2xl p-4 flex flex-col justify-center">
-            <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Dias Restantes</p>
-            <p className="text-xl font-mono font-bold text-primary">
-               {Math.ceil((new Date(new Date().getFullYear(), Math.floor(new Date().getMonth() / 3) * 3 + 3, 0).getTime() - new Date().getTime()) / (1000 * 3600 * 24))}
-            </p>
-         </div>
+        <div className="bg-card border border-border rounded-2xl p-4 flex flex-col justify-center">
+          <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Gap para Meta</p>
+          <p className="text-xl font-mono font-bold text-destructive/80">{formatCurrency(Math.max(0, metrics.goal - metrics.revenue))}</p>
+        </div>
+        <div className="bg-card border border-border rounded-2xl p-4 flex flex-col justify-center">
+          <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Receita Hoje</p>
+          <p className="text-xl font-mono font-bold text-primary">{formatCurrency(metrics.todayRevenue)}</p>
+        </div>
+        <div className="bg-card border border-border rounded-2xl p-4 flex flex-col justify-center">
+          <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest mb-1">Dias Restantes</p>
+          <p className="text-xl font-mono font-bold text-primary">
+            {Math.ceil((new Date(new Date().getFullYear(), Math.floor(new Date().getMonth() / 3) * 3 + 3, 0).getTime() - new Date().getTime()) / (1000 * 3600 * 24))}
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -481,18 +481,82 @@ function TV() {
   async function load() {
     const now = new Date();
     const quarter = Math.floor(now.getMonth() / 3);
-    const qMonths = [quarter * 3, quarter * 3 + 1, quarter * 3 + 2];
+    const qMonths: number[] = [];
+    for (let i = 0; i <= (quarter * 3 + 2); i++) qMonths.push(i);
 
-    const [m, r, oppsRes, winsRes, prodsRes] = await Promise.all([
-      fetchTeamMetrics(), fetchRanking(),
-      supabase.from("opportunities").select("*") as any,
-      supabase.from("opportunities").select("*, profiles(full_name, avatar_url)")
-        .eq("stage", "ganho").order("closed_at", { ascending: false }).limit(8) as any,
-      supabase.from("products").select("*") as any,
+    const [oppsRes, profilesRes, goalsRes, rolesRes, settingsRes, prodsRes, activitiesRes] = await Promise.all([
+      supabase.from("opportunities").select("*"),
+      supabase.from("profiles").select("id, full_name, avatar_url, points"),
+      supabase.from("goals").select("*").eq("year", now.getFullYear()),
+      supabase.from("user_roles").select("user_id, role"),
+      supabase.from("app_settings").select("*").eq("key", "global_revenue_goal").single(),
+      supabase.from("products").select("*"),
+      supabase.from("activities").select("*"),
     ]);
 
-    setMetrics(m); setRanking(r); setRecentWins(winsRes.data ?? []);
     const opps = (oppsRes.data || []) as any[];
+    const allProfiles = (profilesRes.data || []) as any[];
+    const roles = (rolesRes.data || []) as any[];
+    const sellerIds = roles.filter(r => r.role === 'vendedor').map(r => r.user_id);
+    const sellers = allProfiles.filter(p => sellerIds.includes(p.id));
+
+    // Cumulative Revenue
+    const periodWonOpps = opps.filter(o =>
+      o.stage === "ganho" && o.closed_at &&
+      qMonths.includes(new Date(o.closed_at).getUTCMonth()) &&
+      new Date(o.closed_at).getUTCFullYear() === now.getFullYear()
+    );
+    const revenue = periodWonOpps.reduce((s, o) => s + Number(o.value), 0);
+
+    // Today's Revenue
+    const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const todayRevenue = opps.filter(o => o.stage === "ganho" && o.closed_at && o.closed_at >= startDay).reduce((s, o) => s + Number(o.value), 0);
+
+    // Pipeline
+    const pipeline = opps.filter(o => !["ganho", "perdido"].includes(o.stage));
+    const pipelineValue = pipeline.reduce((s, o) => s + Number(o.value), 0);
+    const weighted = pipeline.reduce((s, o) => s + (Number(o.value) * (o.probability || 0)) / 100, 0);
+
+    // Goal calculation (Proportional)
+    const annualHqGoal = settingsRes.data?.value ? Number(settingsRes.data.value) : 6000000;
+    const goal = (annualHqGoal / 12) * qMonths.length;
+
+    const proposalOpps = opps.filter(o => ["proposta", "negociacao", "ganho", "perdido"].includes(o.stage));
+    const conversion = proposalOpps.length > 0 ? (opps.filter(o => o.stage === "ganho").length / proposalOpps.length) * 100 : 0;
+
+    const m = {
+      revenue, todayRevenue, pipelineValue, weighted, goal,
+      attainment: goal > 0 ? (revenue / goal) * 100 : 0,
+      conversion,
+      pipelineCount: pipeline.length,
+      forecast: revenue + weighted,
+    };
+
+    setMetrics(m);
+
+    // Ranking (Cumulative YTD)
+    const rData = sellers.map(p => {
+      const pWonOpps = opps.filter(o =>
+        o.owner_id === p.id && o.stage === "ganho" && o.closed_at &&
+        qMonths.includes(new Date(o.closed_at).getUTCMonth()) &&
+        new Date(o.closed_at).getUTCFullYear() === now.getFullYear()
+      );
+      const pClosedVal = pWonOpps.reduce((s, o) => s + Number(o.value), 0);
+      const pGoalRes = (goalsRes.data || []).find(g => g.user_id === p.id && g.month === 0);
+      const pGoal = pGoalRes ? (Number(pGoalRes.target_amount) / 12) * qMonths.length : (goal / sellers.length);
+
+      return {
+        user_id: p.id,
+        full_name: p.full_name,
+        avatar_url: p.avatar_url,
+        points: p.points || 0,
+        closed_value: pClosedVal,
+        attainment: pGoal > 0 ? (pClosedVal / pGoal) * 100 : 0
+      };
+    }).sort((a, b) => b.points - a.points || b.closed_value - a.closed_value);
+
+    setRanking(rData as any);
+    setRecentWins(opps.filter(o => o.stage === "ganho").map(o => ({ ...o, profiles: allProfiles.find(p => p.id === o.owner_id) })).slice(0, 8));
 
     setFunnel(STAGES.map(s => ({
       stage: s.label, color: s.color,
@@ -500,23 +564,24 @@ function TV() {
       value: opps.filter(o => o.stage === s.key).reduce((sum, o) => sum + Number(o.value), 0),
     })));
 
-    // Product goals for the quarter
+    // Product goals for the cumulative period
     const activeProds = (prodsRes.data || []).filter((p: any) => p.metadata?.goal_active);
     const pGoals = activeProds.map((p: any) => {
       const pOpps = opps.filter(o =>
         o.metadata?.product_id === p.id &&
         o.stage === "ganho" &&
         o.closed_at &&
-        qMonths.includes(new Date(o.closed_at).getMonth()) &&
-        new Date(o.closed_at).getFullYear() === now.getFullYear()
+        qMonths.includes(new Date(o.closed_at).getUTCMonth()) &&
+        new Date(o.closed_at).getUTCFullYear() === now.getFullYear()
       );
       const realized = pOpps.reduce((sum, o) => sum + Number(o.value), 0);
-      const goal = Number(p.metadata?.goal || 0);
+      const annualProdGoal = Number(p.metadata?.goal || 0);
+      const pGoal = (annualProdGoal / 12) * qMonths.length;
       return {
         name: p.name,
         realized,
-        goal,
-        pct: goal > 0 ? (realized / goal) * 100 : 0,
+        goal: pGoal,
+        pct: pGoal > 0 ? (realized / pGoal) * 100 : 0,
         color: p.metadata?.color || "#3ecf8e"
       };
     });

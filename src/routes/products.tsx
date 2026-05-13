@@ -110,7 +110,7 @@ function Products() {
       prods.forEach(p => { if ((p as any).metadata?.category) cats.add((p as any).metadata.category); });
       const { data: profs } = await supabase.from("profiles").select("id, full_name").order("full_name");
       const { data: roles } = await supabase.from("user_roles").select("user_id, role");
-      
+
       const sellersOnly = (profs || []).filter(p => {
         const r = roles?.find(r => r.user_id === p.id);
         return r?.role === "vendedor";
@@ -197,7 +197,7 @@ function Products() {
     for (const p of affected) {
       await supabase.from("products").update({
         metadata: { ...(p as any).metadata, category: "Geral" }
-      }).eq("id", p.id);
+      } as any).eq("id", p.id);
     }
     if (filterCat === cat) setFilterCat("Todos");
     toast.success(`Categoria "${cat}" excluída`);
@@ -214,7 +214,7 @@ function Products() {
     for (const p of affected) {
       await supabase.from("products").update({
         metadata: { ...(p as any).metadata, category: trimmed }
-      }).eq("id", p.id);
+      } as any).eq("id", p.id);
     }
     if (filterCat === oldCat) setFilterCat(trimmed);
     setRenamingCat(null);
@@ -608,7 +608,7 @@ function Products() {
               </div>
             </div>
 
-             {/* Seller Goals */}
+            {/* Seller Goals */}
             <div className="space-y-3 p-4 bg-secondary/20 border border-border rounded-lg">
               <div className="flex items-center gap-2 mb-1">
                 <Users className="h-3.5 w-3.5 text-muted-foreground" />

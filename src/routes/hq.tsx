@@ -149,14 +149,14 @@ function Goals() {
     try {
       // Save directly as the quarterly goal
       const { error } = await supabase.from("app_settings").upsert({ key: "global_revenue_goal", value: val }, { onConflict: "key" });
-      
+
       if (error) throw error;
 
       setSavedGlobalGoal(val);
       setGlobalGoal(formatCurrencyBRL(val));
       toast.success("Meta global anual salva!");
-    } catch (err: any) { 
-      toast.error("Erro ao salvar: " + (err.message || "Tente novamente")); 
+    } catch (err: any) {
+      toast.error("Erro ao salvar: " + (err.message || "Tente novamente"));
     }
     finally { setBusy(null); }
   }
@@ -221,8 +221,8 @@ function Goals() {
       setSavedSellerGoals(prev => ({ ...prev, [userId]: val }));
       setSellerGoals(prev => ({ ...prev, [userId]: formatCurrencyBRL(val) }));
       toast.success("Meta do vendedor salva!");
-    } catch (err: any) { 
-      toast.error("Erro ao salvar meta: " + (err.message || "Tente novamente")); 
+    } catch (err: any) {
+      toast.error("Erro ao salvar meta: " + (err.message || "Tente novamente"));
     }
     finally { setBusy(null); }
   }
@@ -389,7 +389,7 @@ function Goals() {
                       >
                         {busy === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
                       </Button>
-                      
+
                       {isAdmin && (
                         <Button
                           size="icon"
@@ -509,7 +509,7 @@ function Goals() {
               Altere informações cadastrais ou resete a senha do usuário.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="grid gap-4 py-4">
             <div className="space-y-1.5 text-center flex flex-col items-center">
               <div className="h-20 w-20 rounded-full bg-secondary border border-border relative overflow-hidden mb-2 group">
@@ -566,7 +566,7 @@ function Goals() {
               </Button>
             </div>
           </div>
-          
+
           <DialogFooter>
             <Button
               onClick={updateProfile}

@@ -68,13 +68,14 @@ function Dashboard() {
   const getQuarterIndex = (month: number) => Math.floor(month / 3);
   const [selectedPeriod, setSelectedPeriod] = useState(getQuarterIndex(new Date().getMonth()).toString());
 
-  // Quarter countdown (days until end of current quarter)
+  // Quarter countdown (days until end of selected quarter)
   const daysUntilEndOfQuarter = (() => {
     const now = new Date();
-    const q = getQuarterIndex(now.getMonth());
+    const q = parseInt(selectedPeriod);
     const endMonth = q * 3 + 2;
-    const endOfQ = new Date(now.getFullYear(), endMonth + 1, 0);
-    return Math.ceil((endOfQ.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const endOfQ = new Date(now.getFullYear(), endMonth + 1, 0, 23, 59, 59);
+    const diff = endOfQ.getTime() - now.getTime();
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
   })();
 
   // Quarter → 3 months (0-indexed)
@@ -91,13 +92,18 @@ function Dashboard() {
     setIsSyncing(true);
     try {
       const now = new Date();
-      const qMonths = QUARTER_MONTHS[selectedPeriod] || [0, 1, 2];
+      const selectedQ = parseInt(selectedPeriod);
+      const qMonths: number[] = [];
+      for (let i = 0; i <= selectedQ; i++) {
+        qMonths.push(...QUARTER_MONTHS[i.toString()]);
+      }
+
       const firstMonth = qMonths[0];
-      const lastMonth = qMonths[2];
+      const lastMonth = qMonths[qMonths.length - 1];
       const firstDay = new Date(now.getFullYear(), firstMonth, 1).toISOString();
       const lastDay = new Date(now.getFullYear(), lastMonth + 1, 0, 23, 59, 59).toISOString();
 
-      // For goal lookup we pass the 3 months (1-indexed)
+      // For goal lookup we pass the months (1-indexed)
       const goalMonths = qMonths.map(m => m + 1);
 
       const [oppsRes, profilesRes, goalsRes, meetingsRes, settingsRes, activitiesRes, rolesRes, prodsRes] = await Promise.all([
@@ -130,24 +136,29 @@ function Dashboard() {
         opps = opps.filter(o => o.owner_id === selectedSeller);
       }
 
-      // Revenue Calculation: Strictly filtered by the selected period
+      // Revenue Calculation: Cumulative up to the selected period
       const periodWonOpps = opps.filter(o =>
         o.stage === "ganho" && o.closed_at &&
         qMonths.includes(new Date(o.closed_at).getUTCMonth()) &&
         new Date(o.closed_at).getUTCFullYear() === now.getFullYear()
       );
-      
+
       const revenue = periodWonOpps.reduce((s, o) => s + Number(o.value), 0);
 
       const pipelineValue = opps.filter(o => o.stage !== "ganho" && o.stage !== "perdido").reduce((s, o) => s + Number(o.value), 0);
       const pipelineCount = opps.filter(o => o.stage !== "ganho" && o.stage !== "perdido").length;
       const weighted = opps.filter(o => o.stage !== "ganho" && o.stage !== "perdido").reduce((s, o) => s + (Number(o.value) * (Number(o.probability || 0) / 100)), 0);
 
-      const hqGoal = settingsRes.data?.value ? Number(settingsRes.data.value) : 6000000; // stored as quarterly total
+      const annualHqGoal = settingsRes.data?.value ? Number(settingsRes.data.value) : 6000000;
+      const hqGoal = (annualHqGoal / 12) * qMonths.length;
+
       const sellerGoal = selectedSeller !== "all"
         ? (goalsRes.data || [])
-            .filter(g => g.user_id === selectedSeller && (g.month === 0 || goalMonths.includes(g.month)))
-            .reduce((sum, g) => sum + Number(g.target_amount), 0)
+          .filter(g => g.user_id === selectedSeller && (g.month === 0 || goalMonths.includes(g.month)))
+          .reduce((sum, g) => {
+            if (g.month === 0) return sum + (Number(g.target_amount) / 12) * qMonths.length;
+            return sum + Number(g.target_amount);
+          }, 0)
         : 0;
 
       const realMeta = selectedSeller === "all" ? hqGoal : (sellerGoal || 0);
@@ -191,8 +202,8 @@ function Dashboard() {
       const sData = sellersWithRoles
         .filter((p: any) => p.role === 'vendedor')
         .map(p => {
-          const pWonOpps = (oppsRes.data || []).filter(o => 
-            o.owner_id === p.id && 
+          const pWonOpps = (oppsRes.data || []).filter(o =>
+            o.owner_id === p.id &&
             o.stage === "ganho" &&
             o.closed_at &&
             qMonths.includes(new Date(o.closed_at).getUTCMonth()) &&
@@ -333,6 +344,7 @@ function Dashboard() {
           icon={<TrendingUp className="h-4 w-4" />}
           accent={selectedSeller !== "all"}
           featured={selectedSeller !== "all"}
+          className={selectedSeller !== "all" ? "lg:col-span-2" : ""}
         />
         <DashKpi label="Reuniões" value={meetingCount} hint="No período" icon={<PhoneCall className="h-4 w-4" />} />
         <DashKpi label="Visitas" value={visitCount} hint="No período" icon={<MapPin className="h-4 w-4" />} />
@@ -352,7 +364,7 @@ function Dashboard() {
             <span className="text-[10px] font-bold text-[#3ecf8e]/70">dias</span>
           </div>
           <p className="text-[10px] text-muted-foreground mt-1">
-            {QUARTER_LABELS[parseInt(selectedPeriod)]} · {daysUntilEndOfQuarter === 1 ? 'Último dia!' : 'Restantes'}
+            {QUARTER_LABELS[parseInt(selectedPeriod)]} · {daysUntilEndOfQuarter === 0 ? 'Período Encerrado' : daysUntilEndOfQuarter === 1 ? 'Último dia!' : 'Restantes'}
           </p>
         </div>
       </div>
@@ -382,7 +394,7 @@ function Dashboard() {
             {(() => {
               const filtered = activityFilter === "all" ? fieldActivities
                 : activityFilter === "reuniao" ? fieldActivities.filter((a: any) => a.type === "reuniao")
-                : fieldActivities.filter((a: any) => a.type === "visita" || a.metadata?.log_subtype === "visit");
+                  : fieldActivities.filter((a: any) => a.type === "visita" || a.metadata?.log_subtype === "visit");
               if (filtered.length === 0) return (
                 <div className="flex flex-col items-center justify-center h-full gap-2">
                   <MapPin className="h-6 w-6 text-muted-foreground/30" />
@@ -687,17 +699,18 @@ function Dashboard() {
   );
 }
 
-function DashKpi({ label, value, hint, icon, trend, accent = false, featured = false }: {
-  label: string; value: string | number; hint: string; icon: React.ReactNode; trend?: number; accent?: boolean; featured?: boolean;
+function DashKpi({ label, value, hint, icon, trend, accent = false, featured = false, className }: {
+  label: string; value: string | number; hint: string; icon: React.ReactNode; trend?: number; accent?: boolean; featured?: boolean; className?: string;
 }) {
   return (
-    <WidgetCard 
-      featured={featured} 
+    <WidgetCard
+      featured={featured}
       className={cn(
-        "bg-card border rounded-lg p-4 transition-all duration-300 group relative", 
-        accent 
-          ? "border-[#3ecf8e]/40 shadow-[0_0_15px_rgba(62,207,142,0.1)] bg-gradient-to-br from-[#3ecf8e]/5 to-transparent" 
-          : "border-border hover:border-[#3ecf8e]/20"
+        "bg-card border rounded-lg p-4 transition-all duration-300 group relative",
+        accent
+          ? "border-[#3ecf8e]/40 shadow-[0_0_15px_rgba(62,207,142,0.1)] bg-gradient-to-br from-[#3ecf8e]/5 to-transparent"
+          : "border-border hover:border-[#3ecf8e]/20",
+        className
       )}
     >
       {accent && (
@@ -711,14 +724,14 @@ function DashKpi({ label, value, hint, icon, trend, accent = false, featured = f
           accent ? "text-[#3ecf8e]" : "text-muted-foreground"
         )}>{label}</p>
         <div className={cn(
-          "h-7 w-7 rounded-md flex items-center justify-center transition-colors", 
+          "h-7 w-7 rounded-md flex items-center justify-center transition-colors",
           accent ? "bg-[#3ecf8e] text-[#000]" : "bg-secondary text-muted-foreground group-hover:text-[#3ecf8e]"
         )}>
           {icon}
         </div>
       </div>
       <p className={cn(
-        "text-2xl font-black font-mono tracking-tight", 
+        "text-2xl font-black font-mono tracking-tight",
         accent ? "text-[#3ecf8e] drop-shadow-[0_0_8px_rgba(62,207,142,0.3)]" : "text-foreground"
       )}>{value}</p>
       <div className="flex items-center gap-2 mt-1.5">
