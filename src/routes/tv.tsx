@@ -94,17 +94,6 @@ function SlideOverview({ metrics, q }: { metrics: any; q: string }) {
           <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Dashboard</p>
           <h2 className="text-xl font-bold text-foreground">Visão Geral {q}</h2>
         </div>
-        <div className="flex items-center gap-4 bg-card border border-border px-4 py-2 rounded-xl">
-          <div className="text-right">
-            <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest">Atingimento Global</p>
-            <p className="text-lg font-black font-mono text-primary leading-none mt-0.5">{Math.round(metrics.attainment)}%</p>
-          </div>
-          <div className="h-8 w-px bg-border" />
-          <div className="text-right">
-            <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest">Meta Trimestre</p>
-            <p className="text-lg font-black font-mono text-foreground leading-none mt-0.5">{formatCurrency(metrics.goal)}</p>
-          </div>
-        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 flex-1">
