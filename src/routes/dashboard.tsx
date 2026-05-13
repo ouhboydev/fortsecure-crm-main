@@ -243,7 +243,7 @@ function Dashboard() {
       const prods = (prodsRes.data || []) as any[];
       const allOppsForProducts = (oppsRes.data || []) as any[];
       const specificQMonths = QUARTER_MONTHS[selectedPeriod];
-      
+
       const productBreakdown = prods
         .filter(prod => prod.metadata?.goal_active)
         .map(prod => {
@@ -255,9 +255,9 @@ function Dashboard() {
             specificQMonths.includes(new Date(o.closed_at).getUTCMonth()) &&
             new Date(o.closed_at).getUTCFullYear() === now.getFullYear()
           );
-          
+
           const sGoal = (selectedSeller !== "all" && prod.metadata?.seller_goals?.[selectedSeller]);
-          
+
           // Use explicit quarterly meta from product metadata (goal_q1, goal_q2, etc.)
           const qKey = `goal_q${parseInt(selectedPeriod) + 1}`;
           const quarterlyMeta = prod.metadata?.[qKey] ? Number(prod.metadata[qKey]) : 0;

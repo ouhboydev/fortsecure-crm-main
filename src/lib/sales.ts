@@ -42,7 +42,7 @@ export async function fetchRanking(): Promise<RankingRow[]> {
   const allProfiles = profilesRes.data ?? [];
   const roles = rolesRes.data ?? [];
   const sellerIds = roles.filter(r => r.role === 'vendedor').map(r => r.user_id);
-  
+
   const profiles = allProfiles.filter(p => sellerIds.includes(p.id));
   const opps = oppsRes.data ?? [];
   const goals = goalsRes.data ?? [];
@@ -91,7 +91,7 @@ export async function fetchTeamMetrics() {
   const roles = rolesRes.data ?? [];
   const sellerIds = roles.filter(r => r.role === 'vendedor').map(r => r.user_id);
   const sellers = (profilesRes.data ?? []).filter(p => sellerIds.includes(p.id));
-  
+
   const opps = oppsRes.data ?? [];
   const closedMonth = opps.filter((o) => o.stage === "ganho" && o.closed_at && o.closed_at >= startMonth);
   const closedToday = opps.filter((o) => o.stage === "ganho" && o.closed_at && o.closed_at >= startDay);
@@ -102,7 +102,7 @@ export async function fetchTeamMetrics() {
   const todayRevenue = closedToday.reduce((s, o) => s + Number(o.value), 0);
   const pipelineValue = pipeline.reduce((s, o) => s + Number(o.value), 0);
   const weighted = pipeline.reduce((s, o) => s + (Number(o.value) * (o.probability || 0)) / 100, 0);
-  
+
   const settings = await fetchAppSettings();
   const hqGoal = Number(settings.global_revenue_goal);
   const goal = hqGoal || (goalsRes.data ?? []).reduce((s, g) => s + Number(g.target_amount), 0);

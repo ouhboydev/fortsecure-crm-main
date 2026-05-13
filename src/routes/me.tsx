@@ -29,10 +29,10 @@ export const Route = createFileRoute("/me")({
 });
 
 const TYPE_CONFIG: Record<string, { icon: any; color: string; bg: string }> = {
-  tarefa:   { icon: ListTodo, color: "text-[#a3a3a3]", bg: "bg-[#262626]" },
-  ligacao:  { icon: PhoneCall, color: "text-[#3ecf8e]", bg: "bg-[#3ecf8e]/10" },
-  email:    { icon: Mail, color: "text-[#1eaedb]", bg: "bg-[#1eaedb]/10" },
-  reuniao:  { icon: Users, color: "text-[#f59e0b]", bg: "bg-[#f59e0b]/10" },
+  tarefa: { icon: ListTodo, color: "text-[#a3a3a3]", bg: "bg-[#262626]" },
+  ligacao: { icon: PhoneCall, color: "text-[#3ecf8e]", bg: "bg-[#3ecf8e]/10" },
+  email: { icon: Mail, color: "text-[#1eaedb]", bg: "bg-[#1eaedb]/10" },
+  reuniao: { icon: Users, color: "text-[#f59e0b]", bg: "bg-[#f59e0b]/10" },
   followup: { icon: Target, color: "text-[#a78bfa]", bg: "bg-[#a78bfa]/10" },
 };
 
@@ -66,9 +66,9 @@ function MyPanel() {
     ]);
 
     const opps = oppsRes.data ?? [];
-    const won = opps.filter(o => 
-      o.stage === "ganho" && 
-      o.closed_at && 
+    const won = opps.filter(o =>
+      o.stage === "ganho" &&
+      o.closed_at &&
       qMonths.includes(new Date(o.closed_at).getUTCMonth()) &&
       new Date(o.closed_at).getUTCFullYear() === now.getFullYear()
     );
@@ -107,7 +107,7 @@ function MyPanel() {
         const realized = linked.reduce((s: number, o: any) => s + Number(o.value), 0);
         const qKey = `goal_q${quarter + 1}`;
         const quarterlyMeta = Number(prod.metadata?.[qKey] || 0);
-        
+
         const pct = quarterlyMeta > 0 ? Math.min(Math.round((realized / quarterlyMeta) * 100), 999) : 0;
         return {
           name: prod.name,
@@ -211,7 +211,7 @@ function MyPanel() {
 
       {/* ── Layout Grid ── */}
       <div className="flex flex-col gap-8">
-        
+
         {/* Main KPIs Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <KpiCard
@@ -236,10 +236,10 @@ function MyPanel() {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-          
+
           {/* Left/Middle: Products & Kanban */}
           <div className="xl:col-span-2 flex flex-col gap-8">
-            
+
             {/* ── Product Performance Grid ── */}
             {productData.length > 0 && (
               <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
@@ -405,7 +405,7 @@ function MyPanel() {
                   )}
                 </div>
               </div>
-              
+
               <div className="p-4 border-t border-border bg-secondary/10 shrink-0">
                 <Button variant="ghost" className="w-full text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-[#3ecf8e]" onClick={() => window.location.href = "/activities"}>
                   Ver Agenda Completa
