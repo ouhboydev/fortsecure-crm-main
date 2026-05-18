@@ -391,6 +391,42 @@ function Activities() {
                   )}
                 </div>
               )}
+
+              {/* Seção Colapsável de Atividades Concluídas */}
+              {completedItems.length > 0 && (
+                <div className="mt-8 pt-6 border-t border-border/50">
+                  <button
+                    onClick={() => setShowCompleted(!showCompleted)}
+                    className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-[0.15em] hover:text-foreground transition-colors py-2"
+                  >
+                    <ChevronRight className={cn("h-4 w-4 text-[#3ecf8e] transition-transform duration-200", showCompleted && "rotate-90")} />
+                    Atividades Concluídas ({completedItems.length})
+                  </button>
+
+                  <AnimatePresence>
+                    {showCompleted && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="space-y-2 mt-4 overflow-hidden"
+                      >
+                        {completedItems.map(a => (
+                          <ActivityRow 
+                            key={a.id} 
+                            a={a} 
+                            onComplete={complete} 
+                            onRemove={remove} 
+                            onEdit={openEdit}
+                            currentUserId={user?.id} 
+                          />
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
             </div>
           ) : (
             <CalendarView items={items.filter(i => i.status !== "concluida")} selectedDate={selectedDate} onSelect={setSelectedDate} onNew={openNew} onEdit={openEdit} user={user} />
