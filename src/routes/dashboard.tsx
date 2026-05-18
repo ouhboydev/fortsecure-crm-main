@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { AppShell } from "@/components/layout/AppShell";
 import { formatCurrency } from "@/components/ui-kit/PageHeader";
 import { WidgetCard } from "@/components/ui-kit/WidgetCard";
@@ -67,6 +68,9 @@ function Dashboard() {
   const [fieldActivities, setFieldActivities] = useState<any[]>([]);
   const [activityFilter, setActivityFilter] = useState<"all" | "reuniao" | "visita">("all");
   const [focusedOpps, setFocusedOpps] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [focoClientSearch, setFocoClientSearch] = useState("");
+  const [focoProductFilter, setFocoProductFilter] = useState("all");
   const getQuarterIndex = (month: number) => Math.floor(month / 3);
   const [selectedPeriod, setSelectedPeriod] = useState(getQuarterIndex(new Date().getMonth()).toString());
 
@@ -281,6 +285,7 @@ function Dashboard() {
       // Foco Comercial (Proposta & Negociação)
       const focus = opps.filter(o => ["proposta", "negociacao"].includes(o.stage));
       setFocusedOpps(focus);
+      setProducts(prods);
     } catch (err: any) {
       toast.error("Erro ao sincronizar: " + err.message);
     } finally {
@@ -660,19 +665,47 @@ function Dashboard() {
         {/* Foco Comercial - Mini Kanban (Only when seller selected) */}
         {selectedSeller !== "all" && (
           <div className="lg:col-span-4 bg-card border border-border rounded-lg overflow-hidden flex flex-col">
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between bg-muted/20">
+            <div className="px-5 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-muted/20">
               <div className="flex items-center gap-2">
                 <Target className="h-4 w-4 text-[#3ecf8e]" />
                 <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">Foco Comercial</h2>
+                <Badge variant="outline" className="text-[10px] bg-[#3ecf8e]/10 border-[#3ecf8e]/20 text-[#3ecf8e]">
+                  {focusedOpps.length} Oportunidades Ativas
+                </Badge>
               </div>
-              <Badge variant="outline" className="text-[10px] bg-[#3ecf8e]/10 border-[#3ecf8e]/20 text-[#3ecf8e]">
-                {focusedOpps.length} Oportunidades Ativas
-              </Badge>
+
+              {/* Filtros */}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Input
+                  placeholder="Buscar cliente..."
+                  value={focoClientSearch}
+                  onChange={e => setFocoClientSearch(e.target.value)}
+                  className="h-8 text-xs bg-background/50 border-border max-w-[150px] w-full"
+                />
+                <Select value={focoProductFilter} onValueChange={setFocoProductFilter}>
+                  <SelectTrigger className="h-8 text-xs bg-background/50 border-border max-w-[160px] w-full">
+                    <SelectValue placeholder="Produto" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    <SelectItem value="all">Todos os produtos</SelectItem>
+                    {products.filter(p => p.metadata?.goal_active).map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="grid grid-cols-2 h-[260px] divide-x divide-border">
+            <div className="grid grid-cols-2 h-[380px] divide-x divide-border">
               {["proposta", "negociacao"].map(stageKey => {
                 const stage = STAGES.find(s => s.key === stageKey);
-                const stageOpps = focusedOpps.filter(o => o.stage === stageKey);
+                const stageOpps = focusedOpps
+                  .filter(o => o.stage === stageKey)
+                  .filter(o => {
+                    const matchesClient = !focoClientSearch || o.client_name.toLowerCase().includes(focoClientSearch.toLowerCase());
+                    const matchesProduct = focoProductFilter === "all" || o.metadata?.product_id === focoProductFilter;
+                    return matchesClient && matchesProduct;
+                  });
+
                 return (
                   <div key={stageKey} className="flex flex-col h-full overflow-hidden">
                     <div className="px-4 py-2 border-b border-border bg-card/50 flex items-center justify-between shrink-0">
@@ -686,18 +719,40 @@ function Dashboard() {
                           <span className="text-[9px] uppercase font-bold">Vazio</span>
                         </div>
                       )}
-                      {stageOpps.map(o => (
-                        <div key={o.id} className="p-3 bg-secondary/40 border border-border/50 rounded-lg hover:border-[#3ecf8e]/30 transition-all group">
-                          <p className="text-[10px] font-bold text-foreground line-clamp-1 mb-1">{o.client_name}</p>
-                          <div className="flex justify-between items-end">
-                            <span className="text-[11px] font-black text-[#3ecf8e] font-mono">{formatCurrency(o.value)}</span>
-                            <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
-                              <ArrowUpRight className="h-2.5 w-2.5" />
-                              {o.probability}%
+                      {stageOpps.map(o => {
+                        const prod = products.find(p => p.id === o.metadata?.product_id);
+                        return (
+                          <div key={o.id} className="p-3 bg-secondary/40 border border-border/50 rounded-lg hover:border-[#3ecf8e]/30 transition-all group flex flex-col gap-2">
+                            <div className="flex flex-col gap-1 min-w-0">
+                              <span className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.1em] truncate">
+                                Cliente
+                              </span>
+                              <p className="text-[11px] font-bold text-foreground truncate leading-snug">
+                                {o.client_name}
+                              </p>
+                            </div>
+
+                            {prod && (
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.1em]">
+                                  Produto
+                                </span>
+                                <span className="text-[9px] font-bold text-blue-400 truncate bg-blue-500/5 border border-blue-500/10 px-1.5 py-0.5 rounded w-max">
+                                  {prod.name}
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="flex justify-between items-end pt-2 border-t border-border/30 mt-1">
+                              <span className="text-[11px] font-black text-[#3ecf8e] font-mono">{formatCurrency(o.value)}</span>
+                              <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                                <ArrowUpRight className="h-2.5 w-2.5" />
+                                {o.probability}%
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 );
