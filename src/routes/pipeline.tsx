@@ -269,6 +269,17 @@ function SalesPipeline() {
                   </SelectContent>
                 </Select>
               )}
+              {!canManage && (
+                <Select value={selectedSellerId} onValueChange={setSelectedSellerId}>
+                  <SelectTrigger className="h-9 w-44 bg-card border-border text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    <SelectItem value="all">Todos os Negócios</SelectItem>
+                    <SelectItem value={user?.id || "me"}>Meu Pipeline Pessoal</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
               <Select value={selectedStage} onValueChange={setSelectedStage}>
                 <SelectTrigger className="h-9 w-40 bg-card border-border text-xs">
                   <SelectValue placeholder="Estágio" />
@@ -416,6 +427,12 @@ function SalesPipeline() {
                           </Draggable>
                         ))}
                         {provided.placeholder}
+                      </div>
+                      <div className="p-4 border-t border-border bg-card/60 flex items-center justify-between shrink-0">
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.15em]">Total da Etapa</span>
+                        <span className="text-sm font-extrabold text-foreground font-mono tabular-nums">
+                          {formatCurrency(filtered.filter(o => o.stage === s.key).reduce((sum, o) => sum + Number(o.value || 0), 0))}
+                        </span>
                       </div>
                     </div>
                   )}

@@ -32,6 +32,7 @@ const STAGE_COLORS: Record<string, string> = {
   proposta: "#1eaedb",
   negociacao: "#f59e0b",
   ganho: "#3ecf8e",
+  perdido: "#ef4444",
 };
 const STAGES = [
   { key: "prospect", label: "Prospect", color: "#71717a" },
@@ -39,6 +40,7 @@ const STAGES = [
   { key: "proposta", label: "Proposta", color: "#1eaedb" },
   { key: "negociacao", label: "Negociação", color: "#f59e0b" },
   { key: "ganho", label: "Fechado", color: "#3ecf8e" },
+  { key: "perdido", label: "Perdido", color: "#ef4444" },
 ];
 
 const TOOLTIP_STYLE = {
@@ -262,10 +264,14 @@ function Dashboard() {
           const qKey = `goal_q${parseInt(selectedPeriod) + 1}`;
           const quarterlyMeta = prod.metadata?.[qKey] ? Number(prod.metadata[qKey]) : 0;
 
+          const finalMeta = selectedSeller !== "all"
+            ? (sGoal ? Number(sGoal) : 0)
+            : quarterlyMeta;
+
           return {
             name: prod.name,
             Receita: linked.reduce((s: number, o: any) => s + Number(o.value), 0),
-            Meta: quarterlyMeta,
+            Meta: finalMeta,
             color: prod.metadata?.color ?? "#3ecf8e",
           };
         })

@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Trophy, Briefcase,
   Tv, Brain, Settings, LogOut, Activity, User as UserIcon, Kanban,
   TrendingUp, ListTodo, UserCircle, PhoneCall, Package,
-  BarChart, Target, ChevronDown, Search
+  BarChart, Target, ChevronDown, Search, BookOpen
 } from "lucide-react";
 import { cn, formatDisplayName } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -33,15 +33,15 @@ const nav: NavGroup[] = [
   {
     group: "Geral", items: [
       { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { to: "/knowledge", label: "Base de Conhecimento", icon: BookOpen },
     ]
   },
   {
     group: "Pessoal", items: [
       { to: "/me", label: "Meu Painel", icon: UserCircle },
-      { to: "/tracker", label: "Tracker", icon: PhoneCall },
       { to: "/customers", label: "Clientes", icon: Users },
       { to: "/pipeline", label: "Pipeline", icon: Kanban },
-      { to: "/activities", label: "Agenda", icon: ListTodo },
+      { to: "/activities", label: "Agenda & Tracker", icon: ListTodo },
     ]
   },
   {
@@ -104,7 +104,7 @@ export function Sidebar() {
               if (it.manager) return isManager || isAdmin;
               if (it.hideForAdmin && isAdmin) return false;
               if (isViewer) {
-                const allowed = ["/dashboard", "/ranking", "/tv", "/products", "/performance", "/customers"];
+                const allowed = ["/dashboard", "/ranking", "/tv", "/products", "/performance", "/customers", "/knowledge"];
                 return allowed.includes(it.to);
               }
               return true;

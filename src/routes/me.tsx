@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { motion } from "framer-motion";
 import {
   TrendingUp, Target, Award, Plus, Zap,
-  PhoneCall, Mail, Users, ListTodo,
+  PhoneCall, Mail, Users, ListTodo, MapPin,
   CheckCircle2, Clock, Loader2, ArrowUpRight, Package,
 } from "lucide-react";
 import { cn, formatDisplayName } from "@/lib/utils";
@@ -29,11 +29,12 @@ export const Route = createFileRoute("/me")({
 });
 
 const TYPE_CONFIG: Record<string, { icon: any; color: string; bg: string }> = {
-  tarefa: { icon: ListTodo, color: "text-[#a3a3a3]", bg: "bg-[#262626]" },
+  tarefa:  { icon: ListTodo,  color: "text-[#a3a3a3]", bg: "bg-[#262626]" },
   ligacao: { icon: PhoneCall, color: "text-[#3ecf8e]", bg: "bg-[#3ecf8e]/10" },
-  email: { icon: Mail, color: "text-[#1eaedb]", bg: "bg-[#1eaedb]/10" },
-  reuniao: { icon: Users, color: "text-[#f59e0b]", bg: "bg-[#f59e0b]/10" },
-  followup: { icon: Target, color: "text-[#a78bfa]", bg: "bg-[#a78bfa]/10" },
+  email:   { icon: Mail,      color: "text-[#1eaedb]", bg: "bg-[#1eaedb]/10" },
+  reuniao: { icon: Users,     color: "text-[#f59e0b]", bg: "bg-[#f59e0b]/10" },
+  visita:  { icon: MapPin,    color: "text-[#1eaedb]", bg: "bg-[#1eaedb]/10" },
+  followup:{ icon: Target,    color: "text-[#a78bfa]", bg: "bg-[#a78bfa]/10" },
 };
 
 function MyPanel() {
@@ -448,6 +449,7 @@ function MyPanel() {
                       <SelectItem value="ligacao">Ligação</SelectItem>
                       <SelectItem value="email">E-mail</SelectItem>
                       <SelectItem value="reuniao">Reunião</SelectItem>
+                      <SelectItem value="visita">Visita</SelectItem>
                       <SelectItem value="followup">Follow-up</SelectItem>
                     </SelectContent>
                   </Select>
