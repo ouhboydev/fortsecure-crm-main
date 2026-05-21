@@ -118,7 +118,7 @@ function Dashboard() {
         supabase.from("goals").select("target_amount, user_id, month").eq("year", now.getFullYear()),
         supabase.from("meetings").select("id", { count: "exact", head: true }).gte("scheduled_at", firstDay).lte("scheduled_at", lastDay),
         supabase.from("app_settings").select("*").eq("key", "global_revenue_goal").single(),
-        supabase.from("activities").select("*, profiles(full_name)").eq("type", "reuniao").gte("due_date", firstDay).lte("due_date", lastDay).order("due_date", { ascending: false }).limit(50),
+        supabase.from("activities").select("*, profiles(full_name)").in("type", ["reuniao", "visita"]).gte("due_date", firstDay).lte("due_date", lastDay).order("due_date", { ascending: false }).limit(1000),
         supabase.from("user_roles").select("user_id, role"),
         supabase.from("products").select("*"),
       ]);
