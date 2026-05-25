@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Trophy, Briefcase,
   Tv, Brain, Settings, LogOut, Activity, User as UserIcon, Kanban,
   TrendingUp, ListTodo, UserCircle, PhoneCall, Package,
-  BarChart, Target, ChevronDown, Search, BookOpen
+  BarChart, Target, ChevronDown, Search, BookOpen, Workflow
 } from "lucide-react";
 import { cn, formatDisplayName } from "@/lib/utils";
 import { useState, useEffect } from "react";

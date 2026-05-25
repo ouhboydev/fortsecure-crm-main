@@ -12,6 +12,11 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FlowModal } from "@/components/ui-kit/FlowModal";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PlaybookViewer } from "@/components/playbook/PlaybookViewer";
+import { PlaybookBuilder } from "@/components/playbook/PlaybookBuilder";
+import { playbooksData, Playbook } from "@/lib/playbooks-data";
+import { Workflow } from "lucide-react";
 
 export const Route = createFileRoute("/knowledge")({
   component: () => <AppShell><KnowledgeBase /></AppShell>,
@@ -50,28 +55,35 @@ function KnowledgeBase() {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [expandedFlow, setExpandedFlow] = useState<string | null>(null);
   const [expandedStep, setExpandedStep] = useState<string | null>(null);
-
+  
   // Admin state
   const [adminOpen, setAdminOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [builderOpen, setBuilderOpen] = useState(false);
   const [editingFlow, setEditingFlow] = useState<KbFlow | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [dbPlaybooks, setDbPlaybooks] = useState<Playbook[]>([]);
+  
+  const [expandedPlaybook, setExpandedPlaybook] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("knowledge_flows")
-        .select("*")
-        .order("order", { ascending: true });
+      const [{ data, error }, { data: pbData }] = await Promise.all([
+        supabase.from("knowledge_flows").select("*").order("order", { ascending: true }),
+        supabase.from("interactive_playbooks").select("*")
+      ]);
       if (error) throw error;
       const parsed = (data || []).map((d: any) => ({
         ...d,
-        steps: Array.isArray(d.steps) ? d.steps : [],
-        tags: Array.isArray(d.tags) ? d.tags : [],
+        steps: typeof d.steps === 'string' ? JSON.parse(d.steps) : d.steps
       })) as KbFlow[];
       setFlows(parsed);
       if (parsed.length > 0 && !expandedFlow) setExpandedFlow(parsed[0].id);
+
+      if (pbData) {
+        setDbPlaybooks(pbData as any);
+      }
     } catch {
       toast.error("Erro ao carregar a base de conhecimento");
     } finally {
@@ -79,7 +91,9 @@ function KnowledgeBase() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   async function handleDelete(id: string) {
     if (!confirm("Tem certeza que deseja excluir este fluxo? Esta ação não pode ser desfeita.")) return;
@@ -106,42 +120,67 @@ function KnowledgeBase() {
     const matchTag = !selectedTag || f.tags.includes(selectedTag);
     return matchSearch && matchCat && matchTag;
   });
+  
+  const filteredPlaybooks = dbPlaybooks.length > 0 
+    ? dbPlaybooks.filter(p => p.title.toLowerCase().includes(search.toLowerCase()))
+    : playbooksData.filter(p => p.title.toLowerCase().includes(search.toLowerCase()));
+
+  const toggleExpand = (id: string) => {
+    setExpandedFlow(expandedFlow === id ? null : id);
+    setExpandedPlaybook(null);
+  };
+
+  const togglePlaybookExpand = (id: string) => {
+    setExpandedPlaybook(expandedPlaybook === id ? null : id);
+    setExpandedFlow(null);
+  };
 
   return (
     <div className="flex flex-col gap-6 p-6 lg:p-8 max-w-[1400px] mx-auto pb-16">
 
       {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-border">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-border mb-2">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-lg bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 flex items-center justify-center shrink-0">
             <BookOpen className="h-4 w-4 text-[#3ecf8e]" />
           </div>
           <div>
             <h1 className="text-xl font-semibold text-foreground">Base de Conhecimento</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Fluxos e processos de vendas para consulta rápida</p>
+            <p className="text-sm text-muted-foreground mt-0.5">Fluxos, playbooks e manuais unificados</p>
           </div>
         </div>
+        
         <div className="flex items-center gap-2">
           {isAdmin && (
-            <Button
-              onClick={() => setAdminOpen(v => !v)}
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-9 gap-2 text-xs border-border transition-all",
-                adminOpen && "bg-amber-500/10 border-amber-500/30 text-amber-400"
-              )}
-            >
-              <Shield className="h-3.5 w-3.5" />
-              Gerenciar Base
-            </Button>
+            <>
+              <Button
+                onClick={() => setAdminOpen(v => !v)}
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "h-9 gap-2 text-xs border-border transition-all",
+                  adminOpen && "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                )}
+              >
+                <Shield className="h-3.5 w-3.5" />
+                Gerenciar Base
+              </Button>
+              <Button
+                onClick={() => setBuilderOpen(true)}
+                size="sm"
+                className="h-9 gap-2 text-xs bg-[#3ecf8e] text-black font-semibold hover:bg-[#3ecf8e]/90"
+              >
+                <Workflow className="h-3.5 w-3.5" />
+                Novo Playbook
+              </Button>
+            </>
           )}
-          <div className="relative w-full sm:w-[260px]">
+          <div className="relative w-full sm:w-[220px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar fluxo ou produto..."
+              placeholder="Buscar fluxo..."
               className="w-full h-9 pl-9 pr-8 bg-card border border-border rounded-md text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[#3ecf8e]/50 transition-colors"
             />
             {search && (
@@ -422,6 +461,43 @@ function KnowledgeBase() {
         </div>
       )}
 
+      {/* ── Playbooks Interativos ── */}
+      {filteredPlaybooks.length > 0 && (
+        <div className="flex flex-col gap-3 mt-2">
+          <h2 className="text-sm font-semibold text-muted-foreground mb-1">Playbooks Interativos</h2>
+          {filteredPlaybooks.map(pb => (
+            <div key={pb.id} className="border border-border rounded-lg bg-card/50 overflow-hidden transition-all duration-300">
+              <div className="p-2">
+                <button 
+                  onClick={() => togglePlaybookExpand(pb.id)}
+                  className="w-full flex items-center justify-between p-3 rounded-md hover:bg-white/5 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: '#3ecf8e20' }}>
+                      <Workflow className="w-5 h-5" style={{ color: '#3ecf8e' }} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-foreground text-sm">{pb.title}</h3>
+                        <span className="text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-[#3ecf8e]/10 text-[#3ecf8e]">Interativo</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{pb.description}</p>
+                    </div>
+                  </div>
+                  <ChevronDown className={cn("w-5 h-5 text-muted-foreground transition-transform duration-300", expandedPlaybook === pb.id && "rotate-180")} />
+                </button>
+              </div>
+              
+              {expandedPlaybook === pb.id && (
+                <div className="border-t border-border p-4 bg-background">
+                  <PlaybookViewer playbook={pb} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* ── Admin Modal ── */}
       {isAdmin && (
         <FlowModal
@@ -429,6 +505,14 @@ function KnowledgeBase() {
           onClose={() => { setModalOpen(false); setEditingFlow(null); }}
           onSaved={() => { setModalOpen(false); setEditingFlow(null); load(); }}
           editingFlow={editingFlow}
+        />
+      )}
+
+      {/* ── Playbook Builder ── */}
+      {isAdmin && builderOpen && (
+        <PlaybookBuilder
+          onClose={() => setBuilderOpen(false)}
+          onSaved={() => { setBuilderOpen(false); load(); }}
         />
       )}
     </div>
