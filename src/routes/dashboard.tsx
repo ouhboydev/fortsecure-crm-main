@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { AppShell } from "@/components/layout/AppShell";
 import { formatCurrency } from "@/components/ui-kit/PageHeader";
 import { WidgetCard } from "@/components/ui-kit/WidgetCard";
@@ -71,6 +73,7 @@ function Dashboard() {
   const [products, setProducts] = useState<any[]>([]);
   const [focoClientSearch, setFocoClientSearch] = useState("");
   const [focoProductFilter, setFocoProductFilter] = useState("all");
+  const [focoMonthFilter, setFocoMonthFilter] = useState<string[]>(["quarter"]);
   const getQuarterIndex = (month: number) => Math.floor(month / 3);
   const [selectedPeriod, setSelectedPeriod] = useState(getQuarterIndex(new Date().getMonth()).toString());
 
@@ -287,7 +290,6 @@ function Dashboard() {
         if (["proposta", "negociacao"].includes(o.stage)) return true;
         if (o.stage === "ganho") {
           return o.closed_at &&
-            qMonths.includes(new Date(o.closed_at).getUTCMonth()) &&
             new Date(o.closed_at).getUTCFullYear() === now.getFullYear();
         }
         return false;
@@ -701,6 +703,72 @@ function Dashboard() {
                     ))}
                   </SelectContent>
                 </Select>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="h-8 text-xs bg-background/50 border-border max-w-[150px] w-full justify-between font-normal px-3">
+                      {focoMonthFilter.includes("quarter") ? "Trimestre Atual" :
+                       focoMonthFilter.includes("year") ? "Ano Inteiro" :
+                       focoMonthFilter.length === 1 ? MONTH_SHORT[parseInt(focoMonthFilter[0])] :
+                       `${focoMonthFilter.length} meses`}
+                      <Calendar className="h-3.5 w-3.5 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-4 bg-card border-border shadow-xl" align="end">
+                    <div className="space-y-3">
+                      <h4 className="font-semibold text-xs leading-none text-muted-foreground uppercase tracking-wider mb-2">Filtro de Meses</h4>
+                      <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-2 bg-secondary/30 p-2 rounded-md">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox 
+                              id="filter-quarter" 
+                              checked={focoMonthFilter.includes("quarter")}
+                              onCheckedChange={() => setFocoMonthFilter(["quarter"])}
+                            />
+                            <label htmlFor="filter-quarter" className="text-xs font-medium leading-none cursor-pointer">
+                              Trimestre Atual
+                            </label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox 
+                              id="filter-year" 
+                              checked={focoMonthFilter.includes("year")}
+                              onCheckedChange={() => setFocoMonthFilter(["year"])}
+                            />
+                            <label htmlFor="filter-year" className="text-xs font-medium leading-none cursor-pointer">
+                              Ano Inteiro
+                            </label>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-y-3 gap-x-2 px-1">
+                          {MONTH_SHORT.map((m, i) => (
+                            <div key={i} className="flex items-center space-x-2">
+                              <Checkbox 
+                                id={`filter-month-${i}`}
+                                checked={focoMonthFilter.includes(i.toString())}
+                                onCheckedChange={() => {
+                                  setFocoMonthFilter(prev => {
+                                    let next = prev.filter(v => v !== "quarter" && v !== "year");
+                                    if (next.includes(i.toString())) {
+                                      next = next.filter(v => v !== i.toString());
+                                    } else {
+                                      next = [...next, i.toString()];
+                                    }
+                                    if (next.length === 0) return ["quarter"];
+                                    return next;
+                                  });
+                                }}
+                              />
+                              <label htmlFor={`filter-month-${i}`} className="text-xs leading-none cursor-pointer hover:text-foreground/80 transition-colors">
+                                {m}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 h-auto sm:h-[380px] divide-y sm:divide-y-0 sm:divide-x divide-border">
@@ -711,6 +779,23 @@ function Dashboard() {
                   .filter(o => {
                     const matchesClient = !focoClientSearch || o.client_name.toLowerCase().includes(focoClientSearch.toLowerCase());
                     const matchesProduct = focoProductFilter === "all" || o.metadata?.product_id === focoProductFilter;
+                    
+                    if (stageKey === "ganho") {
+                      if (!focoMonthFilter.includes("quarter") && !focoMonthFilter.includes("year")) {
+                        if (o.closed_at && !focoMonthFilter.includes(new Date(o.closed_at).getUTCMonth().toString())) return false;
+                      } else if (focoMonthFilter.includes("quarter")) {
+                        if (o.closed_at) {
+                          const month = new Date(o.closed_at).getUTCMonth();
+                          const selectedQ = parseInt(selectedPeriod);
+                          const qMonths: number[] = [];
+                          for (let i = 0; i <= selectedQ; i++) {
+                            qMonths.push(...QUARTER_MONTHS[i.toString()]);
+                          }
+                          if (!qMonths.includes(month)) return false;
+                        }
+                      }
+                    }
+
                     return matchesClient && matchesProduct;
                   });
 
