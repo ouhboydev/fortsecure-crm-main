@@ -282,8 +282,16 @@ function Dashboard() {
         .sort((a, b) => b.Receita - a.Receita);
       setProductData(productBreakdown);
 
-      // Foco Comercial (Proposta & Negociação)
-      const focus = opps.filter(o => ["proposta", "negociacao"].includes(o.stage));
+      // Foco Comercial (Proposta, Negociação & Ganhos)
+      const focus = opps.filter(o => {
+        if (["proposta", "negociacao"].includes(o.stage)) return true;
+        if (o.stage === "ganho") {
+          return o.closed_at &&
+            qMonths.includes(new Date(o.closed_at).getUTCMonth()) &&
+            new Date(o.closed_at).getUTCFullYear() === now.getFullYear();
+        }
+        return false;
+      });
       setFocusedOpps(focus);
       setProducts(prods);
     } catch (err: any) {
@@ -695,8 +703,8 @@ function Dashboard() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 h-[380px] divide-x divide-border">
-              {["proposta", "negociacao"].map(stageKey => {
+            <div className="grid grid-cols-1 sm:grid-cols-3 h-auto sm:h-[380px] divide-y sm:divide-y-0 sm:divide-x divide-border">
+              {["proposta", "negociacao", "ganho"].map(stageKey => {
                 const stage = STAGES.find(s => s.key === stageKey);
                 const stageOpps = focusedOpps
                   .filter(o => o.stage === stageKey)
@@ -709,7 +717,9 @@ function Dashboard() {
                 return (
                   <div key={stageKey} className="flex flex-col h-full overflow-hidden">
                     <div className="px-4 py-2 border-b border-border bg-card/50 flex items-center justify-between shrink-0">
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{stage?.label}</span>
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                        {stageKey === "ganho" ? "Ganhos" : stage?.label}
+                      </span>
                       <span className="text-[10px] font-mono text-foreground font-bold">{formatCurrency(stageOpps.reduce((s, o) => s + Number(o.value), 0))}</span>
                     </div>
                     <div className="flex-1 overflow-y-auto p-3 space-y-2 no-scrollbar bg-card/30">
@@ -722,7 +732,15 @@ function Dashboard() {
                       {stageOpps.map(o => {
                         const prod = products.find(p => p.id === o.metadata?.product_id);
                         return (
-                          <div key={o.id} className="p-3 bg-secondary/40 border border-border/50 rounded-lg hover:border-[#3ecf8e]/30 transition-all group flex flex-col gap-2">
+                          <div
+                            key={o.id}
+                            className={cn(
+                              "p-3 bg-secondary/40 border border-border/50 rounded-lg transition-all group flex flex-col gap-2",
+                              stageKey === "ganho"
+                                ? "hover:border-[#3ecf8e]/40 hover:bg-[#3ecf8e]/5"
+                                : "hover:border-[#3ecf8e]/30"
+                            )}
+                          >
                             <div className="flex flex-col gap-1 min-w-0">
                               <span className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.1em] truncate">
                                 Cliente
