@@ -16,6 +16,7 @@ import {
   Handle,
   Position,
   BackgroundVariant,
+  MiniMap,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Button } from '@/components/ui/button';
@@ -24,7 +25,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Playbook, PlaybookNodeType } from '@/lib/playbooks-data';
-import { Save, Plus, Trash2, X, Settings2, ArrowLeft } from 'lucide-react';
+import { 
+  Save, Plus, Trash2, X, Settings2, ArrowLeft, Copy,
+  GitFork, CheckSquare, Flag
+} from 'lucide-react';
 
 interface PlaybookBuilderProps {
   initialPlaybook?: Playbook;
@@ -42,42 +46,75 @@ const NODE_COLORS: Record<string, string> = {
 
 const CustomNodeComponent = ({ data, selected }: any) => {
   const color = NODE_COLORS[data.type] || '#3ecf8e';
+  const Icon = data.type === 'task' 
+    ? CheckSquare 
+    : data.type === 'condition' 
+    ? GitFork 
+    : Flag;
+
   return (
     <div
       style={{
-        border: `2px solid ${selected ? color : '#3f3f46'}`,
-        boxShadow: selected ? `0 0 0 3px ${color}30` : undefined,
-        transition: 'border-color 0.15s, box-shadow 0.15s',
+        border: `2px solid ${selected ? color : '#27272a'}`,
+        boxShadow: selected ? `0 0 12px ${color}40` : '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+        transition: 'all 0.2s ease-in-out',
       }}
-      className="bg-[#1c1c1c] rounded-xl px-4 py-3 min-w-[170px] max-w-[220px] select-none"
+      className="bg-[#18181b] hover:bg-[#202024] rounded-xl px-4 py-3 min-w-[180px] max-w-[235px] select-none text-left"
     >
       <Handle
         type="target"
         position={Position.Top}
-        style={{ background: color, width: 10, height: 10 }}
+        style={{ background: color, width: 8, height: 8 }}
       />
-      <div
-        className="text-[8px] uppercase font-black tracking-widest mb-1.5"
-        style={{ color }}
-      >
-        {data.type === 'task'
-          ? 'Tarefa'
-          : data.type === 'condition'
-          ? 'Condição'
-          : 'Fim'}
+      <div className="flex items-center gap-1.5 mb-2">
+        <Icon className="w-3.5 h-3.5" style={{ color }} />
+        <span
+          className="text-[8px] uppercase font-bold tracking-wider"
+          style={{ color }}
+        >
+          {data.type === 'task'
+            ? 'Tarefa'
+            : data.type === 'condition'
+            ? 'Condição'
+            : 'Fim'}
+        </span>
       </div>
-      <div className="font-semibold text-[12px] leading-tight text-white">
+      <div className="font-semibold text-xs leading-tight text-white truncate">
         {data.title || 'Sem título'}
       </div>
       {data.description && (
-        <div className="text-[10px] text-zinc-400 mt-1.5 line-clamp-2">
+        <div className="text-[10px] text-zinc-400 mt-1.5 line-clamp-2 leading-normal">
           {data.description}
         </div>
       )}
+      
+      {/* Condições Visuais no Nó */}
+      {data.type === 'condition' && data.options && data.options.length > 0 && (
+        <div className="mt-3 pt-2.5 border-t border-zinc-800 space-y-1">
+          {data.options.map((opt: any) => (
+            <div
+              key={opt.id}
+              className="text-[9px] text-zinc-300 bg-zinc-900/60 rounded px-2 py-1 flex items-center justify-between border border-zinc-800/40"
+            >
+              <span className="truncate mr-1 font-medium">{opt.label}</span>
+              {opt.targetId ? (
+                <span className="text-[7px] bg-[#3ecf8e]/10 text-[#3ecf8e] px-1 rounded border border-[#3ecf8e]/20 shrink-0 font-semibold">
+                  → Conectado
+                </span>
+              ) : (
+                <span className="text-[7px] bg-red-500/10 text-red-400 px-1 rounded border border-red-500/20 shrink-0 font-semibold">
+                  Pendente
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       <Handle
         type="source"
         position={Position.Bottom}
-        style={{ background: color, width: 10, height: 10 }}
+        style={{ background: color, width: 8, height: 8 }}
       />
     </div>
   );
@@ -128,16 +165,46 @@ function BuilderContent({ initialPlaybook, onClose, onSaved }: PlaybookBuilderPr
     []
   );
   const onConnect = useCallback(
-    (params: Connection) =>
+    (params: Connection) => {
+      // Sincronizar conexão a partir de uma condição
+      let edgeLabel = '';
+      setNodes((nds) => {
+        const sourceNode = nds.find((n) => n.id === params.source);
+        if (sourceNode && sourceNode.data.type === 'condition') {
+          const options = [...((sourceNode.data.options as any[]) || [])];
+          const openOptIndex = options.findIndex((o) => !o.targetId);
+          if (openOptIndex !== -1) {
+            options[openOptIndex] = { ...options[openOptIndex], targetId: params.target };
+            edgeLabel = options[openOptIndex].label;
+          } else {
+            const newLabel = `Opção ${options.length + 1}`;
+            options.push({
+              id: `opt-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+              label: newLabel,
+              targetId: params.target,
+            });
+            edgeLabel = newLabel;
+          }
+          return nds.map((n) => (n.id === params.source ? { ...n, data: { ...n.data, options } } : n));
+        }
+        return nds;
+      });
+
       setEdges((eds) =>
         addEdge(
           {
             ...params,
+            label: edgeLabel || undefined,
             style: { stroke: '#3ecf8e', strokeWidth: 2 },
+            labelStyle: { fill: '#fff', fontWeight: 700, fontSize: 11 },
+            labelBgStyle: { fill: '#171717', fillOpacity: 0.9 },
+            labelBgPadding: [4, 6] as [number, number],
+            labelBgBorderRadius: 4,
           },
           eds
         )
-      ),
+      );
+    },
     []
   );
 
@@ -167,7 +234,7 @@ function BuilderContent({ initialPlaybook, onClose, onSaved }: PlaybookBuilderPr
         description: '',
         options:
           type === 'condition'
-            ? [{ id: getId(), label: 'Opção A', targetId: '' }]
+            ? [{ id: `opt-${Date.now()}`, label: 'Opção A', targetId: '' }]
             : undefined,
       },
     };
@@ -183,8 +250,191 @@ function BuilderContent({ initialPlaybook, onClose, onSaved }: PlaybookBuilderPr
     );
   };
 
+  // ─── Novas Ações de Sincronização ──────────────────────────────────────────
+
+  const updateConditionOptionLabel = (optionIndex: number, newLabel: string) => {
+    if (!selectedNodeId) return;
+    setNodes((nds) => {
+      const node = nds.find((n) => n.id === selectedNodeId);
+      if (!node || node.data.type !== 'condition') return nds;
+
+      const options = [...((node.data.options as any[]) || [])];
+      const targetId = options[optionIndex]?.targetId;
+      options[optionIndex] = { ...options[optionIndex], label: newLabel };
+
+      // Se existir uma aresta conectada a esse target, atualiza a label dela
+      if (targetId) {
+        setEdges((eds) =>
+          eds.map((e) =>
+            e.source === selectedNodeId && e.target === targetId
+              ? { ...e, label: newLabel }
+              : e
+          )
+        );
+      }
+
+      return nds.map((n) =>
+        n.id === selectedNodeId ? { ...n, data: { ...n.data, options } } : n
+      );
+    });
+  };
+
+  const updateConditionOptionTarget = (optionIndex: number, newTargetId: string) => {
+    if (!selectedNodeId) return;
+    setNodes((nds) => {
+      const node = nds.find((n) => n.id === selectedNodeId);
+      if (!node || node.data.type !== 'condition') return nds;
+
+      const options = [...((node.data.options as any[]) || [])];
+      const oldTargetId = options[optionIndex]?.targetId;
+      const optionLabel = options[optionIndex]?.label || '';
+      options[optionIndex] = { ...options[optionIndex], targetId: newTargetId };
+
+      setEdges((eds) => {
+        let updatedEdges = [...eds];
+
+        // Remover aresta antiga se não for usada por nenhuma outra opção
+        if (oldTargetId) {
+          const isOldTargetStillUsed = options.some((o, idx) => idx !== optionIndex && o.targetId === oldTargetId);
+          if (!isOldTargetStillUsed) {
+            updatedEdges = updatedEdges.filter(
+              (e) => !(e.source === selectedNodeId && e.target === oldTargetId)
+            );
+          }
+        }
+
+        // Adicionar ou atualizar aresta nova
+        if (newTargetId) {
+          const existingEdgeIndex = updatedEdges.findIndex(
+            (e) => e.source === selectedNodeId && e.target === newTargetId
+          );
+
+          if (existingEdgeIndex !== -1) {
+            updatedEdges[existingEdgeIndex] = {
+              ...updatedEdges[existingEdgeIndex],
+              label: optionLabel,
+            };
+          } else {
+            updatedEdges.push({
+              id: `edge-${selectedNodeId}-${newTargetId}-${Date.now()}`,
+              source: selectedNodeId,
+              target: newTargetId,
+              label: optionLabel,
+              style: { stroke: '#3ecf8e', strokeWidth: 2 },
+              labelStyle: { fill: '#fff', fontWeight: 700, fontSize: 11 },
+              labelBgStyle: { fill: '#171717', fillOpacity: 0.9 },
+              labelBgPadding: [4, 6] as [number, number],
+              labelBgBorderRadius: 4,
+            });
+          }
+        }
+
+        return updatedEdges;
+      });
+
+      return nds.map((n) =>
+        n.id === selectedNodeId ? { ...n, data: { ...n.data, options } } : n
+      );
+    });
+  };
+
+  const deleteConditionOption = (optionIndex: number) => {
+    if (!selectedNodeId) return;
+    setNodes((nds) => {
+      const node = nds.find((n) => n.id === selectedNodeId);
+      if (!node || node.data.type !== 'condition') return nds;
+
+      const options = [...((node.data.options as any[]) || [])];
+      const targetId = options[optionIndex]?.targetId;
+      options.splice(optionIndex, 1);
+
+      // Remover aresta correspondente se não for usada por mais ninguém
+      if (targetId) {
+        const isTargetStillUsed = options.some((o) => o.targetId === targetId);
+        if (!isTargetStillUsed) {
+          setEdges((eds) =>
+            eds.filter((e) => !(e.source === selectedNodeId && e.target === targetId))
+          );
+        }
+      }
+
+      return nds.map((n) =>
+        n.id === selectedNodeId ? { ...n, data: { ...n.data, options } } : n
+      );
+    });
+  };
+
+  const updateTaskNextNode = (newTargetId: string) => {
+    if (!selectedNodeId) return;
+
+    setEdges((eds) => {
+      let updatedEdges = eds.filter((e) => e.source !== selectedNodeId);
+
+      if (newTargetId) {
+        updatedEdges.push({
+          id: `edge-${selectedNodeId}-${newTargetId}-${Date.now()}`,
+          source: selectedNodeId,
+          target: newTargetId,
+          style: { stroke: '#3ecf8e', strokeWidth: 2 },
+        });
+      }
+      return updatedEdges;
+    });
+
+    setNodes((nds) =>
+      nds.map((n) =>
+        n.id === selectedNodeId ? { ...n, data: { ...n.data, nextId: newTargetId || undefined } } : n
+      )
+    );
+  };
+
+  const duplicateSelectedNode = () => {
+    if (!selectedNodeId) return;
+    const nodeToDuplicate = nodes.find((n) => n.id === selectedNodeId);
+    if (!nodeToDuplicate) return;
+
+    const newId = getId();
+    const duplicatedNode: Node = {
+      id: newId,
+      type: 'custom',
+      position: {
+        x: nodeToDuplicate.position.x + 40,
+        y: nodeToDuplicate.position.y + 40,
+      },
+      data: {
+        ...nodeToDuplicate.data,
+        id: newId,
+        title: `${nodeToDuplicate.data.title} (Cópia)`,
+        options: nodeToDuplicate.data.type === 'condition'
+          ? ((nodeToDuplicate.data.options as any[]) || []).map((o) => ({
+              ...o,
+              id: `opt-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+              targetId: '', // Começa sem target na cópia
+            }))
+          : undefined,
+        nextId: undefined, // Começa sem destino
+      },
+    };
+
+    setNodes((nds) => [...nds, duplicatedNode]);
+    setSelectedNodeId(newId);
+    toast.success('Nó duplicado com sucesso!');
+  };
+
   const deleteSelectedNode = () => {
     if (!selectedNodeId) return;
+    
+    // Se for condição e tiver opções conectadas, limpar ao deletar
+    const node = nodes.find((n) => n.id === selectedNodeId);
+    if (node && node.data.type === 'condition') {
+      const options = (node.data.options as any[]) || [];
+      options.forEach((opt) => {
+        if (opt.targetId) {
+          setEdges((eds) => eds.filter((e) => !(e.source === selectedNodeId && e.target === opt.targetId)));
+        }
+      });
+    }
+
     setNodes((nds) => nds.filter((n) => n.id !== selectedNodeId));
     setEdges((eds) =>
       eds.filter(
@@ -208,10 +458,23 @@ function BuilderContent({ initialPlaybook, onClose, onSaved }: PlaybookBuilderPr
         title: (n.data.title as string) || 'Sem Título',
       }));
 
+      // Sincronização defensiva durante o salvamento
       playbookNodes.forEach((pn: any) => {
         if (pn.type === 'task') {
           const outgoing = edges.find((e) => e.source === pn.id);
           pn.nextId = outgoing ? outgoing.target : undefined;
+        } else if (pn.type === 'condition' && pn.options) {
+          const outgoingEdges = edges.filter((e) => e.source === pn.id);
+          pn.options = pn.options.map((opt: any, index: number) => {
+            let matchedEdge = outgoingEdges.find((e) => e.label === opt.label);
+            if (!matchedEdge && outgoingEdges.length > index) {
+              matchedEdge = outgoingEdges[index];
+            }
+            return {
+              ...opt,
+              targetId: matchedEdge ? matchedEdge.target : opt.targetId,
+            };
+          });
         }
       });
 
@@ -240,6 +503,7 @@ function BuilderContent({ initialPlaybook, onClose, onSaved }: PlaybookBuilderPr
   };
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
+  const otherNodes = nodes.filter((n) => n.id !== selectedNodeId);
 
   return (
     // z-[200] garante que fica acima do sidebar (z-40) e de qualquer modal
@@ -312,13 +576,25 @@ function BuilderContent({ initialPlaybook, onClose, onSaved }: PlaybookBuilderPr
 
           <div className="mt-auto pt-3 border-t border-zinc-800">
             <p className="text-[9px] text-zinc-600 leading-relaxed">
-              Clique nos botões acima para adicionar elementos. Arraste os pontos de conexão entre nós para criar setas.
+              Arraste conexões ou use o menu de propriedades à direita para ligar os nós de forma automática e organizada.
             </p>
           </div>
         </div>
 
         {/* ── Canvas ── */}
-        <div className="flex-1 min-w-0 min-h-0 relative">
+        <div className="flex-1 min-w-0 min-h-0 relative bg-[#111111]">
+          {nodes.length === 0 && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10 p-6 text-center select-none bg-[#111111]/80">
+              <div className="w-16 h-16 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4 text-[#3ecf8e] animate-pulse">
+                <Plus className="w-8 h-8" />
+              </div>
+              <h3 className="text-base font-semibold text-white">Seu Playbook está vazio</h3>
+              <p className="text-xs text-zinc-500 max-w-sm mt-1 leading-relaxed">
+                Clique nos botões do menu esquerdo (Tarefa, Condição, Fim) para começar a estruturar seu fluxo.
+              </p>
+            </div>
+          )}
+
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -335,7 +611,7 @@ function BuilderContent({ initialPlaybook, onClose, onSaved }: PlaybookBuilderPr
           >
             <Background
               variant={BackgroundVariant.Dots}
-              color="#2a2a2a"
+              color="#222"
               gap={20}
             />
             <Controls
@@ -344,6 +620,20 @@ function BuilderContent({ initialPlaybook, onClose, onSaved }: PlaybookBuilderPr
                 border: '1px solid #3f3f46',
                 borderRadius: 8,
               }}
+            />
+            <MiniMap
+              zoomable
+              pannable
+              style={{
+                background: '#161616',
+                border: '1px solid #27272a',
+                borderRadius: 8,
+              }}
+              nodeColor={(node) => {
+                const type = node.data?.type;
+                return NODE_COLORS[type] || '#3ecf8e';
+              }}
+              maskColor="rgba(0, 0, 0, 0.4)"
             />
           </ReactFlow>
         </div>
@@ -354,12 +644,22 @@ function BuilderContent({ initialPlaybook, onClose, onSaved }: PlaybookBuilderPr
             <>
               <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
                 <span className="text-xs font-semibold text-white">Propriedades</span>
-                <button
-                  onClick={deleteSelectedNode}
-                  className="h-6 w-6 rounded flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-red-400/10 transition-colors"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={duplicateSelectedNode}
+                    title="Duplicar Nó"
+                    className="h-7 w-7 rounded-md flex items-center justify-center text-zinc-500 hover:text-[#3ecf8e] hover:bg-[#3ecf8e]/10 transition-all"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={deleteSelectedNode}
+                    title="Excluir Nó"
+                    className="h-7 w-7 rounded-md flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-red-400/10 transition-all"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
               <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
                 <div className="space-y-1.5">
@@ -380,8 +680,29 @@ function BuilderContent({ initialPlaybook, onClose, onSaved }: PlaybookBuilderPr
                   />
                 </div>
 
+                {selectedNode.data.type === 'task' && (
+                  <div className="space-y-1.5 pt-3 border-t border-zinc-800">
+                    <label className="text-[11px] font-medium text-zinc-400">Próximo Passo</label>
+                    <select
+                      value={edges.find((e) => e.source === selectedNode.id)?.target || ''}
+                      onChange={(e) => {
+                        const newTargetId = e.target.value;
+                        updateTaskNextNode(newTargetId);
+                      }}
+                      className="w-full h-8 text-xs bg-zinc-850 border border-zinc-700 rounded px-2 text-white bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-[#3ecf8e]"
+                    >
+                      <option value="">Sem destino (Fim do fluxo)</option>
+                      {otherNodes.map((on) => (
+                        <option key={on.id} value={on.id}>
+                          {on.data.type === 'task' ? 'Tarefa' : on.data.type === 'condition' ? 'Cond' : 'Fim'}: {on.data.title || 'Sem título'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 {selectedNode.data.type === 'condition' && (
-                  <div className="space-y-2 pt-3 border-t border-zinc-800">
+                  <div className="space-y-3 pt-3 border-t border-zinc-800">
                     <div className="flex items-center justify-between">
                       <label className="text-[11px] font-medium text-zinc-400">
                         Opções de resposta
@@ -391,7 +712,7 @@ function BuilderContent({ initialPlaybook, onClose, onSaved }: PlaybookBuilderPr
                           const opts = (selectedNode.data.options as any[]) || [];
                           updateSelectedNodeData('options', [
                             ...opts,
-                            { id: getId(), label: 'Nova Opção', targetId: '' },
+                            { id: `opt-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`, label: `Opção ${opts.length + 1}`, targetId: '' },
                           ]);
                         }}
                         className="h-5 w-5 rounded flex items-center justify-center text-zinc-400 hover:text-[#3ecf8e] hover:bg-[#3ecf8e]/10 transition-colors"
@@ -399,36 +720,48 @@ function BuilderContent({ initialPlaybook, onClose, onSaved }: PlaybookBuilderPr
                         <Plus className="w-3 h-3" />
                       </button>
                     </div>
-                    {((selectedNode.data.options as any[]) || []).map(
-                      (opt: any, i: number) => (
-                        <div key={opt.id} className="flex items-center gap-2">
-                          <Input
-                            value={opt.label}
-                            onChange={(e) => {
-                              const opts = [
-                                ...((selectedNode.data.options as any[]) || []),
-                              ];
-                              opts[i] = { ...opts[i], label: e.target.value };
-                              updateSelectedNodeData('options', opts);
-                            }}
-                            className="h-7 text-xs bg-zinc-800 border-zinc-700 text-white"
-                          />
-                          <button
-                            onClick={() => {
-                              const opts = (
-                                (selectedNode.data.options as any[]) || []
-                              ).filter((_: any, idx: number) => idx !== i);
-                              updateSelectedNodeData('options', opts);
-                            }}
-                            className="h-7 w-7 shrink-0 rounded flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-red-400/10 transition-colors"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      )
-                    )}
+                    <div className="space-y-2.5">
+                      {((selectedNode.data.options as any[]) || []).map(
+                        (opt: any, i: number) => (
+                          <div key={opt.id} className="flex flex-col gap-1.5 p-2 rounded bg-zinc-900 border border-zinc-800">
+                            <div className="flex items-center gap-2">
+                              <Input
+                                value={opt.label}
+                                onChange={(e) => updateConditionOptionLabel(i, e.target.value)}
+                                className="h-7 text-xs bg-zinc-800 border-zinc-700 text-white flex-1"
+                                placeholder="Nome da opção"
+                              />
+                              <button
+                                onClick={() => deleteConditionOption(i)}
+                                className="h-7 w-7 shrink-0 rounded flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-medium text-zinc-500 block">Destino da Opção</label>
+                              <select
+                                value={opt.targetId || ''}
+                                onChange={(e) => {
+                                  const newTargetId = e.target.value;
+                                  updateConditionOptionTarget(i, newTargetId);
+                                }}
+                                className="w-full h-7 text-[10px] bg-zinc-800 border border-zinc-700 rounded px-1.5 text-white focus:outline-none focus:ring-1 focus:ring-[#3ecf8e]"
+                              >
+                                <option value="">Sem destino</option>
+                                {otherNodes.map((on) => (
+                                  <option key={on.id} value={on.id}>
+                                    {on.data.type === 'task' ? 'Tarefa' : on.data.type === 'condition' ? 'Cond' : 'Fim'}: {on.data.title || 'Sem título'}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
                     <p className="text-[10px] text-zinc-600 leading-relaxed">
-                      Puxe as setas do nó até os destinos de cada opção no canvas.
+                      Você pode arrastar conexões no canvas ou simplesmente escolher o destino de cada opção nos menus suspensos acima.
                     </p>
                   </div>
                 )}

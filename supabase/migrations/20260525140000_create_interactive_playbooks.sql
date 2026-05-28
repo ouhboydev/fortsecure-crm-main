@@ -19,17 +19,15 @@ CREATE POLICY "interactive_playbooks_read"
   TO authenticated
   USING (true);
 
--- Only admins or managers can insert/update/delete
+-- Only admins or gestores can insert/update/delete
 CREATE POLICY "interactive_playbooks_admin_write"
   ON public.interactive_playbooks FOR ALL
   TO authenticated
   USING (
-    public.has_role(auth.uid(), 'admin') OR 
-    public.has_role(auth.uid(), 'manager')
+    public.is_manager_or_admin(auth.uid())
   )
   WITH CHECK (
-    public.has_role(auth.uid(), 'admin') OR 
-    public.has_role(auth.uid(), 'manager')
+    public.is_manager_or_admin(auth.uid())
   );
 
 -- Seed Data: Kaspersky Quote Process

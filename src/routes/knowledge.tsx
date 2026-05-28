@@ -61,6 +61,7 @@ function KnowledgeBase() {
   const [modalOpen, setModalOpen] = useState(false);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [editingFlow, setEditingFlow] = useState<KbFlow | null>(null);
+  const [editingPlaybook, setEditingPlaybook] = useState<Playbook | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [dbPlaybooks, setDbPlaybooks] = useState<Playbook[]>([]);
   
@@ -69,23 +70,36 @@ function KnowledgeBase() {
   async function load() {
     setLoading(true);
     try {
-      const [{ data, error }, { data: pbData }] = await Promise.all([
-        supabase.from("knowledge_flows").select("*").order("order", { ascending: true }),
-        supabase.from("interactive_playbooks").select("*")
-      ]);
+      const { data, error } = await supabase
+        .from("knowledge_flows")
+        .select("*")
+        .order("order", { ascending: true });
+      
       if (error) throw error;
+      
       const parsed = (data || []).map((d: any) => ({
         ...d,
         steps: typeof d.steps === 'string' ? JSON.parse(d.steps) : d.steps
       })) as KbFlow[];
       setFlows(parsed);
       if (parsed.length > 0 && !expandedFlow) setExpandedFlow(parsed[0].id);
+    } catch (err: any) {
+      console.error("Erro ao carregar knowledge_flows:", err);
+      toast.error("Erro ao carregar os fluxos da base de conhecimento");
+    }
 
+    try {
+      const { data: pbData, error: pbError } = await supabase
+        .from("interactive_playbooks")
+        .select("*");
+      
+      if (pbError) throw pbError;
       if (pbData) {
         setDbPlaybooks(pbData as any);
       }
-    } catch {
-      toast.error("Erro ao carregar a base de conhecimento");
+    } catch (err: any) {
+      console.warn("Tabela 'interactive_playbooks' não pode ser acessada (talvez falte rodar db push):", err);
+      // Fallback silencioso usando dados locais
     } finally {
       setLoading(false);
     }
@@ -107,6 +121,18 @@ function KnowledgeBase() {
       toast.error(err.message);
     } finally {
       setDeleting(null);
+    }
+  }
+
+  async function handleDeletePlaybook(id: string) {
+    if (!confirm("Tem certeza que deseja excluir este playbook? Esta ação não pode ser desfeita.")) return;
+    try {
+      const { error } = await supabase.from("interactive_playbooks").delete().eq("id", id);
+      if (error) throw error;
+      toast.success("Playbook excluído com sucesso");
+      load();
+    } catch (err: any) {
+      toast.error("Erro ao excluir playbook: " + err.message);
     }
   }
 
@@ -468,11 +494,11 @@ function KnowledgeBase() {
           {filteredPlaybooks.map(pb => (
             <div key={pb.id} className="border border-border rounded-lg bg-card/50 overflow-hidden transition-all duration-300">
               <div className="p-2">
-                <button 
-                  onClick={() => togglePlaybookExpand(pb.id)}
-                  className="w-full flex items-center justify-between p-3 rounded-md hover:bg-white/5 transition-colors text-left"
-                >
-                  <div className="flex items-center gap-4">
+                <div className="w-full flex items-center justify-between p-3 rounded-md hover:bg-white/5 transition-colors">
+                  <button 
+                    onClick={() => togglePlaybookExpand(pb.id)}
+                    className="flex-1 flex items-center gap-4 text-left mr-4"
+                  >
                     <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: '#3ecf8e20' }}>
                       <Workflow className="w-5 h-5" style={{ color: '#3ecf8e' }} />
                     </div>
@@ -483,9 +509,34 @@ function KnowledgeBase() {
                       </div>
                       <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{pb.description}</p>
                     </div>
+                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {isAdmin && (
+                      <>
+                        <button
+                          onClick={() => { setEditingPlaybook(pb); setBuilderOpen(true); }}
+                          className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-[#3ecf8e] hover:bg-[#3ecf8e]/10 transition-all"
+                          title="Editar Playbook"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeletePlaybook(pb.id)}
+                          className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+                          title="Excluir Playbook"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={() => togglePlaybookExpand(pb.id)}
+                      className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground"
+                    >
+                      <ChevronDown className={cn("w-5 h-5 text-muted-foreground transition-transform duration-300", expandedPlaybook === pb.id && "rotate-180")} />
+                    </button>
                   </div>
-                  <ChevronDown className={cn("w-5 h-5 text-muted-foreground transition-transform duration-300", expandedPlaybook === pb.id && "rotate-180")} />
-                </button>
+                </div>
               </div>
               
               {expandedPlaybook === pb.id && (
@@ -511,8 +562,9 @@ function KnowledgeBase() {
       {/* ── Playbook Builder ── */}
       {isAdmin && builderOpen && (
         <PlaybookBuilder
-          onClose={() => setBuilderOpen(false)}
-          onSaved={() => { setBuilderOpen(false); load(); }}
+          initialPlaybook={editingPlaybook || undefined}
+          onClose={() => { setBuilderOpen(false); setEditingPlaybook(null); }}
+          onSaved={() => { setBuilderOpen(false); setEditingPlaybook(null); load(); }}
         />
       )}
     </div>
