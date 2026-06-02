@@ -7,7 +7,7 @@ import {
   Plus, Search, Loader2, User, Building2, Mail, Phone, 
   ExternalLink, MoreHorizontal, Pencil, Trash2, Filter,
   Briefcase, Calendar, ChevronRight, ArrowUpRight,
-  TrendingUp, Activity, History, ListTodo
+  TrendingUp, Activity, History, ListTodo, MessageSquare, ShieldCheck, Clock, Target, List
 } from "lucide-react";
 import { cn, formatCurrencyBRL } from "@/lib/utils";
 import { toast } from "sonner";
@@ -66,6 +66,40 @@ function CustomersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  
+  const [customerActivities, setCustomerActivities] = useState<any[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
+
+  const ACTIVITY_TYPE_CONFIG: Record<string, { icon: any; color: string; label: string }> = {
+    tarefa:   { icon: List, color: "text-[#a3a3a3] bg-[#262626]", label: "Tarefa" },
+    ligacao:  { icon: Phone, color: "text-[#3ecf8e] bg-[#3ecf8e]/10", label: "Ligação" },
+    email:    { icon: Mail, color: "text-[#1eaedb] bg-[#1eaedb]/10", label: "E-mail" },
+    reuniao:  { icon: User, color: "text-[#f59e0b] bg-[#f59e0b]/10", label: "Reunião" },
+    visita:   { icon: ShieldCheck, color: "text-[#1eaedb] bg-[#1eaedb]/10", label: "Visita" },
+    followup: { icon: Target, color: "text-[#a78bfa] bg-[#a78bfa]/10", label: "Follow-up" },
+    whatsapp: { icon: MessageSquare, color: "text-[#25D366] bg-[#25D366]/10", label: "WhatsApp" },
+  };
+
+  async function loadCustomerActivities(oppIds: string[]) {
+    if (oppIds.length === 0) {
+      setCustomerActivities([]);
+      return;
+    }
+    setActivitiesLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("activities")
+        .select("*, opportunities(title), profiles(full_name)")
+        .in("opportunity_id", oppIds)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setCustomerActivities(data || []);
+    } catch (e: any) {
+      console.error("Erro ao carregar atividades do cliente:", e);
+    } finally {
+      setActivitiesLoading(false);
+    }
+  }
   
   const [form, setForm] = useState({
     name: "",
@@ -210,6 +244,8 @@ function CustomersPage() {
   const openDetail = (c: any) => {
     setSelectedCustomer(c);
     setIsDetailOpen(true);
+    const oppIds = c.opportunities?.map((o: any) => o.id) || [];
+    loadCustomerActivities(oppIds);
   };
 
   async function deleteCustomer(id: string) {
@@ -648,10 +684,103 @@ function CustomersPage() {
                     </TabsContent>
 
                     <TabsContent value="notas">
-                      <div className="p-6 bg-card border border-border rounded-xl min-h-[200px]">
-                        <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                          {selectedCustomer.notes || "Sem observações registradas para este cliente."}
-                        </p>
+                      <div className="space-y-6">
+                        {/* Observações Gerais do Cliente */}
+                        <div className="p-4 bg-muted/20 border border-border rounded-xl">
+                          <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Observações Gerais</h4>
+                          <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+                            {selectedCustomer.notes || "Sem observações registradas para este cliente."}
+                          </p>
+                        </div>
+
+                        {/* Linha do Tempo Comercial (Timeline de Atividades) */}
+                        <div className="space-y-4">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
+                            <History className="h-4 w-4 text-primary" />
+                            Histórico de Atividades Comercial
+                          </h4>
+
+                          {activitiesLoading ? (
+                            <div className="py-8 flex justify-center"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
+                          ) : customerActivities.length === 0 ? (
+                            <div className="py-8 text-center text-xs text-muted-foreground italic border border-dashed border-border rounded-xl">
+                              Nenhuma interação ou atividade comercial registrada.
+                            </div>
+                          ) : (
+                            <div className="relative border-l border-border ml-2.5 pl-5 space-y-4 pt-2">
+                              {customerActivities.map((act) => {
+                                const cfg = ACTIVITY_TYPE_CONFIG[act.type] || ACTIVITY_TYPE_CONFIG.tarefa;
+                                const Icon = cfg.icon;
+                                const isDone = act.status === 'concluida';
+                                
+                                return (
+                                  <div key={act.id} className="relative">
+                                    {/* Círculo com ícone */}
+                                    <div className={cn(
+                                      "absolute -left-[31px] top-0 h-6 w-6 rounded-full border border-card flex items-center justify-center text-xs shadow-sm z-10 transition-all",
+                                      isDone ? cfg.color.split(" ")[1] + " " + cfg.color.split(" ")[0] : "bg-secondary text-muted-foreground border-border"
+                                    )}>
+                                      <Icon className="h-3.5 w-3.5" />
+                                    </div>
+
+                                    {/* Conteúdo */}
+                                    <div className="bg-card border border-border rounded-xl p-4 space-y-2">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div>
+                                          <h5 className="text-xs font-bold text-foreground">
+                                            {act.title}
+                                          </h5>
+                                          <p className="text-[9px] text-muted-foreground mt-0.5">
+                                            {new Date(act.created_at).toLocaleString("pt-BR", { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · executado por {act.profiles?.full_name || 'Vendedor'}
+                                          </p>
+                                        </div>
+                                        {act.opportunities?.title && (
+                                          <Badge variant="outline" className="text-[9px] border-primary/20 text-primary bg-primary/5 uppercase font-bold tracking-wider">
+                                            Negócio: {act.opportunities.title}
+                                          </Badge>
+                                        )}
+                                      </div>
+
+                                      {act.description && (
+                                        <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap bg-secondary/20 p-2.5 rounded-lg border border-border/30">
+                                          {act.description}
+                                        </p>
+                                      )}
+
+                                      <div className="flex flex-wrap gap-1.5 pt-1">
+                                        {act.outcome && (
+                                          <Badge variant="secondary" className="h-5 px-1.5 text-[9px] font-bold border-none bg-muted text-foreground">
+                                            {act.outcome}
+                                          </Badge>
+                                        )}
+                                        {act.sentiment && (
+                                          <Badge 
+                                            variant="outline" 
+                                            className={cn(
+                                              "h-5 px-1.5 text-[9px] font-bold uppercase",
+                                              act.sentiment === 'quente' && "bg-red-500/10 text-red-500 border-red-500/20",
+                                              act.sentiment === 'morno' && "bg-amber-500/10 text-amber-500 border-amber-500/20",
+                                              act.sentiment === 'frio' && "bg-blue-500/10 text-blue-500 border-blue-500/20",
+                                              act.sentiment === 'neutro' && "bg-muted text-muted-foreground border-border"
+                                            )}
+                                          >
+                                            {act.sentiment === 'quente' ? 'Quente' : act.sentiment === 'morno' ? 'Morno' : act.sentiment === 'frio' ? 'Frio' : 'Neutro'}
+                                          </Badge>
+                                        )}
+                                        {!isDone && act.due_date && (
+                                          <Badge variant="outline" className="h-5 px-1.5 text-[9px] font-bold border-[#f59e0b]/20 text-[#f59e0b] bg-[#f59e0b]/5 gap-1">
+                                            <Clock className="h-2.5 w-2.5" />
+                                            Pendente: {new Date(act.due_date).toLocaleDateString('pt-BR')}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </TabsContent>
                   </Tabs>

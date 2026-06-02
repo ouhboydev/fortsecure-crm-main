@@ -26,6 +26,11 @@ export type Database = {
           title: string
           type: Database["public"]["Enums"]["activity_type"]
           updated_at: string
+          outcome: string | null
+          sentiment: string | null
+          next_action_type: Database["public"]["Enums"]["activity_type"] | null
+          next_action_title: string | null
+          next_action_due: string | null
         }
         Insert: {
           created_at?: string
@@ -38,6 +43,11 @@ export type Database = {
           title: string
           type?: Database["public"]["Enums"]["activity_type"]
           updated_at?: string
+          outcome?: string | null
+          sentiment?: string | null
+          next_action_type?: Database["public"]["Enums"]["activity_type"] | null
+          next_action_title?: string | null
+          next_action_due?: string | null
         }
         Update: {
           created_at?: string
@@ -50,6 +60,11 @@ export type Database = {
           title?: string
           type?: Database["public"]["Enums"]["activity_type"]
           updated_at?: string
+          outcome?: string | null
+          sentiment?: string | null
+          next_action_type?: Database["public"]["Enums"]["activity_type"] | null
+          next_action_title?: string | null
+          next_action_due?: string | null
         }
         Relationships: [
           {
@@ -183,6 +198,45 @@ export type Database = {
           },
         ]
       }
+      customers: {
+        Row: {
+          id: string
+          owner_id: string
+          name: string
+          company: string | null
+          email: string | null
+          phone: string | null
+          document: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          owner_id: string
+          name: string
+          company?: string | null
+          email?: string | null
+          phone?: string | null
+          document?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          owner_id?: string
+          name?: string
+          company?: string | null
+          email?: string | null
+          phone?: string | null
+          document?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       goals: {
         Row: {
           created_at: string
@@ -262,6 +316,7 @@ export type Database = {
           title: string
           updated_at: string
           value: number
+          customer_id: string | null
         }
         Insert: {
           client_name: string
@@ -276,6 +331,7 @@ export type Database = {
           title: string
           updated_at?: string
           value?: number
+          customer_id?: string | null
         }
         Update: {
           client_name?: string
@@ -290,6 +346,7 @@ export type Database = {
           title?: string
           updated_at?: string
           value?: number
+          customer_id?: string | null
         }
         Relationships: []
       }
@@ -433,7 +490,7 @@ export type Database = {
     }
     Enums: {
       activity_status: "pendente" | "concluida" | "atrasada"
-      activity_type: "ligacao" | "email" | "reuniao" | "tarefa" | "visita" | "followup"
+      activity_type: "ligacao" | "email" | "reuniao" | "tarefa" | "visita" | "followup" | "whatsapp"
       app_role: "admin" | "gestor" | "vendedor" | "viewer"
       opp_stage:
         | "prospect"
@@ -570,7 +627,7 @@ export const Constants = {
   public: {
     Enums: {
       activity_status: ["pendente", "concluida", "atrasada"],
-      activity_type: ["ligacao", "email", "reuniao", "tarefa", "visita", "followup"],
+      activity_type: ["ligacao", "email", "reuniao", "tarefa", "visita", "followup", "whatsapp"],
       app_role: ["admin", "gestor", "vendedor", "viewer"],
       opp_stage: [
         "prospect",

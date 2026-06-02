@@ -7,7 +7,8 @@ import { STAGES } from "@/lib/sales";
 import {
   Plus, Search,
   Clock, Loader2, Kanban, List, X, Target, Package, ShieldCheck, Calendar,
-  ChevronRight, Phone, Mail, User, ArrowUpRight
+  ChevronRight, Phone, Mail, User, ArrowUpRight, MessageSquare, Sparkles, Flame,
+  CheckCircle2, Trash2, History
 } from "lucide-react";
 import { cn, parseCurrency, formatCurrencyBRL } from "@/lib/utils";
 import { toast } from "sonner";
@@ -45,6 +46,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export const Route = createFileRoute("/pipeline")({
   head: () => ({ meta: [{ title: "Pipeline — FortSecure" }] }),
@@ -82,6 +84,160 @@ function SalesPipeline() {
   const [sellers, setSellers] = useState<any[]>([]);
   const [selectedSellerId, setSelectedSellerId] = useState<string>("all");
   const [selectedStage, setSelectedStage] = useState<string>("all");
+
+  const [oppActivities, setOppActivities] = useState<any[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
+  const [logType, setLogType] = useState<string>("whatsapp");
+  const [logNotes, setLogNotes] = useState<string>("");
+  const [logOutcome, setLogOutcome] = useState<string>("");
+  const [logSentiment, setLogSentiment] = useState<string>("neutro");
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [scheduleNext, setScheduleNext] = useState<boolean>(false);
+  const [nextActionTitle, setNextActionTitle] = useState<string>("");
+  const [nextActionType, setNextActionType] = useState<string>("whatsapp");
+  const [nextActionDue, setNextActionDue] = useState<string>("");
+
+  const ACTIVITY_TYPE_CONFIG: Record<string, { icon: any; color: string; label: string }> = {
+    tarefa:   { icon: List, color: "text-[#a3a3a3] bg-[#262626]", label: "Tarefa" },
+    ligacao:  { icon: Phone, color: "text-[#3ecf8e] bg-[#3ecf8e]/10", label: "Ligação" },
+    email:    { icon: Mail, color: "text-[#1eaedb] bg-[#1eaedb]/10", label: "E-mail" },
+    reuniao:  { icon: User, color: "text-[#f59e0b] bg-[#f59e0b]/10", label: "Reunião" },
+    visita:   { icon: ShieldCheck, color: "text-[#1eaedb] bg-[#1eaedb]/10", label: "Visita" },
+    followup: { icon: Target, color: "text-[#a78bfa] bg-[#a78bfa]/10", label: "Follow-up" },
+    whatsapp: { icon: MessageSquare, color: "text-[#25D366] bg-[#25D366]/10", label: "WhatsApp" },
+  };
+
+  async function loadOpportunityActivities(oppId: string) {
+    setActivitiesLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("activities")
+        .select("*, profiles(full_name)")
+        .eq("opportunity_id", oppId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setOppActivities(data || []);
+    } catch (e: any) {
+      console.error("Erro ao carregar atividades do negócio:", e);
+    } finally {
+      setActivitiesLoading(false);
+    }
+  }
+
+  async function handleCompleteActivity(id: string, currentStatus: string) {
+    try {
+      const newStatus = currentStatus === "concluida" ? "pendente" : "concluida";
+      const { error } = await supabase.from("activities").update({ status: newStatus }).eq("id", id);
+      if (error) throw error;
+      toast.success(newStatus === "concluida" ? "Atividade concluída!" : "Atividade reaberta!");
+      if (editingId) loadOpportunityActivities(editingId);
+    } catch (e: any) {
+      toast.error("Erro ao atualizar status da atividade");
+    }
+  }
+
+  async function handleRemoveActivity(id: string) {
+    if (!confirm("Excluir esta atividade?")) return;
+    try {
+      const { error } = await supabase.from("activities").delete().eq("id", id);
+      if (error) throw error;
+      toast.success("Atividade excluída");
+      if (editingId) loadOpportunityActivities(editingId);
+    } catch (e: any) {
+      toast.error("Erro ao excluir atividade");
+    }
+  }
+
+  async function handleIASmartSuggest() {
+    if (!logNotes.trim()) {
+      toast.error("Digite o resumo da interação para que a IA possa analisar.");
+      return;
+    }
+    setIsAnalyzing(true);
+    try {
+      const { analyzeActivityNote } = await import("@/lib/ai");
+      const analysis = await analyzeActivityNote(logNotes, logType);
+      
+      setLogSentiment(analysis.sentiment);
+      setLogOutcome(analysis.outcome);
+      
+      setScheduleNext(true);
+      setNextActionTitle(analysis.nextActionTitle);
+      setNextActionType(analysis.nextActionType);
+      
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + (analysis.daysToNextAction || 3));
+      const localString = targetDate.getFullYear() + '-' + 
+        String(targetDate.getMonth()+1).padStart(2, '0') + '-' + 
+        String(targetDate.getDate()).padStart(2, '0') + 'T' + 
+        String(targetDate.getHours()).padStart(2, '0') + ':' + 
+        String(targetDate.getMinutes()).padStart(2, '0');
+      setNextActionDue(localString);
+
+      toast.success("IA analisou a nota e sugeriu os próximos passos!");
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Falha ao analisar com IA.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }
+
+  async function handleAddActivity(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingId || !user) return;
+    if (!logNotes.trim()) {
+      toast.error("Por favor, digite as notas da interação.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const typeLabel = ACTIVITY_TYPE_CONFIG[logType]?.label || "Interação";
+      const mainActivityPayload = {
+        owner_id: user.id,
+        opportunity_id: editingId,
+        type: logType as any,
+        title: `${typeLabel} com Cliente`,
+        description: logNotes,
+        due_date: new Date().toISOString(),
+        status: 'concluida' as any,
+        outcome: logOutcome || null,
+        sentiment: logSentiment || null
+      };
+
+      const { error: actErr } = await supabase.from("activities").insert(mainActivityPayload);
+      if (actErr) throw actErr;
+
+      if (scheduleNext && nextActionTitle.trim() && nextActionDue) {
+        const nextActivityPayload = {
+          owner_id: user.id,
+          opportunity_id: editingId,
+          type: nextActionType as any,
+          title: `[Próximo Passo] ${nextActionTitle}`,
+          description: `Planejado após: ${logNotes.substring(0, 50)}...`,
+          due_date: new Date(nextActionDue).toISOString(),
+          status: 'pendente' as any
+        };
+        const { error: nextErr } = await supabase.from("activities").insert(nextActivityPayload);
+        if (nextErr) throw nextErr;
+      }
+
+      toast.success("Atividade e histórico registrados com sucesso!");
+      setLogNotes("");
+      setLogOutcome("");
+      setLogSentiment("neutro");
+      setScheduleNext(false);
+      setNextActionTitle("");
+      setNextActionDue("");
+      
+      loadOpportunityActivities(editingId);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Erro ao registrar atividade");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -165,6 +321,7 @@ function SalesPipeline() {
   const openNew = () => {
     setEditingId(null);
     setForm({ client_name: "", customer_id: "", title: "", value: "", stage: "prospect", probability: 20, expected_closing: "", source: "Direto", product_id: "", contact_email: "", contact_phone: "", description: "", owner_id: user?.id || "", closed_at: "" });
+    setOppActivities([]);
     setIsModalOpen(true);
   };
 
@@ -186,6 +343,13 @@ function SalesPipeline() {
       owner_id: o.owner_id || "",
       closed_at: o.closed_at ? o.closed_at.split('T')[0] : "",
     });
+    setLogNotes("");
+    setLogOutcome("");
+    setLogSentiment("neutro");
+    setScheduleNext(false);
+    setNextActionTitle("");
+    setNextActionDue("");
+    loadOpportunityActivities(o.id);
     setIsModalOpen(true);
   };
 
@@ -476,7 +640,10 @@ function SalesPipeline() {
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-2xl bg-card border-border p-0 overflow-hidden rounded-2xl shadow-2xl">
+        <DialogContent className={cn(
+          "bg-card border-border p-0 overflow-hidden rounded-2xl shadow-2xl transition-all duration-300",
+          editingId ? "max-w-5xl" : "max-w-2xl"
+        )}>
           <DialogHeader className="p-8 border-b border-border bg-muted/30 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-[#3ecf8e]/5 blur-3xl -mr-16 -mt-16 rounded-full pointer-events-none" />
             <div className="relative z-10">
@@ -490,255 +657,510 @@ function SalesPipeline() {
           </DialogHeader>
 
           <div className="p-8 overflow-y-auto max-h-[75vh] scrollbar-custom">
-            <form onSubmit={handleSubmit} className="space-y-8">
-              {/* Section: Cliente */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="h-6 w-6 rounded-md bg-secondary flex items-center justify-center">
-                    <User className="h-3.5 w-3.5 text-muted-foreground" />
+            <div className={cn(editingId ? "grid grid-cols-1 md:grid-cols-2 gap-8" : "space-y-8")}>
+              {/* Coluna Esquerda: Form original */}
+              <form onSubmit={handleSubmit} className="space-y-8">
+                {/* Section: Cliente */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="h-6 w-6 rounded-md bg-secondary flex items-center justify-center">
+                      <User className="h-3.5 w-3.5 text-muted-foreground" />
+                    </div>
+                    <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-foreground/70">Identificação do Cliente</h3>
                   </div>
-                  <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-foreground/70">Identificação do Cliente</h3>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-5">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Vincular Cliente</Label>
-                    <Select 
-                      value={form.customer_id || "new"} 
-                      onValueChange={v => {
-                        if (v === "new") {
-                          setForm(f => ({ ...f, customer_id: "" }));
-                        } else {
-                          const c = customers.find(x => x.id === v);
-                          setForm(f => ({ ...f, customer_id: v, client_name: c?.name || f.client_name }));
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="h-10 bg-background/50 border-border text-xs focus:ring-[#3ecf8e]/20">
-                        <SelectValue placeholder="Selecionar cliente..." />
-                      </SelectTrigger>
-                      <SelectContent className="bg-card border-border">
-                        <SelectItem value="new" className="text-xs">-- Digitar nome manualmente --</SelectItem>
-                        {customers.map(c => (
-                          <SelectItem key={c.id} value={c.id} className="text-xs">{c.name} {c.company ? `(${c.company})` : ''}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  
+                  <div className="grid grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Vincular Cliente</Label>
+                      <Select 
+                        value={form.customer_id || "new"} 
+                        onValueChange={v => {
+                          if (v === "new") {
+                            setForm(f => ({ ...f, customer_id: "" }));
+                          } else {
+                            const c = customers.find(x => x.id === v);
+                            setForm(f => ({ ...f, customer_id: v, client_name: c?.name || f.client_name }));
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-10 bg-background/50 border-border text-xs focus:ring-[#3ecf8e]/20">
+                          <SelectValue placeholder="Selecionar cliente..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border">
+                          <SelectItem value="new" className="text-xs">-- Digitar nome manualmente --</SelectItem>
+                          {customers.map(c => (
+                            <SelectItem key={c.id} value={c.id} className="text-xs">{c.name} {c.company ? `(${c.company})` : ''}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Nome do Cliente/Empresa</Label>
+                      <Input 
+                        required 
+                        value={form.client_name} 
+                        onChange={e => setForm({ ...form, client_name: e.target.value })} 
+                        className="h-10 bg-background/50 border-border text-sm focus-visible:ring-[#3ecf8e]/20" 
+                        placeholder="Ex: Nome da Empresa ou Pessoa"
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Nome do Cliente/Empresa</Label>
-                    <Input 
-                      required 
-                      value={form.client_name} 
-                      onChange={e => setForm({ ...form, client_name: e.target.value })} 
-                      className="h-10 bg-background/50 border-border text-sm focus-visible:ring-[#3ecf8e]/20" 
-                      placeholder="Ex: Nome da Empresa ou Pessoa"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Section: Detalhes do Negócio */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="h-6 w-6 rounded-md bg-secondary flex items-center justify-center">
-                    <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                  <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-foreground/70">Detalhes da Oportunidade</h3>
                 </div>
 
-                <div className="grid grid-cols-2 gap-5">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Vendedor Responsável</Label>
-                    <Select 
-                      disabled={!canManage}
-                      value={form.owner_id} 
-                      onValueChange={v => setForm({ ...form, owner_id: v })}
-                    >
-                      <SelectTrigger className="h-10 bg-background/50 border-border text-xs focus:ring-[#3ecf8e]/20">
-                        <SelectValue placeholder="Selecionar vendedor..." />
-                      </SelectTrigger>
-                      <SelectContent className="bg-card border-border">
-                        {sellers.map(s => (
-                          <SelectItem key={s.id} value={s.id} className="text-xs">{s.full_name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                {/* Section: Detalhes do Negócio */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="h-6 w-6 rounded-md bg-secondary flex items-center justify-center">
+                      <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                    </div>
+                    <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-foreground/70">Detalhes da Oportunidade</h3>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Estágio Comercial</Label>
-                    <Select value={form.stage} onValueChange={handleStageChange}>
-                      <SelectTrigger className="h-10 bg-background/50 border-border text-xs focus:ring-[#3ecf8e]/20">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-card border-border">
-                        {STAGES.map(s => <SelectItem key={s.key} value={s.key} className="text-xs">{s.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+
+                  <div className="grid grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Vendedor Responsável</Label>
+                      <Select 
+                        disabled={!canManage}
+                        value={form.owner_id} 
+                        onValueChange={v => setForm({ ...form, owner_id: v })}
+                      >
+                        <SelectTrigger className="h-10 bg-background/50 border-border text-xs focus:ring-[#3ecf8e]/20">
+                          <SelectValue placeholder="Selecionar vendedor..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border">
+                          {sellers.map(s => (
+                            <SelectItem key={s.id} value={s.id} className="text-xs">{s.full_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Estágio Comercial</Label>
+                      <Select value={form.stage} onValueChange={handleStageChange}>
+                        <SelectTrigger className="h-10 bg-background/50 border-border text-xs focus:ring-[#3ecf8e]/20">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border">
+                          {STAGES.map(s => <SelectItem key={s.key} value={s.key} className="text-xs">{s.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Probabilidade (%)</Label>
+                      <Input 
+                        type="number" 
+                        value={form.probability} 
+                        onChange={e => setForm({ ...form, probability: Number(e.target.value) })} 
+                        className="h-10 bg-background/50 border-border text-sm font-mono focus-visible:ring-[#3ecf8e]/20" 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Previsão de Fechamento</Label>
+                      <div className="relative">
+                        <Input 
+                          type="date" 
+                          value={form.expected_closing} 
+                          onChange={e => setForm({ ...form, expected_closing: e.target.value })} 
+                          className="h-10 bg-background/50 border-border text-sm font-mono focus-visible:ring-[#3ecf8e]/20 pl-10" 
+                        />
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50 pointer-events-none" />
+                      </div>
+                    </div>
                   </div>
+
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Probabilidade (%)</Label>
-                    <Input 
-                      type="number" 
-                      value={form.probability} 
-                      onChange={e => setForm({ ...form, probability: Number(e.target.value) })} 
-                      className="h-10 bg-background/50 border-border text-sm font-mono focus-visible:ring-[#3ecf8e]/20" 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Previsão de Fechamento</Label>
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Valor Estimado (BRL)</Label>
                     <div className="relative">
                       <Input 
-                        type="date" 
-                        value={form.expected_closing} 
-                        onChange={e => setForm({ ...form, expected_closing: e.target.value })} 
-                        className="h-10 bg-background/50 border-border text-sm font-mono focus-visible:ring-[#3ecf8e]/20 pl-10" 
+                        required 
+                        type="text" 
+                        placeholder="0,00"
+                        value={form.value} 
+                        onChange={e => {
+                          const v = e.target.value.replace(/\D/g, "");
+                          if (!v) {
+                            setForm(f => ({ ...f, value: "" }));
+                            return;
+                          }
+                          const amount = parseInt(v) / 100;
+                          const formatted = new Intl.NumberFormat("pt-BR", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          }).format(amount);
+                          setForm(f => ({ ...f, value: formatted }));
+                        }}
+                        className="h-12 bg-background/50 border-border text-xl font-black text-[#3ecf8e] font-mono tracking-tighter pl-12 focus-visible:ring-[#3ecf8e]/20" 
                       />
-                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50 pointer-events-none" />
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground/50 font-bold text-sm">R$</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Valor Estimado (BRL)</Label>
-                  <div className="relative">
-                    <Input 
-                      required 
-                      type="text" 
-                      placeholder="0,00"
-                      value={form.value} 
-                      onChange={e => {
-                        const v = e.target.value.replace(/\D/g, "");
-                        if (!v) {
-                          setForm(f => ({ ...f, value: "" }));
-                          return;
-                        }
-                        const amount = parseInt(v) / 100;
-                        const formatted = new Intl.NumberFormat("pt-BR", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2
-                        }).format(amount);
-                        setForm(f => ({ ...f, value: formatted }));
-                      }}
-                      className="h-12 bg-background/50 border-border text-xl font-black text-[#3ecf8e] font-mono tracking-tighter pl-12 focus-visible:ring-[#3ecf8e]/20" 
-                    />
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground/50 font-bold text-sm">R$</span>
-                  </div>
-                </div>
-              </div>
-
-              {(form.stage === 'ganho' || form.stage === 'perdido') && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-5 bg-[#3ecf8e]/5 border border-[#3ecf8e]/20 rounded-xl space-y-4">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-[#3ecf8e]" />
-                    <Label className="text-xs font-black text-foreground uppercase tracking-[0.1em]">Finalização do Negócio</Label>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-[9px] font-bold uppercase tracking-widest text-[#3ecf8e]">Data do Fechamento Efetivo</Label>
-                      <Input 
-                        type="date" 
-                        required
-                        value={form.closed_at} 
-                        onChange={e => setForm({ ...form, closed_at: e.target.value })} 
-                        className="h-10 bg-background border-[#3ecf8e]/30 text-sm font-mono text-foreground focus-visible:ring-[#3ecf8e]/20" 
-                      />
-                      <p className="text-[10px] text-muted-foreground/70 leading-relaxed italic mt-1">
-                        * Esta data define em qual período o negócio será contabilizado no dashboard.
-                      </p>
+                {(form.stage === 'ganho' || form.stage === 'perdido') && (
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-5 bg-[#3ecf8e]/5 border border-[#3ecf8e]/20 rounded-xl space-y-4">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 text-[#3ecf8e]" />
+                      <Label className="text-xs font-black text-foreground uppercase tracking-[0.1em]">Finalização do Negócio</Label>
                     </div>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Section: Produto e Meta */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="h-6 w-6 rounded-md bg-secondary flex items-center justify-center">
-                    <Package className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                  <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-foreground/70">Produto e Metas</h3>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Produto Vinculado</Label>
-                    <Select value={form.product_id || "none"} onValueChange={v => setForm({ ...form, product_id: v === "none" ? "" : v })}>
-                      <SelectTrigger className="h-10 bg-background/50 border-border text-xs focus:ring-[#3ecf8e]/20">
-                        <div className="flex items-center gap-2">
-                          <Package className="h-3.5 w-3.5 text-muted-foreground" />
-                          <SelectValue placeholder="Selecionar produto..." />
-                        </div>
-                      </SelectTrigger>
-                      <SelectContent className="bg-card border-border">
-                        <SelectItem value="none" className="text-xs font-medium italic">Nenhum produto vinculado</SelectItem>
-                        {products.map(p => (
-                          <SelectItem key={p.id} value={p.id} className="text-xs">
-                            {p.name} {p.metadata?.category ? `· ${p.metadata.category}` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {form.product_id && (() => {
-                    const linkedProd = products.find(p => p.id === form.product_id);
-                    if (!linkedProd) return null;
-                    const hasGoal = !!linkedProd.metadata?.goal_active;
-                    const hasGoalValue = !!linkedProd.metadata?.goal;
-                    return (
-                      <div className={cn(
-                        "flex items-start gap-4 p-4 rounded-xl border transition-all",
-                        hasGoal && hasGoalValue
-                          ? "bg-[#3ecf8e]/5 border-[#3ecf8e]/10"
-                          : "bg-orange-500/5 border-orange-500/10"
-                      )}>
-                        <div className={cn(
-                          "h-8 w-8 rounded-full flex items-center justify-center shrink-0 shadow-sm",
-                          hasGoal && hasGoalValue ? "bg-[#3ecf8e]/10 text-[#3ecf8e]" : "bg-orange-500/10 text-orange-500"
-                        )}>
-                          <Target className="h-4 w-4" />
-                        </div>
-                        <div className="space-y-1">
-                          <p className={cn(
-                            "text-xs font-bold uppercase tracking-wide",
-                            hasGoal && hasGoalValue ? "text-[#3ecf8e]" : "text-orange-500"
-                          )}>
-                            {hasGoal && hasGoalValue ? "Meta de Venda Ativa" : hasGoal ? "Meta sem Valor" : "Meta Inativa"}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground leading-relaxed">
-                            {hasGoal && hasGoalValue
-                              ? <>Esta venda contribuirá para o atingimento da meta de <span className="font-bold text-foreground">{Number(linkedProd.metadata.goal).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span> deste produto.</>
-                              : hasGoal
-                                ? "O produto tem meta habilitada, mas o valor do objetivo não foi definido nas configurações."
-                                : "Este produto não possui monitoramento de metas ativo. As vendas não aparecerão nos rankings de produtos do dashboard."}
-                          </p>
-                        </div>
+                    <div className="grid grid-cols-1 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[9px] font-bold uppercase tracking-widest text-[#3ecf8e]">Data do Fechamento Efetivo</Label>
+                        <Input 
+                          type="date" 
+                          required
+                          value={form.closed_at} 
+                          onChange={e => setForm({ ...form, closed_at: e.target.value })} 
+                          className="h-10 bg-background border-[#3ecf8e]/30 text-sm font-mono text-foreground focus-visible:ring-[#3ecf8e]/20" 
+                        />
+                        <p className="text-[10px] text-muted-foreground/70 leading-relaxed italic mt-1">
+                          * Esta data define em qual período o negócio será contabilizado no dashboard.
+                        </p>
                       </div>
-                    );
-                  })()}
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Section: Produto e Meta */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="h-6 w-6 rounded-md bg-secondary flex items-center justify-center">
+                      <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                    </div>
+                    <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-foreground/70">Produto e Metas</h3>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Produto Vinculado</Label>
+                      <Select value={form.product_id || "none"} onValueChange={v => setForm({ ...form, product_id: v === "none" ? "" : v })}>
+                        <SelectTrigger className="h-10 bg-background/50 border-border text-xs focus:ring-[#3ecf8e]/20">
+                          <div className="flex items-center gap-2">
+                            <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                            <SelectValue placeholder="Selecionar produto..." />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border">
+                          <SelectItem value="none" className="text-xs font-medium italic">Nenhum produto vinculado</SelectItem>
+                          {products.map(p => (
+                            <SelectItem key={p.id} value={p.id} className="text-xs">
+                              {p.name} {p.metadata?.category ? `· ${p.metadata.category}` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {form.product_id && (() => {
+                      const linkedProd = products.find(p => p.id === form.product_id);
+                      if (!linkedProd) return null;
+                      const hasGoal = !!linkedProd.metadata?.goal_active;
+                      const hasGoalValue = !!linkedProd.metadata?.goal;
+                      return (
+                        <div className={cn(
+                          "flex items-start gap-4 p-4 rounded-xl border transition-all",
+                          hasGoal && hasGoalValue
+                            ? "bg-[#3ecf8e]/5 border-[#3ecf8e]/10"
+                            : "bg-orange-500/5 border-orange-500/10"
+                        )}>
+                          <div className={cn(
+                            "h-8 w-8 rounded-full flex items-center justify-center shrink-0 shadow-sm",
+                            hasGoal && hasGoalValue ? "bg-[#3ecf8e]/10 text-[#3ecf8e]" : "bg-orange-500/10 text-orange-500"
+                          )}>
+                            <Target className="h-4 w-4" />
+                          </div>
+                          <div className="space-y-1">
+                            <p className={cn(
+                              "text-xs font-bold uppercase tracking-wide",
+                              hasGoal && hasGoalValue ? "text-[#3ecf8e]" : "text-orange-500"
+                            )}>
+                              {hasGoal && hasGoalValue ? "Meta de Venda Ativa" : hasGoal ? "Meta sem Valor" : "Meta Inativa"}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground leading-relaxed">
+                              {hasGoal && hasGoalValue
+                                ? <>Esta venda contribuirá para o atingimento da meta de <span className="font-bold text-foreground">{Number(linkedProd.metadata.goal).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span> deste produto.</>
+                                : hasGoal
+                                  ? "O produto tem meta habilitada, mas o valor do objetivo não foi definido nas configurações."
+                                  : "Este produto não possui monitoramento de metas ativo. As vendas não aparecerão nos rankings de produtos do dashboard."}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-3 pt-2">
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Observações Técnicas / Notas</Label>
-                <Textarea 
-                  value={form.description} 
-                  onChange={e => setForm({ ...form, description: e.target.value })} 
-                  placeholder="Descreva detalhes adicionais, requisitos do cliente ou próximos passos..."
-                  className="bg-background/50 border-border text-sm min-h-[100px] focus-visible:ring-[#3ecf8e]/20 p-4 leading-relaxed" 
-                />
-              </div>
+                <div className="space-y-3 pt-2">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Observações Técnicas / Notas</Label>
+                  <Textarea 
+                    value={form.description} 
+                    onChange={e => setForm({ ...form, description: e.target.value })} 
+                    placeholder="Descreva detalhes adicionais, requisitos do cliente ou próximos passos..."
+                    className="bg-background/50 border-border text-sm min-h-[100px] focus-visible:ring-[#3ecf8e]/20 p-4 leading-relaxed" 
+                  />
+                </div>
 
-              <div className="flex items-center justify-end gap-3 pt-6 border-t border-border mt-4">
-                <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)} className="text-xs font-medium hover:bg-muted/50">
-                  Descartar
-                </Button>
-                <Button type="submit" disabled={busy} className="bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-[#000] font-bold text-xs px-8 h-10 shadow-lg shadow-[#3ecf8e]/10">
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? "Salvar Alterações" : "Efetivar Negócio"}
-                </Button>
-              </div>
-            </form>
+                <div className="flex items-center justify-end gap-3 pt-6 border-t border-border mt-4">
+                  <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)} className="text-xs font-medium hover:bg-muted/50">
+                    Descartar
+                  </Button>
+                  <Button type="submit" disabled={busy} className="bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-[#000] font-bold text-xs px-8 h-10 shadow-lg shadow-[#3ecf8e]/10">
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? "Salvar Alterações" : "Efetivar Negócio"}
+                  </Button>
+                </div>
+              </form>
+
+              {/* Coluna Direita: Histórico de Atividades e Quick Log */}
+              {editingId && (
+                <div className="border-t md:border-t-0 md:border-l border-border pt-8 md:pt-0 md:pl-8 flex flex-col min-h-0 space-y-6">
+                  {/* Título da Seção */}
+                  <div className="flex items-center justify-between pb-2 border-b border-border">
+                    <div className="flex items-center gap-2">
+                      <History className="h-4 w-4 text-[#3ecf8e]" />
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">Registro & Histórico</h3>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] border-[#3ecf8e]/20 text-[#3ecf8e]">Exact Style</Badge>
+                  </div>
+
+                  {/* Form de Registrar Nova Atividade */}
+                  <form onSubmit={handleAddActivity} className="space-y-4 bg-muted/20 p-4 rounded-xl border border-border">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Tipo de Interação</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {Object.entries(ACTIVITY_TYPE_CONFIG).map(([k, v]) => {
+                          const Icon = v.icon;
+                          const isSelected = logType === k;
+                          return (
+                            <button
+                              key={k}
+                              type="button"
+                              onClick={() => setLogType(k)}
+                              className={cn(
+                                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold border transition-all",
+                                isSelected 
+                                  ? "bg-[#3ecf8e] text-black border-[#3ecf8e] shadow-sm shadow-[#3ecf8e]/20" 
+                                  : "bg-background/50 border-border text-muted-foreground hover:text-foreground hover:bg-background"
+                              )}
+                            >
+                              <Icon className="h-3.5 w-3.5" />
+                              {v.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 relative">
+                      <div className="flex justify-between items-center">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Notas / Detalhes do Contato</Label>
+                      </div>
+                      <Textarea
+                        value={logNotes}
+                        onChange={(e) => setLogNotes(e.target.value)}
+                        placeholder="Ex: Liguei para o cliente, ele gostou muito do produto e pediu para mandar a proposta comercial..."
+                        className="bg-background/50 border-border text-xs min-h-[80px] p-3 leading-relaxed"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Desfecho</Label>
+                        <Select value={logOutcome} onValueChange={setLogOutcome}>
+                          <SelectTrigger className="h-9 bg-background/50 border-border text-xs">
+                            <SelectValue placeholder="Selecione o resultado" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border">
+                            <SelectItem value="Conectado" className="text-xs">Conectado / Conversou</SelectItem>
+                            <SelectItem value="Sem resposta" className="text-xs">Sem Resposta / Caixa Postal</SelectItem>
+                            <SelectItem value="Reunião agendada" className="text-xs">Reunião Agendada</SelectItem>
+                            <SelectItem value="Proposta enviada" className="text-xs">Proposta Enviada</SelectItem>
+                            <SelectItem value="Sem interesse" className="text-xs">Sem Interesse / Recusado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Sentimento / Temperatura</Label>
+                        <Select value={logSentiment} onValueChange={setLogSentiment}>
+                          <SelectTrigger className="h-9 bg-background/50 border-border text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border">
+                            <SelectItem value="quente" className="text-xs">Quente (Alto Interesse)</SelectItem>
+                            <SelectItem value="morno" className="text-xs">Morno (Objeções/Dúvidas)</SelectItem>
+                            <SelectItem value="frio" className="text-xs">Frio (Pouco Interesse)</SelectItem>
+                            <SelectItem value="neutro" className="text-xs">Neutro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Checkbox Agendar Próximo Passo */}
+                    <div className="border-t border-border/50 pt-3 mt-1 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="schedule_next"
+                          checked={scheduleNext}
+                          onCheckedChange={(v) => setScheduleNext(!!v)}
+                          className="border-border data-[state=checked]:bg-[#3ecf8e] data-[state=checked]:text-black"
+                        />
+                        <Label htmlFor="schedule_next" className="text-[11px] font-bold uppercase text-foreground cursor-pointer flex items-center gap-1">
+                          Agendar Próxima Ação recomendada
+                        </Label>
+                      </div>
+
+                      {scheduleNext && (
+                        <div className="p-3 bg-background/80 border border-border rounded-lg space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                          <div className="space-y-1.5">
+                            <Label className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Título do Próximo Passo</Label>
+                            <Input
+                              required
+                              placeholder="Ex: Enviar orçamento detalhado"
+                              value={nextActionTitle}
+                              onChange={(e) => setNextActionTitle(e.target.value)}
+                              className="h-8 text-xs bg-muted/30 border-border"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                              <Label className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Tipo de Ação</Label>
+                              <Select value={nextActionType} onValueChange={setNextActionType}>
+                                <SelectTrigger className="h-8 bg-muted/30 border-border text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-card border-border">
+                                  {Object.entries(ACTIVITY_TYPE_CONFIG).map(([k, v]) => (
+                                    <SelectItem key={k} value={k} className="text-xs">{v.label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Data e Hora Prazo</Label>
+                              <Input
+                                required
+                                type="datetime-local"
+                                value={nextActionDue}
+                                onChange={(e) => setNextActionDue(e.target.value)}
+                                className="h-8 text-xs bg-muted/30 border-border"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <Button type="submit" disabled={busy} className="w-full h-9 bg-[#3ecf8e] text-black hover:bg-[#3ecf8e]/90 font-bold text-xs">
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
+                      Registrar Interação
+                    </Button>
+                  </form>
+
+                  {/* Histórico/Timeline de Atividades */}
+                  <div className="flex-1 overflow-y-auto max-h-[300px] pr-1 space-y-4 no-scrollbar">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground sticky top-0 bg-card py-1 block z-10">
+                      Linha do Tempo comercial
+                    </Label>
+                    
+                    {activitiesLoading ? (
+                      <div className="py-8 flex justify-center"><Loader2 className="h-5 w-5 animate-spin text-[#3ecf8e]" /></div>
+                    ) : oppActivities.length === 0 ? (
+                      <div className="py-8 text-center text-xs text-muted-foreground italic border border-dashed border-border rounded-lg">
+                        Nenhuma interação registrada para este negócio.
+                      </div>
+                    ) : (
+                      <div className="relative border-l border-border ml-2.5 pl-5 space-y-4">
+                        {oppActivities.map((act) => {
+                          const cfg = ACTIVITY_TYPE_CONFIG[act.type] || ACTIVITY_TYPE_CONFIG.tarefa;
+                          const Icon = cfg.icon;
+                          const isDone = act.status === 'concluida';
+                          
+                          return (
+                            <div key={act.id} className="relative group/item">
+                              {/* Círculo com ícone */}
+                              <div className={cn(
+                                "absolute -left-[31px] top-0 h-6 w-6 rounded-full border border-card flex items-center justify-center text-xs shadow-sm z-10 transition-all",
+                                isDone ? cfg.color.split(" ")[1] + " " + cfg.color.split(" ")[0] : "bg-secondary text-muted-foreground border-border"
+                              )}>
+                                <Icon className="h-3.5 w-3.5" />
+                              </div>
+
+                              {/* Conteúdo da Atividade */}
+                              <div className="bg-secondary/40 border border-border rounded-lg p-3 space-y-2 hover:border-border/80 transition-colors">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <h4 className={cn("text-xs font-bold text-foreground", !isDone && "text-muted-foreground italic")}>
+                                      {act.title}
+                                    </h4>
+                                    <p className="text-[9px] text-muted-foreground">
+                                      {new Date(act.created_at).toLocaleString("pt-BR", { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · por {act.profiles?.full_name || 'Vendedor'}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    {/* Ações rápidas */}
+                                    {!isDone && (
+                                      <button
+                                        onClick={() => handleCompleteActivity(act.id, act.status)}
+                                        className="h-5 w-5 rounded bg-[#3ecf8e]/10 text-[#3ecf8e] hover:bg-[#3ecf8e] hover:text-black flex items-center justify-center transition-all"
+                                        title="Concluir atividade"
+                                      >
+                                        <CheckCircle2 className="h-3 w-3" />
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => handleRemoveActivity(act.id)}
+                                      className="opacity-0 group-hover/item:opacity-100 h-5 w-5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex items-center justify-center transition-all"
+                                      title="Excluir log"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {act.description && (
+                                  <p className="text-[11px] text-foreground leading-relaxed bg-background/30 p-2 rounded border border-border/30 whitespace-pre-wrap">
+                                    {act.description}
+                                  </p>
+                                )}
+
+                                {/* Badges de Inteligência */}
+                                <div className="flex flex-wrap gap-1.5">
+                                  {act.outcome && (
+                                    <Badge variant="secondary" className="h-5 px-1.5 text-[9px] font-bold border-none bg-muted text-foreground">
+                                      {act.outcome}
+                                    </Badge>
+                                  )}
+                                  {act.sentiment && (
+                                    <Badge 
+                                      variant="outline" 
+                                      className={cn(
+                                        "h-5 px-1.5 text-[9px] font-bold uppercase",
+                                        act.sentiment === 'quente' && "bg-red-500/10 text-red-500 border-red-500/20",
+                                        act.sentiment === 'morno' && "bg-amber-500/10 text-amber-500 border-amber-500/20",
+                                        act.sentiment === 'frio' && "bg-blue-500/10 text-blue-500 border-blue-500/20",
+                                        act.sentiment === 'neutro' && "bg-muted text-muted-foreground border-border"
+                                      )}
+                                    >
+                                      {act.sentiment === 'quente' ? 'Quente' : act.sentiment === 'morno' ? 'Morno' : act.sentiment === 'frio' ? 'Frio' : 'Neutro'}
+                                    </Badge>
+                                  )}
+                                  {!isDone && act.due_date && (
+                                    <Badge variant="outline" className="h-5 px-1.5 text-[9px] font-bold border-[#f59e0b]/20 text-[#f59e0b] bg-[#f59e0b]/5 gap-1 animate-pulse">
+                                      <Clock className="h-2.5 w-2.5" />
+                                      Pendente: {new Date(act.due_date).toLocaleDateString('pt-BR')}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
