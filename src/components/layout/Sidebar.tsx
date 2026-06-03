@@ -40,6 +40,7 @@ const nav: NavGroup[] = [
     group: "Pessoal", items: [
       { to: "/me", label: "Meu Painel", icon: UserCircle },
       { to: "/customers", label: "Clientes", icon: Users },
+      { to: "/prospecting", label: "Prospecção", icon: Target },
       { to: "/pipeline", label: "Pipeline", icon: Kanban },
       { to: "/activities", label: "Agenda & Tracker", icon: ListTodo },
     ]

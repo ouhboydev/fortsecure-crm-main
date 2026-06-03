@@ -48,12 +48,12 @@ function Activities() {
   const [busy, setBusy] = useState(false);
 
   // Agenda tab states
-  const [view, setView] = useState<"list" | "calendar">("list");
+  const [view, setView] = useState<"list" | "calendar">("calendar");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [filter, setFilter] = useState<"all" | "pendente" | "concluida">("all");
-  const [form, setForm] = useState({ title: "", type: "tarefa", due_date: "", is_public: false });
+  const [form, setForm] = useState({ title: "", type: "tarefa", due_date: "", is_public: false, description: "" });
   const [showCompleted, setShowCompleted] = useState(false);
 
   // Tracker tab states
@@ -110,11 +110,14 @@ function Activities() {
     if (!form.title || !user) return;
     setBusy(true);
     try {
+      const isPublicStr = form.is_public ? `[PÚBLICO] ` : "";
+      const finalDesc = form.description ? `${isPublicStr}${form.description}` : (form.is_public ? `[PÚBLICO] ${new Date().toISOString()}` : null);
+
       const payload: any = {
         title: form.title,
         type: form.type as any,
         due_date: form.due_date ? new Date(form.due_date).toISOString() : null,
-        description: form.is_public ? `[PÚBLICO] ${new Date().toISOString()}` : null,
+        description: finalDesc,
       };
 
       if (editingItem) {
@@ -129,7 +132,7 @@ function Activities() {
         toast.success("Atividade agendada!");
       }
 
-      setForm({ title: "", type: "tarefa", due_date: "", is_public: false });
+      setForm({ title: "", type: "tarefa", due_date: "", is_public: false, description: "" });
       setEditingItem(null);
       setIsModalOpen(false);
       load();
@@ -191,18 +194,20 @@ function Activities() {
 
   function openEdit(a: any) {
     setEditingItem(a);
+    const desc = a.description || "";
     setForm({
       title: a.title || "",
       type: a.type || "tarefa",
       due_date: a.due_date ? new Date(a.due_date).toISOString().slice(0, 16) : "",
-      is_public: a.description?.includes("[PÚBLICO]") || false
+      is_public: desc.includes("[PÚBLICO]"),
+      description: desc.replace("[PÚBLICO] ", "").replace(`[PÚBLICO]`, "").trim()
     });
     setIsModalOpen(true);
   }
 
   function openNew() {
     setEditingItem(null);
-    setForm({ title: "", type: "tarefa", due_date: "", is_public: false });
+    setForm({ title: "", type: "tarefa", due_date: "", is_public: false, description: "" });
     setIsModalOpen(true);
   }
 
@@ -602,6 +607,16 @@ function Activities() {
                 </div>
               </div>
 
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">Descrição</Label>
+                <Textarea
+                  placeholder="Detalhes adicionais da atividade..."
+                  value={form.description}
+                  onChange={e => setForm({ ...form, description: e.target.value })}
+                  className="bg-secondary border-border text-sm min-h-[80px]"
+                />
+              </div>
+
               <div className="flex items-center gap-2.5 p-3 bg-secondary border border-border rounded-md">
                 <Checkbox
                   id="is_public"
@@ -824,7 +839,7 @@ function CalendarView({ items, selectedDate, onSelect, onNew, onEdit, user }: { 
                 key={d}
                 onClick={() => setSelectedDay(dateStr === selectedDay ? null : dateStr)}
                 className={cn(
-                  "min-h-[110px] p-2 border-r border-b border-border/50 hover:bg-accent/20 transition-colors cursor-pointer",
+                  "min-h-[140px] p-2 border-r border-b border-border/50 hover:bg-accent/20 transition-colors cursor-pointer",
                   isToday && "bg-[#3ecf8e]/5",
                   selectedDay === dateStr && "ring-1 ring-inset ring-[#3ecf8e]/40 bg-[#3ecf8e]/5"
                 )}>
@@ -842,14 +857,26 @@ function CalendarView({ items, selectedDate, onSelect, onNew, onEdit, user }: { 
                     return (
                       <div
                         key={it.id}
-                        title={`${cfg.label} · ${it.title}${authorName ? ` · ${it.profiles.full_name}` : ''} · ${timeStr}`}
+                        title={`${cfg.label} · ${it.title}${authorName ? ` · ${it.profiles.full_name}` : ''} · ${timeStr}\n${it.description || ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEdit(it);
+                        }}
                         className={cn(
-                          "flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium truncate",
+                          "flex flex-col gap-0.5 px-1.5 py-1 rounded text-[9px] font-medium leading-tight overflow-hidden cursor-pointer",
                           it.status === "concluida" ? "bg-secondary text-muted-foreground line-through opacity-60" : bgColor + " " + iconColor
                         )}
                       >
-                        <cfg.icon className="h-2.5 w-2.5 shrink-0" />
-                        <span className="truncate">{it.title}</span>
+                        <div className="flex items-center gap-1 font-bold truncate">
+                          <cfg.icon className="h-2.5 w-2.5 shrink-0" />
+                          <span className="truncate">{it.title}</span>
+                        </div>
+                        {it.description && !it.description.startsWith("[PÚBLICO]") && (
+                          <span className="truncate opacity-80">{it.description}</span>
+                        )}
+                        {authorName && (
+                          <span className="truncate opacity-80 text-[8px] italic flex items-center gap-0.5"><Users className="h-2 w-2" /> {authorName}</span>
+                        )}
                       </div>
                     );
                   })}
@@ -890,15 +917,23 @@ function CalendarView({ items, selectedDate, onSelect, onNew, onEdit, user }: { 
                     <div className={cn("h-8 w-8 rounded-md flex items-center justify-center shrink-0", cfg.color.split(" ")[1], iconColor)}>
                       <cfg.icon className="h-4 w-4" />
                     </div>
-                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => it.owner_id === user?.id && onEdit(it)}>
-                      <p className={cn("text-sm font-medium truncate", isDone && "line-through text-muted-foreground")}>{it.title}</p>
-                      <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onEdit(it)}>
+                      <p className={cn("text-sm font-bold truncate", isDone && "line-through text-muted-foreground")}>{it.title}</p>
+                      {it.description && !it.description.startsWith("[PÚBLICO]") && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{it.description}</p>
+                      )}
+                      <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                         <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                           <Clock className="h-3 w-3" /> {timeStr}
                         </span>
                         {authorName && (
                           <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                             <Users className="h-3 w-3" /> {authorName}
+                          </span>
+                        )}
+                        {it.opportunities?.title && (
+                          <span className="text-[10px] text-[#3ecf8e] font-semibold uppercase tracking-wider flex items-center gap-1">
+                            <Target className="h-3 w-3" /> {it.opportunities.title}
                           </span>
                         )}
                         <span className={cn("text-[10px] font-semibold uppercase tracking-wider",
