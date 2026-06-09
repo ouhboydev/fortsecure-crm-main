@@ -356,6 +356,7 @@ function SalesPipeline() {
   const handleStageChange = (newStage: string) => {
     let prob = form.probability;
     switch (newStage) {
+      case 'leads_exact': prob = 10; break;
       case 'prospect': prob = 20; break;
       case 'qualificado': prob = 40; break;
       case 'proposta': prob = 60; break;
@@ -381,6 +382,7 @@ function SalesPipeline() {
     let closedAt = null;
 
     switch (newStage) {
+      case 'leads_exact': probability = 10; break;
       case 'prospect': probability = 20; break;
       case 'qualificado': probability = 40; break;
       case 'proposta': probability = 60; break;

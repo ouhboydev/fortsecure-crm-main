@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
@@ -27,7 +28,7 @@ export const Route = createFileRoute("/admin")({
 
 const CLIENTS = ["TechCorp", "Acme Ind.", "Globex", "Initech", "Umbrella", "Wayne Ent.", "Stark", "Pied Piper", "Hooli", "Aperture", "Soylent", "Massive Dynamic"];
 const TITLES = ["Plano Enterprise", "Renovação anual", "Expansão licenças", "Implementação", "Consultoria", "Add-on premium", "Migração cloud", "Treinamento"];
-const STAGES_ALL = ["prospect", "qualificado", "proposta", "negociacao", "ganho", "perdido"] as const;
+const STAGES_ALL = ["leads_exact", "prospect", "qualificado", "proposta", "negociacao", "ganho", "perdido"] as const;
 
 function rand<T>(arr: readonly T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
 function randInt(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min; }
@@ -40,6 +41,8 @@ function Admin() {
   const [logs, setLogs] = useState<any[]>([]);
   const [appSettings, setAppSettings] = useState<any[]>([]);
   const [globalGoal, setGlobalGoal] = useState("2000000");
+  const [jsonInput, setJsonInput] = useState("");
+  const [importStats, setImportStats] = useState<{ total: number; success: number; failed: number } | null>(null);
 
   useEffect(() => { if (isAdmin) refreshData(); }, [isAdmin]);
 
@@ -133,7 +136,7 @@ function Admin() {
           const value = randInt(3, 80) * 1000;
           opps.push({
             owner_id: p.id, client_name: rand(CLIENTS), title: rand(TITLES), value, stage,
-            probability: { prospect: 20, qualificado: 40, proposta: 60, negociacao: 80, ganho: 100, perdido: 0 }[stage],
+            probability: { leads_exact: 10, prospect: 20, qualificado: 40, proposta: 60, negociacao: 80, ganho: 100, perdido: 0 }[stage],
             closed_at: (stage === "ganho" || stage === "perdido") ? new Date(year, month - 1, randInt(1, Math.min(28, now.getDate()))).toISOString() : null,
             expected_close_date: new Date(year, month - 1, randInt(1, 28)).toISOString().slice(0, 10),
           });
@@ -142,6 +145,157 @@ function Admin() {
       await supabase.from("opportunities").insert(opps);
       await supabase.from("audit_logs").insert({ action: "Dados demo gerados", entity: "system", user_id: currentUser?.id });
       toast.success("Dados de teste gerados!");
+      refreshData();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importLeadsExact() {
+    setBusy(true);
+    setImportStats(null);
+    try {
+      const { data: profs } = await supabase.from("profiles").select("id, full_name");
+      if (!profs?.length) { toast.error("Crie ou carregue perfis de vendedores primeiro."); return; }
+
+      // Parse the JSON input
+      let parsed: any;
+      try {
+        parsed = JSON.parse(jsonInput.trim());
+      } catch {
+        toast.error("JSON inválido. Verifique o formato e tente novamente.");
+        setBusy(false);
+        return;
+      }
+
+      const leadsData: any[] = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.Leads)
+        ? parsed.Leads
+        : [];
+
+      if (!leadsData.length) {
+        toast.error("Nenhum lead encontrado no JSON. Verifique a estrutura (espera-se { Leads: [...] } ou um array).");
+        setBusy(false);
+        return;
+      }
+      
+      const getOwnerId = (name: string): string => {
+        if (!name) return profs[0].id;
+        const matched = profs.find(p =>
+          p.full_name?.toLowerCase().includes(name.toLowerCase())
+        );
+        return matched ? matched.id : profs[0].id;
+      };
+
+      // Calculate total value: use sum of Valor fields, or 0 if none
+      const totalFromValor = leadsData.reduce((sum: number, l: any) => sum + (l.Valor || 0), 0);
+      const leadsWithoutValor = leadsData.filter((l: any) => !l.Valor);
+      const fallbackValPerLead = leadsWithoutValor.length > 0
+        ? Math.round((81479.00 / leadsData.length) * 100) / 100
+        : 0;
+
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const lead of leadsData) {
+        const ownerId = getOwnerId(lead.PreVendedor || "");
+
+        let clientName = (lead.Nome || "Lead importado").trim();
+        let title = clientName;
+        let source = "N/A";
+        if (lead.Complemento && lead.Complemento.includes("Origem:")) {
+          source = lead.Complemento.replace("Origem:", "").trim();
+        } else if (lead.Complemento) {
+          source = lead.Complemento.trim();
+        }
+
+        // Normalize client name patterns
+        if (clientName.startsWith("Renew Kaspersky - ")) {
+          clientName = clientName.replace("Renew Kaspersky - ", "").trim();
+          title = `Renovação Kaspersky - ${clientName}`;
+        } else if (clientName.startsWith("Co Termo Renew Kaspersky - ")) {
+          clientName = clientName.replace("Co Termo Renew Kaspersky - ", "").trim();
+          title = `Co-Termo Kaspersky - ${clientName}`;
+        } else if (clientName.endsWith(" - HSC")) {
+          clientName = clientName.replace(" - HSC", "").trim();
+          title = `HSC - ${clientName}`;
+        } else {
+          title = `Oportunidade - ${clientName}`;
+        }
+        clientName = clientName.trim();
+
+        const leadValue = lead.Valor ? Number(lead.Valor) : fallbackValPerLead;
+
+        // Determine stage: if Venda exists, mark as 'ganho', else 'leads_exact'
+        const stage = lead.Venda ? "ganho" : "leads_exact";
+        const closedAt = lead.Venda?.Data ? new Date(lead.Venda.Data).toISOString() : null;
+
+        // 1. Find or create Customer
+        const { data: existingCust } = await (supabase
+          .from("customers" as any)
+          .select("id")
+          .eq("name", clientName)
+          .eq("owner_id", ownerId)
+          .limit(1) as any);
+
+        let customerId: string | null = null;
+        if (existingCust && (existingCust as any[]).length > 0) {
+          customerId = (existingCust as any[])[0].id;
+        } else {
+          const { data: newCust, error: custError } = await (supabase
+            .from("customers" as any)
+            .insert({
+              owner_id: ownerId,
+              name: clientName,
+              company: clientName,
+              notes: `Importado via EXACT - Original: ${lead.Nome}`
+            })
+            .select("id")
+            .single() as any);
+
+          if (custError) {
+            console.error(`Erro ao criar cliente "${clientName}":`, custError);
+            failCount++;
+            continue;
+          }
+          customerId = (newCust as any).id;
+        }
+
+        // 2. Create Opportunity
+        const { error: oppError } = await supabase
+          .from("opportunities")
+          .insert({
+            owner_id: ownerId,
+            customer_id: customerId,
+            client_name: clientName,
+            title: title,
+            value: leadValue,
+            stage: stage as any,
+            probability: stage === "ganho" ? 100 : 10,
+            closed_at: closedAt,
+            notes: `Importado do JSON EXACT.\nPreVendedor: ${lead.PreVendedor || "N/A"} (ID: ${lead.PreVendedorId || "N/A"})\nOriginal: ${lead.Nome}`,
+          } as any);
+
+        if (oppError) {
+          console.error(`Erro ao criar negócio "${title}":`, oppError.message);
+          failCount++;
+        } else {
+          successCount++;
+        }
+      }
+
+      setImportStats({ total: leadsData.length, success: successCount, failed: failCount });
+
+      await supabase.from("audit_logs").insert({
+        action: `Importados ${successCount}/${leadsData.length} leads EXACT`,
+        entity: "system",
+        user_id: currentUser?.id
+      });
+
+      toast.success(`${successCount} leads importados com sucesso!`);
       refreshData();
     } catch (e: any) {
       toast.error(e.message);
@@ -401,6 +555,50 @@ function Admin() {
                   <Trash2 className="h-3.5 w-3.5" /> Reset Total de Dados
                 </Button>
                 <p className="text-[10px] text-muted-foreground text-center">⚠ O reset apaga permanentemente todos os dados comerciais.</p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-card border border-border rounded-lg shadow-sm">
+              <CardHeader className="px-5 py-4 border-b border-border">
+                <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-[#a78bfa]" /> Importar Leads EXACT
+                </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground">Cole o JSON do EXACT (formato <code className="font-mono bg-secondary px-1 rounded">{'{'}Leads: [...]{'}' }</code> ou array direto) e clique em Importar.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-5 space-y-3">
+                <Textarea
+                  value={jsonInput}
+                  onChange={e => setJsonInput(e.target.value)}
+                  placeholder={'{ "Leads": [ ... ] }'}
+                  className="h-36 font-mono text-[11px] bg-secondary border-border resize-none"
+                />
+                {importStats && (
+                  <div className="flex items-center gap-3 p-2.5 bg-[#a78bfa]/5 border border-[#a78bfa]/20 rounded-md">
+                    <span className="text-[10px] text-muted-foreground">Total: <span className="font-semibold text-foreground">{importStats.total}</span></span>
+                    <span className="text-[10px] text-[#3ecf8e]">✓ {importStats.success} importados</span>
+                    {importStats.failed > 0 && <span className="text-[10px] text-destructive">✗ {importStats.failed} falhas</span>}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    onClick={importLeadsExact}
+                    disabled={busy || !jsonInput.trim()}
+                    className="flex-1 h-9 bg-[#a78bfa] text-black font-semibold text-xs hover:bg-[#a78bfa]/90 gap-2"
+                  >
+                    {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Database className="h-3.5 w-3.5" />}
+                    Importar Leads EXACT
+                  </Button>
+                  {jsonInput && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => { setJsonInput(""); setImportStats(null); }}
+                      className="h-9 px-3 border-border text-muted-foreground text-xs"
+                    >
+                      Limpar
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
 

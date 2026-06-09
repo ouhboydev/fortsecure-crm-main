@@ -8,10 +8,25 @@ import { fetchRanking } from "@/lib/sales";
 import {
   User, Camera, Shield, MapPin,
   Save, BadgeCheck, Zap, Plus, X,
-  Loader2, ChevronRight
+  Loader2, ChevronRight, Bell
 } from "lucide-react";
 import { cn, formatDisplayName } from "@/lib/utils";
 import { toast } from "sonner";
+import { useNotifications } from "@/hooks/useNotifications";
+
+const TYPE_STYLES: Record<string, string> = {
+  warning: "border-l-[#f59e0b] bg-[#f59e0b]/5",
+  error:   "border-l-[#ef4444] bg-[#ef4444]/5",
+  success: "border-l-[#3ecf8e] bg-[#3ecf8e]/5",
+  info:    "border-l-[#1eaedb] bg-[#1eaedb]/5",
+};
+
+const TYPE_DOT: Record<string, string> = {
+  warning: "bg-[#f59e0b]",
+  error:   "bg-[#ef4444]",
+  success: "bg-[#3ecf8e]",
+  info:    "bg-[#1eaedb]",
+};
 
 // Shadcn UI Imports
 import { Button } from "@/components/ui/button";
@@ -46,6 +61,7 @@ function ProfilePage() {
   const [newTag, setNewTag] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [badges, setBadges] = useState<any[]>([]);
+  const { notifications, unreadCount, markRead, markAllRead } = useNotifications();
 
   useEffect(() => {
     if (isAdmin) {
@@ -72,8 +88,8 @@ function ProfilePage() {
         setAvatarUrl(data.avatar_url);
       }
 
-      if (rankRes.data) {
-        const ranking = rankRes.data as any[];
+      if (rankRes) {
+        const ranking = rankRes as any[];
         const myIndex = ranking.findIndex(r => r.user_id === user.id);
         if (myIndex !== -1) {
           setRealRank(`#${(myIndex + 1).toString().padStart(2, '0')}`);
@@ -179,7 +195,7 @@ function ProfilePage() {
       {/* Tabs */}
       <Tabs defaultValue="perfil" onValueChange={setActiveTab} className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-6">
         <TabsList className="flex flex-col h-auto bg-card border border-border rounded-lg p-2 gap-1 shadow-sm">
-          {["perfil", "conquistas", "segurança", "preferências"].map(tab => (
+          {["perfil", "conquistas", "notificações", "segurança", "preferências"].map(tab => (
             <TabsTrigger
               key={tab}
               value={tab}
@@ -251,6 +267,56 @@ function ProfilePage() {
                 </div>
               )}
             </div>
+          </TabsContent>
+
+          <TabsContent value="notificações" className="m-0">
+            <Card className="bg-card border border-border rounded-lg shadow-sm">
+              <CardHeader className="px-6 py-4 border-b border-border flex flex-row items-center justify-between">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Bell className="h-4 w-4 text-[#3ecf8e]" /> Notificações
+                  {unreadCount > 0 && (
+                    <Badge variant="outline" className="ml-2 bg-[#ef4444]/10 text-[#ef4444] border-[#ef4444]/20 text-[10px]">
+                      {unreadCount} não lidas
+                    </Badge>
+                  )}
+                </CardTitle>
+                {unreadCount > 0 && (
+                  <Button variant="ghost" size="sm" onClick={markAllRead} className="h-7 text-[10px] text-muted-foreground hover:text-[#3ecf8e]">
+                    Marcar todas como lidas
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="max-h-[400px] overflow-y-auto divide-y divide-border/50 scrollbar-custom">
+                  {notifications.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-muted-foreground">
+                      Nenhuma notificação
+                    </div>
+                  ) : (
+                    notifications.map(n => (
+                      <div
+                        key={n.id}
+                        onClick={() => markRead(n.id)}
+                        className={cn(
+                          "flex gap-3 px-6 py-4 cursor-pointer border-l-2 transition-all hover:bg-secondary/20",
+                          TYPE_STYLES[n.type] || TYPE_STYLES.info,
+                          !n.read && "opacity-100",
+                          n.read && "opacity-50"
+                        )}
+                      >
+                        <div className={cn("h-1.5 w-1.5 rounded-full shrink-0 mt-1.5", TYPE_DOT[n.type] || TYPE_DOT.info)} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[12px] font-medium text-foreground leading-snug">{n.message}</p>
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            {new Date(n.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="segurança" className="m-0">

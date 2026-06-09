@@ -126,13 +126,13 @@ export function FlowModal({ open, onClose, onSaved, editingFlow }: Props) {
         updated_at: new Date().toISOString(),
       };
       if (editingFlow) {
-        const { error } = await supabase.from("knowledge_flows").update(payload).eq("id", editingFlow.id);
+        const { error } = await supabase.from("knowledge_flows" as any).update(payload as any).eq("id", editingFlow.id);
         if (error) throw error;
         toast.success("Fluxo atualizado!");
       } else {
-        const { error } = await supabase.from("knowledge_flows").insert({
+        const { error } = await supabase.from("knowledge_flows" as any).insert({
           ...payload, created_by: user?.id, order: 999,
-        });
+        } as any);
         if (error) throw error;
         toast.success("Fluxo criado!");
       }

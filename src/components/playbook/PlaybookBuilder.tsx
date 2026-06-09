@@ -488,9 +488,9 @@ function BuilderContent({ initialPlaybook, onClose, onSaved }: PlaybookBuilderPr
       const payload = { title, description, nodes: playbookNodes, edges: playbookEdges };
 
       if (initialPlaybook?.id) {
-        await supabase.from('interactive_playbooks').update(payload).eq('id', initialPlaybook.id);
+        await supabase.from('interactive_playbooks' as any).update(payload as any).eq('id', initialPlaybook.id);
       } else {
-        await supabase.from('interactive_playbooks').insert(payload);
+        await supabase.from('interactive_playbooks' as any).insert(payload as any);
       }
 
       toast.success('Playbook salvo com sucesso!');
@@ -630,7 +630,7 @@ function BuilderContent({ initialPlaybook, onClose, onSaved }: PlaybookBuilderPr
                 borderRadius: 8,
               }}
               nodeColor={(node) => {
-                const type = node.data?.type;
+                const type = (node.data?.type as string) || '';
                 return NODE_COLORS[type] || '#3ecf8e';
               }}
               maskColor="rgba(0, 0, 0, 0.4)"
@@ -694,7 +694,7 @@ function BuilderContent({ initialPlaybook, onClose, onSaved }: PlaybookBuilderPr
                       <option value="">Sem destino (Fim do fluxo)</option>
                       {otherNodes.map((on) => (
                         <option key={on.id} value={on.id}>
-                          {on.data.type === 'task' ? 'Tarefa' : on.data.type === 'condition' ? 'Cond' : 'Fim'}: {on.data.title || 'Sem título'}
+                          {(on.data as any).type === 'task' ? 'Tarefa' : (on.data as any).type === 'condition' ? 'Cond' : 'Fim'}: {(on.data as any).title || 'Sem título'}
                         </option>
                       ))}
                     </select>
@@ -751,7 +751,7 @@ function BuilderContent({ initialPlaybook, onClose, onSaved }: PlaybookBuilderPr
                                 <option value="">Sem destino</option>
                                 {otherNodes.map((on) => (
                                   <option key={on.id} value={on.id}>
-                                    {on.data.type === 'task' ? 'Tarefa' : on.data.type === 'condition' ? 'Cond' : 'Fim'}: {on.data.title || 'Sem título'}
+                                    {(on.data as any).type === 'task' ? 'Tarefa' : (on.data as any).type === 'condition' ? 'Cond' : 'Fim'}: {(on.data as any).title || 'Sem título'}
                                   </option>
                                 ))}
                               </select>

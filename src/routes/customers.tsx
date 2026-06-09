@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/layout/AppShell";
-import { PageHeader, Section } from "@/components/ui-kit/PageHeader";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  Plus, Search, Loader2, User, Building2, Mail, Phone, 
-  ExternalLink, MoreHorizontal, Pencil, Trash2, Filter,
+  Plus, Search, Loader2, User, Building2, Mail, Phone,
+  MoreHorizontal, Pencil, Trash2,
   Briefcase, Calendar, ChevronRight, ArrowUpRight,
-  TrendingUp, Activity, History, ListTodo, MessageSquare, ShieldCheck, Clock, Target, List
+  TrendingUp, Activity, History, ListTodo, MessageSquare,
+  ShieldCheck, Clock, Target, List, X, LayoutGrid,
 } from "lucide-react";
 import { cn, formatCurrencyBRL } from "@/lib/utils";
 import { toast } from "sonner";
@@ -15,45 +15,44 @@ import { useAuth } from "@/hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatCurrency } from "@/components/ui-kit/PageHeader";
 
-// Shadcn UI Imports
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator
-} from "@/components/ui/dropdown-menu";
-import { 
-  Tabs, 
-  TabsContent, 
-  TabsList, 
-  TabsTrigger 
-} from "@/components/ui/tabs";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/customers")({
   head: () => ({ meta: [{ title: "Clientes — FortSecure" }] }),
   component: () => <AppShell><CustomersPage /></AppShell>,
 });
+
+// ─── Avatar helpers ────────────────────────────────────────────────────────────
+
+const AVATAR_COLORS = [
+  "#3ecf8e", "#1eaedb", "#f59e0b", "#8b5cf6",
+  "#ec4899", "#f97316", "#06b6d4", "#22c55e",
+];
+
+function avatarColor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+const ACTIVITY_TYPE_CONFIG: Record<string, { icon: any; color: string; label: string }> = {
+  tarefa:   { icon: List,         color: "text-[#a3a3a3] bg-[#262626]",       label: "Tarefa" },
+  ligacao:  { icon: Phone,        color: "text-[#3ecf8e] bg-[#3ecf8e]/10",    label: "Ligação" },
+  email:    { icon: Mail,         color: "text-[#1eaedb] bg-[#1eaedb]/10",    label: "E-mail" },
+  reuniao:  { icon: User,         color: "text-[#f59e0b] bg-[#f59e0b]/10",    label: "Reunião" },
+  visita:   { icon: ShieldCheck,  color: "text-[#1eaedb] bg-[#1eaedb]/10",    label: "Visita" },
+  followup: { icon: Target,       color: "text-[#a78bfa] bg-[#a78bfa]/10",    label: "Follow-up" },
+  whatsapp: { icon: MessageSquare,color: "text-[#25D366] bg-[#25D366]/10",    label: "WhatsApp" },
+};
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 function CustomersPage() {
   const { user, isManager, isAdmin } = useAuth();
@@ -62,118 +61,66 @@ function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<'grid' | 'list'>('list');
+  const [view, setView] = useState<"grid" | "list">("list");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  
   const [customerActivities, setCustomerActivities] = useState<any[]>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
 
-  const ACTIVITY_TYPE_CONFIG: Record<string, { icon: any; color: string; label: string }> = {
-    tarefa:   { icon: List, color: "text-[#a3a3a3] bg-[#262626]", label: "Tarefa" },
-    ligacao:  { icon: Phone, color: "text-[#3ecf8e] bg-[#3ecf8e]/10", label: "Ligação" },
-    email:    { icon: Mail, color: "text-[#1eaedb] bg-[#1eaedb]/10", label: "E-mail" },
-    reuniao:  { icon: User, color: "text-[#f59e0b] bg-[#f59e0b]/10", label: "Reunião" },
-    visita:   { icon: ShieldCheck, color: "text-[#1eaedb] bg-[#1eaedb]/10", label: "Visita" },
-    followup: { icon: Target, color: "text-[#a78bfa] bg-[#a78bfa]/10", label: "Follow-up" },
-    whatsapp: { icon: MessageSquare, color: "text-[#25D366] bg-[#25D366]/10", label: "WhatsApp" },
-  };
-
-  async function loadCustomerActivities(oppIds: string[]) {
-    if (oppIds.length === 0) {
-      setCustomerActivities([]);
-      return;
-    }
-    setActivitiesLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("activities")
-        .select("*, opportunities(title), profiles(full_name)")
-        .in("opportunity_id", oppIds)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      setCustomerActivities(data || []);
-    } catch (e: any) {
-      console.error("Erro ao carregar atividades do cliente:", e);
-    } finally {
-      setActivitiesLoading(false);
-    }
-  }
-  
-  const [form, setForm] = useState({
-    name: "",
-    company: "",
-    email: "",
-    phone: "",
-    document: "",
-    notes: ""
-  });
+  const [form, setForm] = useState({ name: "", company: "", email: "", phone: "", document: "", notes: "" });
 
   const formatPhone = (v: string) => {
     v = v.replace(/\D/g, "");
     if (v.length > 11) v = v.slice(0, 11);
-    if (v.length > 10) {
-      return v.replace(/^(\d{2})(\d{5})(\d{4}).*/, "($1) $2-$3");
-    } else if (v.length > 5) {
-      return v.replace(/^(\d{2})(\d{4})(\d{0,4}).*/, "($1) $2-$3");
-    } else if (v.length > 2) {
-      return v.replace(/^(\d{2})(\d{0,5}).*/, "($1) $2");
-    }
+    if (v.length > 10) return v.replace(/^(\d{2})(\d{5})(\d{4}).*/, "($1) $2-$3");
+    if (v.length > 5) return v.replace(/^(\d{2})(\d{4})(\d{0,4}).*/, "($1) $2-$3");
+    if (v.length > 2) return v.replace(/^(\d{2})(\d{0,5}).*/, "($1) $2");
     return v;
   };
 
   const formatDoc = (v: string) => {
     v = v.replace(/\D/g, "");
     if (v.length > 14) v = v.slice(0, 14);
-    if (v.length > 11) {
-      return v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2}).*/, "$1.$2.$3/$4-$5");
-    } else if (v.length > 9) {
-      return v.replace(/^(\d{3})(\d{3})(\d{3})(\d{2}).*/, "$1.$2.$3-$4");
-    } else if (v.length > 6) {
-      return v.replace(/^(\d{3})(\d{3})(\d{0,3}).*/, "$1.$2.$3");
-    } else if (v.length > 3) {
-      return v.replace(/^(\d{3})(\d{0,3}).*/, "$1.$2");
-    }
+    if (v.length > 11) return v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2}).*/, "$1.$2.$3/$4-$5");
+    if (v.length > 9) return v.replace(/^(\d{3})(\d{3})(\d{3})(\d{2}).*/, "$1.$2.$3-$4");
+    if (v.length > 6) return v.replace(/^(\d{3})(\d{3})(\d{0,3}).*/, "$1.$2.$3");
+    if (v.length > 3) return v.replace(/^(\d{3})(\d{0,3}).*/, "$1.$2");
     return v;
   };
 
-  const canEdit = (customer: any) => {
+  const canEdit = (c: any) => {
     if (!user) return false;
     if (isAdmin || isManager) return true;
-    return customer.owner_id === user.id;
+    return c.owner_id === user.id;
   };
+
+  async function loadCustomerActivities(oppIds: string[]) {
+    if (!oppIds.length) { setCustomerActivities([]); return; }
+    setActivitiesLoading(true);
+    try {
+      const { data } = await supabase
+        .from("activities")
+        .select("*, opportunities(title), profiles(full_name)")
+        .in("opportunity_id", oppIds)
+        .order("created_at", { ascending: false });
+      setCustomerActivities(data || []);
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setActivitiesLoading(false);
+    }
+  }
 
   async function load() {
     setLoading(true);
     try {
-      // Tenta carregar da tabela customers. Se não existir, avisa o usuário.
       const { data, error } = await supabase
         .from("customers" as any)
-        .select(`
-          *,
-          opportunities (
-            id,
-            title,
-            value,
-            stage,
-            created_at
-          )
-        `)
+        .select("*, opportunities(id, title, value, stage, created_at)")
         .order("name");
-
-      if (error) {
-        console.error("Erro ao carregar clientes:", error);
-        // Fallback para uma lista vazia se a tabela não existir ainda
-        setCustomers([]);
-      } else {
-        setCustomers(data || []);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+      if (error) { setCustomers([]); } else { setCustomers(data || []); }
+    } catch { } finally { setLoading(false); }
   }
 
   useEffect(() => { load(); }, []);
@@ -189,17 +136,7 @@ function CustomersPage() {
     if (!user) return;
     setBusy(true);
     try {
-      const payload = {
-        owner_id: user.id,
-        name: form.name,
-        company: form.company,
-        email: form.email,
-        phone: form.phone,
-        document: form.document,
-        notes: form.notes,
-        updated_at: new Date().toISOString()
-      };
-
+      const payload = { owner_id: user.id, name: form.name, company: form.company, email: form.email, phone: form.phone, document: form.document, notes: form.notes, updated_at: new Date().toISOString() };
       if (editingId) {
         const { error } = await supabase.from("customers" as any).update(payload).eq("id", editingId);
         if (error) throw error;
@@ -209,44 +146,20 @@ function CustomersPage() {
         if (error) throw error;
         toast.success("Cliente cadastrado");
       }
-
       setIsModalOpen(false);
       setEditingId(null);
       setForm({ name: "", company: "", email: "", phone: "", document: "", notes: "" });
       load();
     } catch (err: any) {
-      toast.error("Certifique-se de que a tabela 'customers' foi criada no Supabase.");
-      console.error(err);
+      toast.error(err.message || "Certifique-se de que a tabela 'customers' foi criada.");
     } finally {
       setBusy(false);
     }
   }
 
-  const openNew = () => {
-    setEditingId(null);
-    setForm({ name: "", company: "", email: "", phone: "", document: "", notes: "" });
-    setIsModalOpen(true);
-  };
-
-  const openEdit = (c: any) => {
-    setEditingId(c.id);
-    setForm({
-      name: c.name,
-      company: c.company || "",
-      email: c.email || "",
-      phone: c.phone || "",
-      document: c.document || "",
-      notes: c.notes || ""
-    });
-    setIsModalOpen(true);
-  };
-
-  const openDetail = (c: any) => {
-    setSelectedCustomer(c);
-    setIsDetailOpen(true);
-    const oppIds = c.opportunities?.map((o: any) => o.id) || [];
-    loadCustomerActivities(oppIds);
-  };
+  const openNew = () => { setEditingId(null); setForm({ name: "", company: "", email: "", phone: "", document: "", notes: "" }); setIsModalOpen(true); };
+  const openEdit = (c: any) => { setEditingId(c.id); setForm({ name: c.name, company: c.company || "", email: c.email || "", phone: c.phone || "", document: c.document || "", notes: c.notes || "" }); setIsModalOpen(true); };
+  const openDetail = (c: any) => { setSelectedCustomer(c); setIsDetailOpen(true); loadCustomerActivities(c.opportunities?.map((o: any) => o.id) || []); };
 
   async function deleteCustomer(id: string) {
     if (!confirm("Excluir cliente? Esta ação não pode ser desfeita.")) return;
@@ -261,517 +174,525 @@ function CustomersPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen max-w-[1600px] mx-auto overflow-hidden bg-background">
-      {/* Page Header */}
-      <div className="p-6 lg:p-8 shrink-0">
-        <PageHeader
-          title="Gestão de Clientes"
-          subtitle="Visualize e gerencie sua base de contatos e empresas."
-          actions={
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Pesquisar cliente..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="h-9 pl-9 w-64 bg-card border-border text-xs"
-                />
-              </div>
-              <div className="flex bg-secondary border border-border p-1 rounded-md">
-                <Button variant={view === 'grid' ? 'secondary' : 'ghost'} size="icon" onClick={() => setView('grid')} className="h-7 w-7 rounded-sm">
-                  <Activity className="h-3.5 w-3.5" />
-                </Button>
-                <Button variant={view === 'list' ? 'secondary' : 'ghost'} size="icon" onClick={() => setView('list')} className="h-7 w-7 rounded-sm">
-                  <ListTodo className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-              <Button onClick={openNew} className="h-9 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs rounded-md shadow-sm">
-                <Plus className="h-3.5 w-3.5 mr-2" /> Novo Cliente
-              </Button>
-            </div>
-          }
-        />
-      </div>
+    <div className="flex flex-col h-full overflow-hidden">
 
-      {/* Main Content */}
-      <div className="flex-1 overflow-hidden px-6 lg:px-8 pb-8">
-        {loading ? (
-          <div className="h-full flex items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-border rounded-2xl bg-card/20">
-            <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
-              <Building2 className="h-8 w-8 text-muted-foreground" />
+      {/* ── Header ── */}
+      <div className="px-6 lg:px-8 pt-8 pb-5 border-b border-border shrink-0">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 max-w-[1600px] mx-auto">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 flex items-center justify-center shrink-0">
+              <Building2 className="h-4 w-4 text-[#3ecf8e]" />
             </div>
-            <h3 className="text-lg font-bold text-foreground">Nenhum cliente encontrado</h3>
-            <p className="text-sm text-muted-foreground max-w-md mt-1">
-              Comece cadastrando seu primeiro cliente para gerenciar propostas e atividades vinculadas.
-            </p>
-            <Button onClick={openNew} variant="outline" className="mt-6 border-primary/20 text-primary hover:bg-primary/5">
-              <Plus className="h-4 w-4 mr-2" /> Cadastrar Agora
+            <div>
+              <h1 className="text-xl font-semibold text-foreground">Clientes</h1>
+              <p className="text-sm text-muted-foreground">{customers.length} contatos na base</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Pesquisar cliente..."
+                className="h-9 pl-9 pr-8 w-56 bg-card border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[#3ecf8e]/50"
+              />
+              {search && (
+                <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="flex bg-secondary/50 border border-border rounded-lg p-1 gap-1">
+              <button
+                onClick={() => setView("grid")}
+                className={cn("h-7 w-7 rounded-md flex items-center justify-center transition-all", view === "grid" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => setView("list")}
+                className={cn("h-7 w-7 rounded-md flex items-center justify-center transition-all", view === "list" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+              >
+                <List className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <Button onClick={openNew} className="h-9 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-black font-semibold text-xs gap-2">
+              <Plus className="h-3.5 w-3.5" /> Novo Cliente
             </Button>
           </div>
-        ) : view === 'grid' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-y-auto h-full pr-2 no-scrollbar">
-            {filtered.map((c) => (
-              <motion.div
-                key={c.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="group relative bg-card border border-border rounded-xl p-5 hover:border-primary/40 transition-all cursor-pointer shadow-sm hover:shadow-md"
-                onClick={() => openDetail(c)}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                    <User className="h-5 w-5" />
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-card border-border">
-                      {canEdit(c) && (
-                        <>
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEdit(c); }}>
-                            <Pencil className="h-4 w-4 mr-2" /> Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); deleteCustomer(c.id); }} className="text-destructive">
-                            <Trash2 className="h-4 w-4 mr-2" /> Excluir
-                          </DropdownMenuItem>
-                        </>
+        </div>
+      </div>
+
+      {/* ── Content ── */}
+      <div className="flex-1 overflow-y-auto px-6 lg:px-8 py-6 pb-8 max-w-[1600px] mx-auto w-full">
+        {loading ? (
+          <div className="h-full flex items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-[#3ecf8e]" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center gap-4 py-24">
+            <div className="h-14 w-14 rounded-2xl bg-secondary flex items-center justify-center">
+              <Building2 className="h-7 w-7 text-muted-foreground/50" />
+            </div>
+            <div className="text-center">
+              <h3 className="text-base font-semibold text-foreground">
+                {search ? "Nenhum resultado" : "Nenhum cliente cadastrado"}
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                {search ? "Tente outros termos de busca" : "Comece adicionando seu primeiro contato"}
+              </p>
+            </div>
+            {!search && (
+              <Button onClick={openNew} variant="outline" className="border-[#3ecf8e]/30 text-[#3ecf8e] hover:bg-[#3ecf8e]/5 gap-2">
+                <Plus className="h-4 w-4" /> Cadastrar Agora
+              </Button>
+            )}
+          </div>
+        ) : view === "grid" ? (
+          /* Grid view */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <AnimatePresence>
+              {filtered.map(c => {
+                const color = avatarColor(c.name);
+                const totalValue = c.opportunities?.reduce((acc: number, o: any) => acc + Number(o.value), 0) || 0;
+                const wonCount = c.opportunities?.filter((o: any) => o.stage === "ganho").length || 0;
+                return (
+                  <motion.div
+                    key={c.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="group relative bg-card border border-border rounded-2xl p-5 hover:border-opacity-60 transition-all cursor-pointer"
+                    style={{ borderColor: `${color}20` }}
+                    onClick={() => openDetail(c)}
+                  >
+                    {/* Actions menu */}
+                    <div className="absolute top-3 right-3" onClick={e => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/80 opacity-0 group-hover:opacity-100 transition-all">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="bg-card border-border">
+                          {canEdit(c) && (
+                            <>
+                              <DropdownMenuItem onClick={() => openEdit(c)}>
+                                <Pencil className="h-3.5 w-3.5 mr-2" /> Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => deleteCustomer(c.id)} className="text-destructive">
+                                <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {!canEdit(c) && (
+                            <DropdownMenuItem disabled className="text-[10px] text-muted-foreground italic">
+                              Somente o dono pode editar
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    {/* Avatar */}
+                    <div className="mb-4">
+                      <div className="h-12 w-12 rounded-xl flex items-center justify-center text-lg font-black shadow-sm"
+                        style={{ backgroundColor: `${color}20`, color }}>
+                        {c.name[0].toUpperCase()}
+                      </div>
+                    </div>
+
+                    {/* Info */}
+                    <div className="mb-4">
+                      <h3 className="text-sm font-semibold text-foreground group-hover:text-[#3ecf8e] transition-colors truncate pr-6">{c.name}</h3>
+                      {c.company && (
+                        <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                          <Building2 className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{c.company}</span>
+                        </div>
                       )}
-                      {!canEdit(c) && (
-                        <DropdownMenuItem disabled className="text-[10px] text-muted-foreground italic">
-                          Somente o dono pode editar
-                        </DropdownMenuItem>
+                    </div>
+
+                    {/* Contact chips */}
+                    <div className="space-y-1.5 mb-4">
+                      {c.email && (
+                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-secondary/30 rounded-md px-2.5 py-1.5 border border-border/40">
+                          <Mail className="h-3 w-3 shrink-0" style={{ color }} />
+                          <span className="truncate">{c.email}</span>
+                        </div>
                       )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-
-                <div className="space-y-1 mb-4">
-                  <h3 className="text-base font-bold text-foreground truncate group-hover:text-primary transition-colors">
-                    {c.name}
-                  </h3>
-                  {c.company && (
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
-                      <Building2 className="h-3 w-3" />
-                      <span className="truncate">{c.company}</span>
+                      {c.phone && (
+                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-secondary/30 rounded-md px-2.5 py-1.5 border border-border/40">
+                          <Phone className="h-3 w-3 shrink-0" style={{ color }} />
+                          <span>{c.phone}</span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
 
-                <div className="space-y-2 mb-4">
-                  {c.email && (
-                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-secondary/30 p-1.5 rounded-md border border-border/50">
-                      <Mail className="h-3 w-3 text-primary/60" />
-                      <span className="truncate">{c.email}</span>
+                    {/* Footer stats */}
+                    <div className="flex items-center justify-between pt-4 border-t border-border/50">
+                      <div>
+                        <p className="text-[9px] text-muted-foreground uppercase tracking-widest font-bold">Negócios</p>
+                        <p className="text-sm font-black font-mono text-foreground">{c.opportunities?.length || 0}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[9px] text-muted-foreground uppercase tracking-widest font-bold">Valor Total</p>
+                        <p className="text-sm font-black font-mono" style={{ color }}>{formatCurrency(totalValue)}</p>
+                      </div>
                     </div>
-                  )}
-                  {c.phone && (
-                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-secondary/30 p-1.5 rounded-md border border-border/50">
-                      <Phone className="h-3 w-3 text-primary/60" />
-                      <span>{c.phone}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between pt-4 border-t border-border mt-auto">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Propostas</span>
-                    <span className="text-sm font-black text-foreground font-mono">
-                      {c.opportunities?.length || 0}
-                    </span>
-                  </div>
-                  <div className="flex flex-col text-right">
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Valor Total</span>
-                    <span className="text-sm font-black text-primary font-mono">
-                      {formatCurrency(c.opportunities?.reduce((acc: number, o: any) => acc + Number(o.value), 0) || 0)}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ArrowUpRight className="h-4 w-4 text-primary" />
-                </div>
-              </motion.div>
-            ))}
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
           </div>
         ) : (
-          <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm h-full flex flex-col">
-            <div className="overflow-y-auto flex-1 no-scrollbar">
-              <table className="w-full text-left border-collapse">
-                <thead className="sticky top-0 z-20 bg-muted/80 backdrop-blur-md border-b border-border">
-                  <tr>
-                    <th className="p-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cliente</th>
-                    <th className="p-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Empresa</th>
-                    <th className="p-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Contato</th>
-                    <th className="p-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Propostas</th>
-                    <th className="p-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-right">Valor Total</th>
-                    <th className="p-4 w-10"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/50">
-                  {filtered.map((c) => (
-                    <tr 
-                      key={c.id} 
-                      onClick={() => openDetail(c)}
-                      className="group hover:bg-primary/5 transition-colors cursor-pointer"
-                    >
-                      <td className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold">
-                            {c.name[0]}
+          /* List view */
+          <div className="bg-card border border-border rounded-2xl overflow-hidden">
+            <table className="w-full text-left border-collapse">
+              <thead className="border-b border-border bg-secondary/20">
+                <tr>
+                  <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Cliente</th>
+                  <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Empresa</th>
+                  <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Contato</th>
+                  <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Negócios</th>
+                  <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-right">Valor Total</th>
+                  <th className="w-10" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                <AnimatePresence>
+                  {filtered.map(c => {
+                    const color = avatarColor(c.name);
+                    const totalValue = c.opportunities?.reduce((acc: number, o: any) => acc + Number(o.value), 0) || 0;
+                    return (
+                      <motion.tr
+                        key={c.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        onClick={() => openDetail(c)}
+                        className="group hover:bg-secondary/20 transition-colors cursor-pointer"
+                      >
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-lg flex items-center justify-center text-xs font-black shrink-0"
+                              style={{ backgroundColor: `${color}15`, color }}>
+                              {c.name[0].toUpperCase()}
+                            </div>
+                            <span className="text-sm font-semibold text-foreground group-hover:text-[#3ecf8e] transition-colors truncate max-w-[180px]">
+                              {c.name}
+                            </span>
                           </div>
-                          <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors truncate max-w-[200px]">
-                            {c.name}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <span className="text-xs text-muted-foreground truncate max-w-[140px] block">{c.company || "—"}</span>
+                          {c.document && <span className="text-[10px] text-muted-foreground/60 font-mono">{c.document}</span>}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                              <Mail className="h-3 w-3" />
+                              <span className="truncate max-w-[160px]">{c.email || "—"}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                              <Phone className="h-3 w-3" />
+                              <span>{c.phone || "—"}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-secondary/50 border border-border/50 text-[10px] font-bold text-foreground">
+                            {c.opportunities?.length || 0}
                           </span>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex flex-col">
-                          <span className="text-xs text-foreground font-medium truncate max-w-[150px]">{c.company || "-"}</span>
-                          <span className="text-[10px] text-muted-foreground font-mono">{c.document || "S/ documento"}</span>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex flex-col gap-0.5">
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Mail className="h-3 w-3 text-primary/50" />
-                            <span className="truncate max-w-[180px]">{c.email || "Não informado"}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Phone className="h-3 w-3 text-primary/50" />
-                            <span>{c.phone || "Não informado"}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <Badge variant="secondary" className="bg-muted text-foreground border-none font-bold text-[10px]">
-                          {c.opportunities?.length || 0} Negócios
-                        </Badge>
-                      </td>
-                      <td className="p-4 text-right">
-                        <span className="text-sm font-black text-primary font-mono">
-                          {formatCurrency(c.opportunities?.reduce((acc: number, o: any) => acc + Number(o.value), 0) || 0)}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground opacity-0 group-hover:opacity-100">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-card border-border">
-                            {canEdit(c) && (
-                              <>
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEdit(c); }}>
-                                  <Pencil className="h-3.5 w-3.5 mr-2" /> Editar
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); deleteCustomer(c.id); }} className="text-destructive">
-                                  <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                            {!canEdit(c) && (
-                              <DropdownMenuItem disabled className="text-[10px] text-muted-foreground italic">
-                                Somente o dono pode editar
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        </td>
+                        <td className="px-5 py-3.5 text-right">
+                          <span className="text-sm font-black font-mono" style={{ color: avatarColor(c.name) }}>
+                            {formatCurrency(totalValue)}
+                          </span>
+                        </td>
+                        <td className="pr-4" onClick={e => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary/80 opacity-0 group-hover:opacity-100 transition-all">
+                                <MoreHorizontal className="h-3.5 w-3.5" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-card border-border">
+                              {canEdit(c) && (
+                                <>
+                                  <DropdownMenuItem onClick={() => openEdit(c)}>
+                                    <Pencil className="h-3.5 w-3.5 mr-2" /> Editar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => deleteCustomer(c.id)} className="text-destructive">
+                                    <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              {!canEdit(c) && (
+                                <DropdownMenuItem disabled className="text-[10px] text-muted-foreground italic">Somente o dono pode editar</DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
+                </AnimatePresence>
+              </tbody>
+            </table>
           </div>
         )}
       </div>
 
-      {/* Create/Edit Modal */}
+      {/* ── Create/Edit Modal ── */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-xl bg-card border-border p-0 overflow-hidden rounded-xl">
-          <DialogHeader className="p-6 border-b border-border bg-muted/50">
-            <DialogTitle className="text-lg font-semibold">{editingId ? "Editar Cliente" : "Cadastrar Novo Cliente"}</DialogTitle>
-            <DialogDescription className="text-xs">Insira os dados principais do contato ou empresa.</DialogDescription>
+        <DialogContent className="max-w-lg bg-card border-border p-0 overflow-hidden rounded-2xl">
+          <DialogHeader className="px-6 py-5 border-b border-border">
+            <DialogTitle className="text-base font-semibold">{editingId ? "Editar Cliente" : "Novo Cliente"}</DialogTitle>
+            <DialogDescription className="text-xs">Insira os dados do contato ou empresa.</DialogDescription>
           </DialogHeader>
-
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            <div className="space-y-2">
-              <Label className="text-xs font-medium text-muted-foreground">Nome Completo</Label>
-              <Input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="h-10 bg-background border-border" placeholder="Ex: João Silva" />
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Nome Completo *</Label>
+              <Input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="h-9 bg-background border-border" placeholder="João Silva" />
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground">Empresa</Label>
-                <Input value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} className="h-10 bg-background border-border" placeholder="FortSecure LTDA" />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Empresa</Label>
+                <Input value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} className="h-9 bg-background border-border" placeholder="FortSecure LTDA" />
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground">Documento (CPF/CNPJ)</Label>
-                <Input 
-                  value={form.document} 
-                  onChange={e => setForm({ ...form, document: formatDoc(e.target.value) })} 
-                  className="h-10 bg-background border-border" 
-                  placeholder="000.000.000-00" 
-                  maxLength={18}
-                />
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">CPF / CNPJ</Label>
+                <Input value={form.document} onChange={e => setForm({ ...form, document: formatDoc(e.target.value) })} className="h-9 bg-background border-border" placeholder="000.000.000-00" maxLength={18} />
               </div>
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground">E-mail</Label>
-                <Input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="h-10 bg-background border-border" placeholder="contato@empresa.com" />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">E-mail</Label>
+                <Input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="h-9 bg-background border-border" placeholder="contato@empresa.com" />
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-muted-foreground">Telefone</Label>
-                <Input 
-                  value={form.phone} 
-                  onChange={e => setForm({ ...form, phone: formatPhone(e.target.value) })} 
-                  className="h-10 bg-background border-border" 
-                  placeholder="(11) 98888-7777" 
-                  maxLength={15}
-                />
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Telefone</Label>
+                <Input value={form.phone} onChange={e => setForm({ ...form, phone: formatPhone(e.target.value) })} className="h-9 bg-background border-border" placeholder="(11) 98888-7777" maxLength={15} />
               </div>
             </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs font-medium text-muted-foreground">Observações / Histórico</Label>
-              <Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="bg-background border-border min-h-[100px]" placeholder="Notas importantes sobre o cliente..." />
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Observações</Label>
+              <Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="bg-background border-border min-h-[80px] resize-none text-sm" placeholder="Notas sobre o cliente..." />
             </div>
-
-            <DialogFooter className="pt-4 gap-2">
-              <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-              <Button type="submit" disabled={busy} className="bg-primary text-primary-foreground font-bold px-8">
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? "Salvar Alterações" : "Cadastrar Cliente"}
+            <DialogFooter className="gap-2 pt-2">
+              <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)} className="h-9 text-xs">Cancelar</Button>
+              <Button type="submit" disabled={busy} className="h-9 bg-[#3ecf8e] text-black font-semibold text-xs gap-2">
+                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                {editingId ? "Salvar" : "Cadastrar"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Detail Modal */}
+      {/* ── Detail Modal ── */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-4xl bg-card border-border p-0 overflow-hidden rounded-xl h-[85vh] flex flex-col">
-          {selectedCustomer && (
-            <>
-              <div className="p-8 border-b border-border bg-muted/30 shrink-0">
-                <div className="flex items-start justify-between">
-                  <div className="flex gap-6">
-                    <div className="h-20 w-20 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
-                      <Building2 className="h-10 w-10" />
-                    </div>
-                    <div className="space-y-1">
-                      <h2 className="text-3xl font-black text-foreground tracking-tight">{selectedCustomer.name}</h2>
-                      <div className="flex items-center gap-3">
-                        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 font-bold uppercase tracking-widest text-[10px]">
-                          {selectedCustomer.company || "Pessoa Física"}
-                        </Badge>
-                        <span className="text-muted-foreground text-sm flex items-center gap-1.5">
-                          <Calendar className="h-3.5 w-3.5" />
-                          Cliente desde {new Date(selectedCustomer.created_at).toLocaleDateString('pt-BR')}
-                        </span>
+        <DialogContent className="max-w-4xl bg-card border-border p-0 overflow-hidden rounded-2xl h-[85vh] flex flex-col">
+          {selectedCustomer && (() => {
+            const color = avatarColor(selectedCustomer.name);
+            const totalValue = selectedCustomer.opportunities?.reduce((acc: number, o: any) => acc + Number(o.value), 0) || 0;
+            const wonCount = selectedCustomer.opportunities?.filter((o: any) => o.stage === "ganho").length || 0;
+            return (
+              <>
+                {/* Detail header */}
+                <div className="px-8 py-6 border-b border-border shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${color}08 0%, transparent 60%)` }}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-5">
+                      <div className="h-16 w-16 rounded-2xl flex items-center justify-center text-2xl font-black shadow-lg"
+                        style={{ backgroundColor: `${color}20`, color }}>
+                        {selectedCustomer.name[0].toUpperCase()}
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-black text-foreground tracking-tight">{selectedCustomer.name}</h2>
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          {selectedCustomer.company && (
+                            <Badge variant="outline" className="text-[10px] font-bold border-border px-2 py-0.5">
+                              <Building2 className="h-2.5 w-2.5 mr-1" />{selectedCustomer.company}
+                            </Badge>
+                          )}
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            Cliente desde {new Date(selectedCustomer.created_at).toLocaleDateString("pt-BR")}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex gap-2">
                     {canEdit(selectedCustomer) && (
-                      <Button variant="outline" onClick={() => { setIsDetailOpen(false); openEdit(selectedCustomer); }}>
-                        <Pencil className="h-4 w-4 mr-2" /> Editar
+                      <Button variant="outline" size="sm" onClick={() => { setIsDetailOpen(false); openEdit(selectedCustomer); }} className="h-8 text-xs gap-1.5">
+                        <Pencil className="h-3 w-3" /> Editar
                       </Button>
                     )}
                   </div>
                 </div>
-              </div>
 
-              <div className="flex-1 overflow-hidden flex">
-                {/* Sidebar Info */}
-                <div className="w-80 border-r border-border p-6 space-y-6 shrink-0 bg-muted/10">
-                  <Section title="Contato">
-                    <div className="space-y-4 mt-3">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">E-mail Comercial</span>
-                        <span className="text-sm font-medium text-foreground">{selectedCustomer.email || "Não informado"}</span>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">Telefone</span>
-                        <span className="text-sm font-medium text-foreground">{selectedCustomer.phone || "Não informado"}</span>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">Documento</span>
-                        <span className="text-sm font-medium text-foreground">{selectedCustomer.document || "Não informado"}</span>
-                      </div>
-                    </div>
-                  </Section>
-
-                  <Section title="Resumo Financeiro">
-                    <div className="grid grid-cols-1 gap-3 mt-3">
-                      <div className="p-3 bg-card border border-border rounded-lg">
-                        <p className="text-[10px] text-muted-foreground font-bold uppercase">Volume Total</p>
-                        <p className="text-lg font-black text-primary font-mono">
-                          {formatCurrency(selectedCustomer.opportunities?.reduce((acc: number, o: any) => acc + Number(o.value), 0) || 0)}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-card border border-border rounded-lg">
-                        <p className="text-[10px] text-muted-foreground font-bold uppercase">Propostas Ganhas</p>
-                        <p className="text-lg font-black text-foreground font-mono">
-                          {selectedCustomer.opportunities?.filter((o: any) => o.stage === 'ganho').length || 0}
-                        </p>
-                      </div>
-                    </div>
-                  </Section>
-                </div>
-
-                {/* Main Detail Area */}
-                <div className="flex-1 overflow-y-auto p-8 no-scrollbar bg-background/50">
-                  <Tabs defaultValue="propostas" className="w-full">
-                    <TabsList className="bg-muted/50 border border-border mb-6">
-                      <TabsTrigger value="propostas" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                        <Briefcase className="h-4 w-4 mr-2" /> Propostas
-                      </TabsTrigger>
-                      <TabsTrigger value="notas">
-                        <History className="h-4 w-4 mr-2" /> Notas & Histórico
-                      </TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="propostas" className="space-y-4">
-                      {selectedCustomer.opportunities?.length > 0 ? (
-                        <div className="space-y-3">
-                          {selectedCustomer.opportunities.map((o: any) => (
-                            <div key={o.id} className="flex items-center justify-between p-4 bg-card border border-border rounded-xl hover:border-primary/30 transition-all group">
-                              <div className="flex items-center gap-4">
-                                <div className={cn(
-                                  "h-10 w-10 rounded-lg flex items-center justify-center",
-                                  o.stage === 'ganho' ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-                                )}>
-                                  <TrendingUp className="h-5 w-5" />
-                                </div>
-                                <div>
-                                  <h4 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{o.title}</h4>
-                                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">
-                                    Criado em {new Date(o.created_at).toLocaleDateString('pt-BR')}
-                                  </p>
-                                </div>
+                <div className="flex-1 overflow-hidden flex min-h-0">
+                  {/* Sidebar */}
+                  <div className="w-72 border-r border-border p-6 space-y-5 shrink-0 overflow-y-auto">
+                    {/* Contact */}
+                    <div>
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Contato</h4>
+                      <div className="space-y-3">
+                        {[
+                          { icon: Mail,    label: "E-mail",    value: selectedCustomer.email },
+                          { icon: Phone,   label: "Telefone",  value: selectedCustomer.phone },
+                          { icon: Building2, label: "Documento", value: selectedCustomer.document },
+                        ].map(f => {
+                          const Icon = f.icon;
+                          return (
+                            <div key={f.label} className="flex items-start gap-2.5">
+                              <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center shrink-0 mt-0.5">
+                                <Icon className="h-3.5 w-3.5 text-muted-foreground" />
                               </div>
-                              <div className="flex items-center gap-6">
-                                <div className="text-right">
-                                  <p className="text-sm font-black font-mono text-foreground">{formatCurrency(o.value)}</p>
-                                  <Badge variant="secondary" className="text-[9px] h-4 font-black uppercase tracking-tighter">
-                                    {o.stage}
-                                  </Badge>
-                                </div>
-                                <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                              <div>
+                                <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest">{f.label}</p>
+                                <p className="text-xs text-foreground mt-0.5">{f.value || "—"}</p>
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="py-12 flex flex-col items-center justify-center text-center opacity-40">
-                          <Activity className="h-12 w-12 mb-3" />
-                          <p className="text-sm font-medium">Nenhuma proposta vinculada</p>
-                        </div>
-                      )}
-                    </TabsContent>
+                          );
+                        })}
+                      </div>
+                    </div>
 
-                    <TabsContent value="notas">
-                      <div className="space-y-6">
-                        {/* Observações Gerais do Cliente */}
-                        <div className="p-4 bg-muted/20 border border-border rounded-xl">
-                          <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Observações Gerais</h4>
+                    {/* Financials */}
+                    <div>
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Resumo Financeiro</h4>
+                      <div className="space-y-2">
+                        <div className="p-3 bg-secondary/30 border border-border/50 rounded-xl">
+                          <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Volume Total</p>
+                          <p className="text-xl font-black font-mono mt-0.5" style={{ color }}>{formatCurrency(totalValue)}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="p-3 bg-secondary/30 border border-border/50 rounded-xl">
+                            <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest">Negócios</p>
+                            <p className="text-lg font-black font-mono text-foreground">{selectedCustomer.opportunities?.length || 0}</p>
+                          </div>
+                          <div className="p-3 bg-secondary/30 border border-border/50 rounded-xl">
+                            <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest">Ganhos</p>
+                            <p className="text-lg font-black font-mono text-[#3ecf8e]">{wonCount}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Main area */}
+                  <div className="flex-1 overflow-y-auto min-h-0">
+                    <Tabs defaultValue="propostas" className="h-full flex flex-col">
+                      <div className="px-6 pt-5 border-b border-border shrink-0">
+                        <TabsList className="bg-secondary/30 border border-border h-8 p-0.5 gap-0.5">
+                          <TabsTrigger value="propostas" className="text-xs h-7 gap-1.5 data-[state=active]:bg-card">
+                            <Briefcase className="h-3 w-3" /> Propostas
+                          </TabsTrigger>
+                          <TabsTrigger value="notas" className="text-xs h-7 gap-1.5 data-[state=active]:bg-card">
+                            <History className="h-3 w-3" /> Histórico
+                          </TabsTrigger>
+                        </TabsList>
+                      </div>
+
+                      <TabsContent value="propostas" className="flex-1 overflow-y-auto p-6 space-y-3 mt-0">
+                        {selectedCustomer.opportunities?.length > 0 ? (
+                          selectedCustomer.opportunities.map((o: any) => {
+                            const stageColors: Record<string, string> = { ganho: "#3ecf8e", perdido: "#ef4444", proposta: "#3b82f6", negociacao: "#8b5cf6", prospect: "#a3a3a3", qualificado: "#f59e0b" };
+                            const sc = stageColors[o.stage] ?? "#a3a3a3";
+                            return (
+                              <div key={o.id} className="flex items-center gap-4 p-4 bg-secondary/20 border border-border/50 rounded-xl hover:border-[#3ecf8e]/30 transition-all group">
+                                <div className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${sc}15`, color: sc }}>
+                                  <TrendingUp className="h-4 w-4" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold text-foreground truncate">{o.title}</p>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    {new Date(o.created_at).toLocaleDateString("pt-BR")}
+                                  </p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <p className="text-sm font-black font-mono text-foreground">{formatCurrency(o.value)}</p>
+                                  <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded" style={{ backgroundColor: `${sc}15`, color: sc }}>{o.stage}</span>
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="py-16 flex flex-col items-center text-center opacity-40">
+                            <Activity className="h-10 w-10 mb-3" />
+                            <p className="text-sm">Nenhuma proposta vinculada</p>
+                          </div>
+                        )}
+                      </TabsContent>
+
+                      <TabsContent value="notas" className="flex-1 overflow-y-auto p-6 mt-0 space-y-5">
+                        {/* Notes */}
+                        <div className="p-4 bg-secondary/20 border border-border/50 rounded-xl">
+                          <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Observações</h4>
                           <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
-                            {selectedCustomer.notes || "Sem observações registradas para este cliente."}
+                            {selectedCustomer.notes || "Sem observações registradas."}
                           </p>
                         </div>
 
-                        {/* Linha do Tempo Comercial (Timeline de Atividades) */}
-                        <div className="space-y-4">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
-                            <History className="h-4 w-4 text-primary" />
-                            Histórico de Atividades Comercial
+                        {/* Activity timeline */}
+                        <div>
+                          <h4 className="text-xs font-semibold text-foreground flex items-center gap-2 mb-4">
+                            <History className="h-4 w-4 text-[#3ecf8e]" />
+                            Histórico de Atividades
                           </h4>
-
                           {activitiesLoading ? (
-                            <div className="py-8 flex justify-center"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
+                            <div className="py-10 flex justify-center"><Loader2 className="h-4 w-4 animate-spin text-[#3ecf8e]" /></div>
                           ) : customerActivities.length === 0 ? (
-                            <div className="py-8 text-center text-xs text-muted-foreground italic border border-dashed border-border rounded-xl">
-                              Nenhuma interação ou atividade comercial registrada.
+                            <div className="py-10 text-center border border-dashed border-border rounded-xl text-xs text-muted-foreground">
+                              Nenhuma atividade registrada
                             </div>
                           ) : (
-                            <div className="relative border-l border-border ml-2.5 pl-5 space-y-4 pt-2">
-                              {customerActivities.map((act) => {
+                            <div className="relative border-l border-border ml-3 pl-5 space-y-4">
+                              {customerActivities.map(act => {
                                 const cfg = ACTIVITY_TYPE_CONFIG[act.type] || ACTIVITY_TYPE_CONFIG.tarefa;
                                 const Icon = cfg.icon;
-                                const isDone = act.status === 'concluida';
-                                
+                                const isDone = act.status === "concluida";
+                                const [iconColor, iconBg] = cfg.color.split(" ");
                                 return (
                                   <div key={act.id} className="relative">
-                                    {/* Círculo com ícone */}
-                                    <div className={cn(
-                                      "absolute -left-[31px] top-0 h-6 w-6 rounded-full border border-card flex items-center justify-center text-xs shadow-sm z-10 transition-all",
-                                      isDone ? cfg.color.split(" ")[1] + " " + cfg.color.split(" ")[0] : "bg-secondary text-muted-foreground border-border"
-                                    )}>
-                                      <Icon className="h-3.5 w-3.5" />
+                                    <div className={cn("absolute -left-[31px] top-1 h-6 w-6 rounded-full border-2 border-card flex items-center justify-center z-10", iconBg, iconColor)}>
+                                      <Icon className="h-3 w-3" />
                                     </div>
-
-                                    {/* Conteúdo */}
-                                    <div className="bg-card border border-border rounded-xl p-4 space-y-2">
+                                    <div className="bg-card border border-border/50 rounded-xl p-4 space-y-2">
                                       <div className="flex items-start justify-between gap-2">
                                         <div>
-                                          <h5 className="text-xs font-bold text-foreground">
-                                            {act.title}
-                                          </h5>
-                                          <p className="text-[9px] text-muted-foreground mt-0.5">
-                                            {new Date(act.created_at).toLocaleString("pt-BR", { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · executado por {act.profiles?.full_name || 'Vendedor'}
+                                          <p className="text-xs font-semibold text-foreground">{act.title}</p>
+                                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                                            {new Date(act.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                                            {act.profiles?.full_name && ` · ${act.profiles.full_name}`}
                                           </p>
                                         </div>
                                         {act.opportunities?.title && (
-                                          <Badge variant="outline" className="text-[9px] border-primary/20 text-primary bg-primary/5 uppercase font-bold tracking-wider">
-                                            Negócio: {act.opportunities.title}
+                                          <Badge variant="outline" className="text-[9px] border-[#3ecf8e]/20 text-[#3ecf8e] bg-[#3ecf8e]/5 shrink-0">
+                                            {act.opportunities.title}
                                           </Badge>
                                         )}
                                       </div>
-
                                       {act.description && (
-                                        <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap bg-secondary/20 p-2.5 rounded-lg border border-border/30">
-                                          {act.description}
-                                        </p>
+                                        <p className="text-xs text-muted-foreground leading-relaxed bg-secondary/20 p-2.5 rounded-lg">{act.description}</p>
                                       )}
-
-                                      <div className="flex flex-wrap gap-1.5 pt-1">
+                                      <div className="flex flex-wrap gap-1.5 pt-0.5">
                                         {act.outcome && (
-                                          <Badge variant="secondary" className="h-5 px-1.5 text-[9px] font-bold border-none bg-muted text-foreground">
-                                            {act.outcome}
-                                          </Badge>
+                                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-secondary border border-border text-muted-foreground">{act.outcome}</span>
                                         )}
                                         {act.sentiment && (
-                                          <Badge 
-                                            variant="outline" 
-                                            className={cn(
-                                              "h-5 px-1.5 text-[9px] font-bold uppercase",
-                                              act.sentiment === 'quente' && "bg-red-500/10 text-red-500 border-red-500/20",
-                                              act.sentiment === 'morno' && "bg-amber-500/10 text-amber-500 border-amber-500/20",
-                                              act.sentiment === 'frio' && "bg-blue-500/10 text-blue-500 border-blue-500/20",
-                                              act.sentiment === 'neutro' && "bg-muted text-muted-foreground border-border"
-                                            )}
-                                          >
-                                            {act.sentiment === 'quente' ? 'Quente' : act.sentiment === 'morno' ? 'Morno' : act.sentiment === 'frio' ? 'Frio' : 'Neutro'}
-                                          </Badge>
-                                        )}
-                                        {!isDone && act.due_date && (
-                                          <Badge variant="outline" className="h-5 px-1.5 text-[9px] font-bold border-[#f59e0b]/20 text-[#f59e0b] bg-[#f59e0b]/5 gap-1">
-                                            <Clock className="h-2.5 w-2.5" />
-                                            Pendente: {new Date(act.due_date).toLocaleDateString('pt-BR')}
-                                          </Badge>
+                                          <span className={cn(
+                                            "text-[9px] px-1.5 py-0.5 rounded border font-bold uppercase",
+                                            act.sentiment === "quente" && "bg-red-500/10 text-red-500 border-red-500/20",
+                                            act.sentiment === "morno" && "bg-amber-500/10 text-amber-500 border-amber-500/20",
+                                            act.sentiment === "frio" && "bg-blue-500/10 text-blue-500 border-blue-500/20",
+                                            act.sentiment === "neutro" && "bg-secondary text-muted-foreground border-border"
+                                          )}>
+                                            {act.sentiment}
+                                          </span>
                                         )}
                                       </div>
                                     </div>
@@ -781,13 +702,13 @@ function CustomersPage() {
                             </div>
                           )}
                         </div>
-                      </div>
-                    </TabsContent>
-                  </Tabs>
+                      </TabsContent>
+                    </Tabs>
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

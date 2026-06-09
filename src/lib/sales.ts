@@ -124,6 +124,7 @@ export async function fetchTeamMetrics() {
 }
 
 export const STAGES = [
+  { key: "leads_exact", label: "Leads EXACT", color: "#a78bfa" },
   { key: "prospect", label: "Prospect", color: "#4299e1" },
   { key: "qualificado", label: "Qualificado", color: "#3ecf8e" },
   { key: "proposta", label: "Proposta", color: "#f6ad55" },

@@ -146,7 +146,7 @@ function ProspectingPage() {
           .from("customers" as any)
           .insert({ name: form.client_name, owner_id: ownerId })
           .select()
-          .single();
+          .single() as any;
           
         if (customerError) throw customerError;
         finalCustomerId = newCustomer.id;
@@ -169,7 +169,7 @@ function ProspectingPage() {
         title: `Prospecção - ${finalClientName}`,
         value: 0,
         owner_id: ownerId,
-        stage: "prospect",
+        stage: "prospect" as const,
         probability: 10,
       };
 

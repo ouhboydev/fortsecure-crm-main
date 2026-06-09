@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Sidebar } from "./Sidebar";
 import { Loader2 } from "lucide-react";
 import { BackgroundEffects } from "@/components/layout/BackgroundEffects";
+import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -42,6 +43,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </p>
         </footer>
       </main>
+      <OnboardingChecklist />
     </div>
   );
 }

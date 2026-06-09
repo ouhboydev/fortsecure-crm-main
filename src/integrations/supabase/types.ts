@@ -493,6 +493,7 @@ export type Database = {
       activity_type: "ligacao" | "email" | "reuniao" | "tarefa" | "visita" | "followup" | "whatsapp"
       app_role: "admin" | "gestor" | "vendedor" | "viewer"
       opp_stage:
+        | "leads_exact"
         | "prospect"
         | "qualificado"
         | "proposta"
@@ -630,6 +631,7 @@ export const Constants = {
       activity_type: ["ligacao", "email", "reuniao", "tarefa", "visita", "followup", "whatsapp"],
       app_role: ["admin", "gestor", "vendedor", "viewer"],
       opp_stage: [
+        "leads_exact",
         "prospect",
         "qualificado",
         "proposta",

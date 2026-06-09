@@ -1,0 +1,1 @@
+- [Features implementadas e planejadas](project_features.md) — Battlecards, Onboarding, GoTo integration status
