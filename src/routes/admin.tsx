@@ -28,7 +28,7 @@ export const Route = createFileRoute("/admin")({
 
 const CLIENTS = ["TechCorp", "Acme Ind.", "Globex", "Initech", "Umbrella", "Wayne Ent.", "Stark", "Pied Piper", "Hooli", "Aperture", "Soylent", "Massive Dynamic"];
 const TITLES = ["Plano Enterprise", "Renovação anual", "Expansão licenças", "Implementação", "Consultoria", "Add-on premium", "Migração cloud", "Treinamento"];
-const STAGES_ALL = ["leads_exact", "prospect", "qualificado", "proposta", "negociacao", "ganho", "perdido"] as const;
+const STAGES_ALL = ["prospect", "qualificado", "proposta", "negociacao", "ganho", "perdido"] as const;
 
 function rand<T>(arr: readonly T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
 function randInt(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min; }
@@ -136,7 +136,7 @@ function Admin() {
           const value = randInt(3, 80) * 1000;
           opps.push({
             owner_id: p.id, client_name: rand(CLIENTS), title: rand(TITLES), value, stage,
-            probability: { leads_exact: 10, prospect: 20, qualificado: 40, proposta: 60, negociacao: 80, ganho: 100, perdido: 0 }[stage],
+            probability: { prospect: 20, qualificado: 40, proposta: 60, negociacao: 80, ganho: 100, perdido: 0 }[stage],
             closed_at: (stage === "ganho" || stage === "perdido") ? new Date(year, month - 1, randInt(1, Math.min(28, now.getDate()))).toISOString() : null,
             expected_close_date: new Date(year, month - 1, randInt(1, 28)).toISOString().slice(0, 10),
           });
@@ -318,6 +318,29 @@ function Admin() {
       refreshData();
     } catch (e: any) {
       toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteLeadsExact() {
+    if (!confirm("ATENÇÃO: Apagar permanentemente todos os leads com stage = 'leads_exact'? Esta ação é irreversível.")) return;
+    setBusy(true);
+    try {
+      const { error, count } = await supabase
+        .from("opportunities")
+        .delete({ count: "exact" })
+        .eq("stage", "leads_exact");
+      if (error) throw error;
+      await supabase.from("audit_logs").insert({
+        action: `Deletados ${count ?? 0} leads EXACT do banco`,
+        entity: "opportunities",
+        user_id: currentUser?.id
+      });
+      toast.success(`${count ?? 0} leads EXACT removidos do banco de dados.`);
+      refreshData();
+    } catch (e: any) {
+      toast.error("Erro ao deletar leads EXACT: " + e.message);
     } finally {
       setBusy(false);
     }
@@ -555,6 +578,17 @@ function Admin() {
                   <Trash2 className="h-3.5 w-3.5" /> Reset Total de Dados
                 </Button>
                 <p className="text-[10px] text-muted-foreground text-center">⚠ O reset apaga permanentemente todos os dados comerciais.</p>
+                <div className="mt-2 pt-3 border-t border-border">
+                  <p className="text-[10px] text-muted-foreground mb-2">Remover apenas os leads importados do EXACT (stage = leads_exact):</p>
+                  <Button
+                    variant="outline"
+                    onClick={deleteLeadsExact}
+                    disabled={busy}
+                    className="w-full h-9 border-[#a78bfa]/30 text-[#a78bfa] text-xs hover:bg-[#a78bfa]/10 gap-2 transition-all"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Deletar Leads EXACT do Banco
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 

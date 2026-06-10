@@ -1,4 +1,7 @@
-project_id = "ybduagyrtugesdlznttc"
+project_id = "zsgeoieiadhocfhrptps"
 
 [functions.sales-insights]
+verify_jwt = false
+
+[functions.goto-webhook]
 verify_jwt = false

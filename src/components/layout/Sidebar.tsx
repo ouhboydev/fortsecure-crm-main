@@ -6,12 +6,13 @@ import {
   Tv, Brain, Settings, LogOut, Activity, User as UserIcon, Kanban,
   TrendingUp, ListTodo, UserCircle, PhoneCall, Package,
   BarChart, Target, ChevronDown, Search, BookOpen, Workflow, CalendarDays,
-  PanelLeftClose, Check, PanelLeft
+  PanelLeftClose, Check, PanelLeft, Link2
 } from "lucide-react";
 import { cn, formatDisplayName } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import logo from "../../public/logo.png";
 import { ThemeToggle } from "./ThemeToggle";
+import { Notifications } from "./Notifications";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -65,6 +66,7 @@ const nav: NavGroup[] = [
   },
   {
     group: "Sistema", items: [
+      { to: "/integrations", label: "Integrações", icon: Link2 },
       { to: "/products", label: "Produtos", icon: Package },
       { to: "/tv", label: "Modo TV", icon: Tv },
       { to: "/admin", label: "Admin", icon: Settings, admin: true },
@@ -234,6 +236,7 @@ export function Sidebar() {
             
             {!isActuallyCollapsed && (
               <div className="flex items-center gap-0.5 shrink-0">
+                <Notifications />
                 <ThemeToggle />
                 <Button
                   variant="ghost"

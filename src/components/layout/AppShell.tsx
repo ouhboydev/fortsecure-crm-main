@@ -5,6 +5,7 @@ import { Sidebar } from "./Sidebar";
 import { Loader2 } from "lucide-react";
 import { BackgroundEffects } from "@/components/layout/BackgroundEffects";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
+import { FloatingNote } from "@/components/layout/FloatingNote";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -44,6 +45,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </footer>
       </main>
       <OnboardingChecklist />
+      <FloatingNote />
     </div>
   );
 }

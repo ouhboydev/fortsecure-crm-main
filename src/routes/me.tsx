@@ -152,49 +152,49 @@ function MyPanel() {
   const doneActs = activities.filter(a => a.status === "concluida");
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
+    <div className="flex flex-col h-full overflow-y-auto bg-background">
 
       {/* ── Hero Banner ── */}
-      <div className="relative px-6 lg:px-10 pt-8 pb-10 border-b border-border overflow-hidden bg-gradient-to-br from-card via-card to-[#3ecf8e]/5">
-        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "radial-gradient(circle at 80% 50%, #3ecf8e 0%, transparent 60%)" }} />
+      <div className="relative px-6 lg:px-10 pt-10 pb-12 border-b border-border overflow-hidden">
+        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-[#3ecf8e]/[0.03] blur-[120px] rounded-full pointer-events-none" />
         <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6 max-w-[1400px] mx-auto">
           {/* Left: Identity */}
           <div className="flex items-center gap-5">
             <div className="relative">
-              <div className="h-16 w-16 rounded-2xl bg-secondary border-2 border-border flex items-center justify-center overflow-hidden shadow-xl">
+              <div className="h-16 w-16 rounded-full bg-secondary border border-border flex items-center justify-center overflow-hidden shadow-2xl ring-4 ring-background">
                 {user?.user_metadata?.avatar_url ? (
                   <img src={user.user_metadata.avatar_url} alt="profile" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-2xl font-black text-[#3ecf8e]">{firstName[0]}</span>
+                  <span className="text-2xl font-light text-[#3ecf8e]">{firstName[0]}</span>
                 )}
               </div>
-              <div className="absolute -bottom-1.5 -right-1.5 h-6 w-6 rounded-lg bg-[#3ecf8e] text-black flex items-center justify-center text-[10px] font-black shadow-lg">
+              <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-[#3ecf8e] border-2 border-background text-black flex items-center justify-center text-[10px] font-bold shadow-lg">
                 {rank}
               </div>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground font-medium">{greeting},</p>
-              <h1 className="text-2xl font-black text-foreground tracking-tight leading-tight">{displayName}</h1>
-              <div className="flex items-center gap-2 mt-1.5">
-                <span className="flex items-center gap-1.5 px-2 py-0.5 bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 rounded-md">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#3ecf8e] animate-pulse" />
-                  <span className="text-[10px] text-[#3ecf8e] font-bold uppercase tracking-wider">Online</span>
-                </span>
-                <span className="text-xs text-muted-foreground">Q{quarter + 1} · {pendingActs.length} pendências</span>
+              <p className="text-[11px] text-muted-foreground font-mono uppercase tracking-widest">{greeting}</p>
+              <h1 className="text-2xl font-medium text-foreground tracking-tight mt-0.5">{displayName}</h1>
+              <div className="flex items-center gap-3 mt-2">
+                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 rounded-md">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#3ecf8e] shadow-[0_0_8px_#3ecf8e]" />
+                  <span className="text-[9px] text-[#3ecf8e] font-mono uppercase tracking-widest">Online</span>
+                </div>
+                <span className="text-[11px] text-muted-foreground">Q{quarter + 1} · {pendingActs.length} pendências</span>
               </div>
             </div>
           </div>
 
           {/* Right: Quick stats */}
-          <div className="flex items-stretch gap-1 bg-secondary/40 border border-border rounded-xl p-1.5">
+          <div className="flex items-stretch gap-px bg-border/50 rounded-lg p-px overflow-hidden shadow-sm">
             {[
-              { label: "Fechamentos", value: metrics.count, mono: true, accent: false },
-              { label: "Ticket Médio", value: metrics.count > 0 ? formatCurrency(metrics.revenue / metrics.count).replace(",00","") : "R$ 0", mono: true, accent: true },
-              { label: "Conversão", value: `${metrics.conversionRate.toFixed(1)}%`, mono: true, accent: false },
-            ].map((s, i) => (
-              <div key={s.label} className="flex flex-col items-center px-4 py-2.5 rounded-lg">
-                <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest whitespace-nowrap">{s.label}</p>
-                <p className={cn("text-lg font-black font-mono mt-0.5", s.accent ? "text-[#3ecf8e]" : "text-foreground")}>{s.value}</p>
+              { label: "Fechamentos", value: metrics.count, accent: false },
+              { label: "Ticket Médio", value: metrics.count > 0 ? formatCurrency(metrics.revenue / metrics.count).replace(",00","") : "R$ 0", accent: true },
+              { label: "Conversão", value: `${metrics.conversionRate.toFixed(1)}%`, accent: false },
+            ].map((s) => (
+              <div key={s.label} className="flex flex-col items-center px-6 py-3 bg-card hover:bg-secondary/20 transition-colors">
+                <p className="text-[10px] text-muted-foreground font-mono uppercase tracking-widest">{s.label}</p>
+                <p className={cn("text-xl font-medium font-mono mt-1", s.accent ? "text-[#3ecf8e]" : "text-foreground")}>{s.value}</p>
               </div>
             ))}
           </div>
@@ -202,15 +202,15 @@ function MyPanel() {
       </div>
 
       {/* ── Content ── */}
-      <div className="flex-1 px-6 lg:px-10 py-8 max-w-[1400px] mx-auto w-full pb-20">
+      <div className="flex-1 px-6 lg:px-10 py-8 max-w-[1400px] mx-auto w-full pb-20 space-y-6">
 
         {/* KPIs */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           {[
             {
               label: "Receita Liquidada",
               value: formatCurrency(metrics.revenue),
-              sub: `${metrics.count} negócios ganhos este trimestre`,
+              sub: `${metrics.count} negócios ganhos neste trimestre`,
               icon: TrendingUp,
               accent: "#3ecf8e",
             },
@@ -233,18 +233,20 @@ function MyPanel() {
             return (
               <div
                 key={k.label}
-                className="bg-card border border-border rounded-xl p-5 hover:border-opacity-50 transition-all group"
-                style={{ borderColor: `${k.accent}20` }}
+                className="relative bg-card/40 backdrop-blur-md border border-border rounded-xl p-6 hover:border-[#3ecf8e]/30 transition-all duration-300 group overflow-hidden shadow-sm"
               >
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-xs text-muted-foreground font-medium">{k.label}</p>
-                  <div className="h-8 w-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110"
-                    style={{ backgroundColor: `${k.accent}15`, color: k.accent }}>
+                <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity">
+                  <Icon className="h-24 w-24" style={{ color: k.accent }} />
+                </div>
+                <div className="flex items-center justify-between mb-4 relative z-10">
+                  <p className="text-[10px] text-muted-foreground font-mono uppercase tracking-widest">{k.label}</p>
+                  <div className="h-8 w-8 rounded-md flex items-center justify-center bg-background border border-border shadow-sm transition-transform group-hover:scale-110"
+                    style={{ color: k.accent }}>
                     <Icon className="h-4 w-4" />
                   </div>
                 </div>
-                <p className="text-2xl font-black font-mono tracking-tight" style={{ color: k.accent }}>{k.value}</p>
-                <p className="text-[11px] text-muted-foreground mt-1.5">{k.sub}</p>
+                <p className="text-3xl font-medium font-mono tracking-tight text-foreground relative z-10">{k.value}</p>
+                <p className="text-xs text-muted-foreground mt-2 relative z-10">{k.sub}</p>
               </div>
             );
           })}
@@ -258,34 +260,34 @@ function MyPanel() {
 
             {/* Product performance */}
             {productData.length > 0 && (
-              <div className="bg-card border border-border rounded-2xl overflow-hidden">
-                <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
-                  <div className="h-8 w-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                    <Package className="h-4 w-4 text-purple-400" />
+              <div className="bg-card/40 backdrop-blur-md border border-border rounded-xl overflow-hidden shadow-sm">
+                <div className="flex items-center gap-3 px-6 py-4 border-b border-border/50 bg-secondary/10">
+                  <div className="h-8 w-8 rounded-md bg-background border border-border flex items-center justify-center shadow-sm">
+                    <Package className="h-4 w-4 text-muted-foreground" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-semibold text-foreground">Performance por Produto</h2>
-                    <p className="text-[10px] text-muted-foreground">Atingimento de metas — Q{quarter + 1}</p>
+                    <h2 className="text-sm font-medium text-foreground">Performance por Produto</h2>
+                    <p className="text-[11px] text-muted-foreground font-mono mt-0.5">Metas — Q{quarter + 1}</p>
                   </div>
                 </div>
-                <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {productData.map(p => {
                     const isOver = p.pct >= 100;
                     return (
-                      <div key={p.name} className="bg-secondary/20 border border-border/50 rounded-xl p-4 hover:border-opacity-50 transition-all" style={{ borderColor: `${p.color}25` }}>
-                        <div className="flex items-center justify-between mb-3">
+                      <div key={p.name} className="bg-background border border-border rounded-lg p-5 hover:border-[#3ecf8e]/30 transition-all shadow-sm">
+                        <div className="flex items-center justify-between mb-4">
                           <div className="flex items-center gap-2 min-w-0">
-                            <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
-                            <span className="text-xs font-semibold text-foreground truncate">{p.name}</span>
+                            <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: p.color, boxShadow: `0 0 8px ${p.color}` }} />
+                            <span className="text-sm font-medium text-foreground truncate">{p.name}</span>
                           </div>
                           <span className={cn(
-                            "text-[10px] font-black px-2 py-0.5 rounded-full font-mono shrink-0",
-                            isOver ? "bg-[#3ecf8e]/10 text-[#3ecf8e]" : "bg-secondary text-muted-foreground"
+                            "text-[10px] font-medium px-2 py-0.5 rounded font-mono shrink-0 border",
+                            isOver ? "bg-[#3ecf8e]/10 text-[#3ecf8e] border-[#3ecf8e]/20" : "bg-secondary text-muted-foreground border-border"
                           )}>
                             {p.pct}%
                           </span>
                         </div>
-                        <div className="h-1.5 bg-background border border-border/30 rounded-full overflow-hidden mb-3">
+                        <div className="h-1.5 bg-secondary/50 rounded-full overflow-hidden mb-4">
                           <motion.div
                             initial={{ width: 0 }}
                             animate={{ width: `${Math.min(p.pct, 100)}%` }}
@@ -296,12 +298,12 @@ function MyPanel() {
                         </div>
                         <div className="flex justify-between items-end">
                           <div>
-                            <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-0.5">Realizado</p>
-                            <p className="text-sm font-black font-mono" style={{ color: p.color }}>{formatCurrency(p.realized)}</p>
+                            <p className="text-[10px] text-muted-foreground font-mono uppercase tracking-widest mb-1">Realizado</p>
+                            <p className="text-base font-medium font-mono text-foreground">{formatCurrency(p.realized)}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-0.5">Meta</p>
-                            <p className="text-[11px] font-bold font-mono text-muted-foreground">{formatCurrency(p.goal)}</p>
+                            <p className="text-[10px] text-muted-foreground font-mono uppercase tracking-widest mb-1">Meta</p>
+                            <p className="text-xs font-medium font-mono text-muted-foreground">{formatCurrency(p.goal)}</p>
                           </div>
                         </div>
                       </div>
@@ -312,50 +314,45 @@ function MyPanel() {
             )}
 
             {/* Mini Kanban */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {["proposta", "negociacao"].map(stage => {
                 const stageOpps = pipelineOpps.filter(o => o.stage === stage);
                 const total = stageOpps.reduce((s, o) => s + Number(o.value), 0);
-                const stageColor = stage === "proposta" ? "#3b82f6" : "#8b5cf6";
+                const stageColor = stage === "proposta" ? "#3ecf8e" : "#1eaedb";
                 return (
-                  <div key={stage} className="bg-card border border-border rounded-2xl overflow-hidden flex flex-col">
-                    <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+                  <div key={stage} className="bg-card/40 backdrop-blur-md border border-border rounded-xl overflow-hidden flex flex-col shadow-sm">
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 bg-secondary/10">
                       <div className="flex items-center gap-2.5">
-                        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: stageColor }} />
-                        <h3 className="text-xs font-semibold text-foreground">
+                        <div className="h-2 w-2 rounded-full shadow-sm" style={{ backgroundColor: stageColor, boxShadow: `0 0 6px ${stageColor}` }} />
+                        <h3 className="text-xs font-medium font-mono uppercase tracking-widest text-foreground">
                           {stage === "proposta" ? "Em Proposta" : "Em Negociação"}
                         </h3>
                       </div>
-                      <span className="text-[10px] font-black font-mono text-[#3ecf8e]">
+                      <span className="text-xs font-medium font-mono text-muted-foreground">
                         {formatCurrency(total).replace(",00", "")}
                       </span>
                     </div>
-                    <div className="flex-1 p-3 space-y-2 min-h-[120px]">
+                    <div className="flex-1 p-4 space-y-3 min-h-[120px]">
                       {stageOpps.map(o => (
                         <div
                           key={o.id}
                           onClick={() => window.location.href = "/pipeline"}
-                          className="group bg-secondary/30 border border-border/50 rounded-xl p-3 hover:border-[#3ecf8e]/30 transition-all cursor-pointer"
+                          className="group bg-background border border-border rounded-lg p-4 hover:border-[#3ecf8e]/40 transition-all cursor-pointer shadow-sm"
                         >
-                          <div className="flex justify-between items-start mb-1.5">
-                            <p className="text-xs font-semibold text-foreground truncate pr-2">{o.client_name}</p>
-                            <ArrowUpRight className="h-3 w-3 text-muted-foreground group-hover:text-[#3ecf8e] shrink-0 transition-colors" />
+                          <div className="flex justify-between items-start mb-2">
+                            <p className="text-sm font-medium text-foreground truncate pr-2">{o.client_name}</p>
+                            <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-[#3ecf8e] shrink-0 transition-colors" />
                           </div>
-                          <p className="text-[10px] text-muted-foreground truncate mb-2">{o.title}</p>
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-black font-mono text-[#3ecf8e]">{formatCurrency(o.value)}</span>
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-10 h-1 bg-secondary rounded-full overflow-hidden">
-                                <div className="h-full rounded-full" style={{ width: `${o.probability}%`, backgroundColor: stageColor }} />
-                              </div>
-                              <span className="text-[9px] text-muted-foreground">{o.probability}%</span>
-                            </div>
+                          <p className="text-[11px] text-muted-foreground truncate mb-3">{o.title}</p>
+                          <div className="flex items-center justify-between border-t border-border/40 pt-3">
+                            <span className="text-xs font-medium font-mono text-foreground">{formatCurrency(o.value)}</span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-secondary/50 text-muted-foreground border border-border">{o.probability}%</span>
                           </div>
                         </div>
                       ))}
                       {stageOpps.length === 0 && (
-                        <div className="h-full flex items-center justify-center py-8">
-                          <p className="text-[10px] text-muted-foreground/50 italic uppercase tracking-widest">Vazio</p>
+                        <div className="h-full flex items-center justify-center py-10">
+                          <p className="text-[10px] text-muted-foreground/40 font-mono uppercase tracking-widest">Nenhuma oportunidade</p>
                         </div>
                       )}
                     </div>
@@ -366,79 +363,82 @@ function MyPanel() {
           </div>
 
           {/* Right column: agenda */}
-          <div className="flex flex-col gap-0 bg-card border border-border rounded-2xl overflow-hidden">
+          <div className="flex flex-col gap-0 bg-card/40 backdrop-blur-md border border-border rounded-xl overflow-hidden shadow-sm">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                  <ListTodo className="h-4 w-4 text-blue-400" />
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-secondary/10">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-md bg-background border border-border flex items-center justify-center shadow-sm">
+                  <ListTodo className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-foreground">Agenda</h2>
-                  <p className="text-[10px] text-muted-foreground">{pendingActs.length} pendentes · {doneActs.length} concluídas</p>
+                  <h2 className="text-sm font-medium text-foreground">Agenda</h2>
+                  <p className="text-[11px] text-muted-foreground font-mono mt-0.5">{pendingActs.length} pendentes</p>
                 </div>
               </div>
               <Button
                 size="icon"
                 onClick={() => setIsModalOpen(true)}
-                className="h-7 w-7 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-black rounded-lg"
+                className="h-8 w-8 bg-background border border-border hover:border-[#3ecf8e]/50 text-foreground rounded-md shadow-sm transition-colors"
               >
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="h-4 w-4" />
               </Button>
             </div>
 
             {/* Activity list */}
-            <div className="flex-1 overflow-auto divide-y divide-border/40">
-              {activities.map(a => {
-                const cfg = TYPE_CONFIG[a.type] || TYPE_CONFIG.tarefa;
-                const Icon = cfg.icon;
-                const isDone = a.status === "concluida";
-                return (
-                  <div key={a.id} className={cn("flex items-center gap-3 px-5 py-3.5 group transition-colors", isDone ? "opacity-50" : "hover:bg-secondary/20")}>
-                    <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center shrink-0", cfg.bg, cfg.color)}>
-                      <Icon className="h-3.5 w-3.5" />
+            <div className="flex-1 overflow-auto">
+              <div className="divide-y divide-border/40 px-2 py-2">
+                {activities.map(a => {
+                  const cfg = TYPE_CONFIG[a.type] || TYPE_CONFIG.tarefa;
+                  const Icon = cfg.icon;
+                  const isDone = a.status === "concluida";
+                  return (
+                    <div key={a.id} className={cn("flex items-center gap-3.5 px-4 py-3.5 rounded-lg transition-colors mx-1", isDone ? "opacity-40" : "hover:bg-secondary/40")}>
+                      <div className={cn("h-8 w-8 rounded-md border flex items-center justify-center shrink-0", isDone ? "bg-background border-border" : "bg-card border-border shadow-sm", cfg.color)}>
+                        <Icon className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={cn("text-sm font-medium truncate", isDone ? "line-through text-muted-foreground" : "text-foreground")}>{a.title}</p>
+                        {a.due_date && (
+                          <p className="text-[10px] font-mono text-muted-foreground mt-1 flex items-center gap-1.5">
+                            <Clock className="h-3 w-3 opacity-70" />
+                            {new Date(a.due_date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                            {" "}·{" "}
+                            {new Date(a.due_date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => completeActivity(a.id, a.status)}
+                        className={cn(
+                          "h-5 w-5 rounded-md border flex items-center justify-center shrink-0 transition-all focus:outline-none",
+                          isDone
+                            ? "bg-[#3ecf8e] border-[#3ecf8e] text-black"
+                            : "bg-background border-border text-transparent hover:border-[#3ecf8e] hover:text-[#3ecf8e]/50"
+                        )}
+                      >
+                        <CheckCircle2 className="h-3 w-3" />
+                      </button>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={cn("text-xs font-semibold truncate", isDone ? "line-through text-muted-foreground" : "text-foreground")}>{a.title}</p>
-                      {a.due_date && (
-                        <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                          <Clock className="h-2.5 w-2.5" />
-                          {new Date(a.due_date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
-                          {" "}·{" "}
-                          {new Date(a.due_date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                        </p>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => completeActivity(a.id, a.status)}
-                      className={cn(
-                        "h-5 w-5 rounded-full border flex items-center justify-center shrink-0 transition-all",
-                        isDone
-                          ? "bg-[#3ecf8e] border-[#3ecf8e] text-black"
-                          : "border-border text-transparent hover:border-[#3ecf8e]"
-                      )}
-                    >
-                      <CheckCircle2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
               {activities.length === 0 && (
-                <div className="py-16 text-center">
-                  <ListTodo className="h-8 w-8 text-muted-foreground/20 mx-auto mb-3" />
-                  <p className="text-xs text-muted-foreground">Sem atividades agendadas</p>
-                  <button onClick={() => setIsModalOpen(true)} className="text-xs text-[#3ecf8e] hover:underline mt-2">
-                    Criar primeira atividade
-                  </button>
+                <div className="py-20 text-center">
+                  <ListTodo className="h-10 w-10 text-muted-foreground/20 mx-auto mb-4" />
+                  <p className="text-sm font-medium text-foreground">Caixa de entrada vazia</p>
+                  <p className="text-[11px] text-muted-foreground mt-1 mb-4">Você não possui atividades agendadas.</p>
+                  <Button onClick={() => setIsModalOpen(true)} variant="outline" size="sm" className="h-8 text-xs font-mono uppercase tracking-wider border-dashed">
+                    Adicionar
+                  </Button>
                 </div>
               )}
             </div>
 
             {/* Footer CTA */}
-            <div className="px-5 py-3 border-t border-border">
+            <div className="px-6 py-4 border-t border-border/50 bg-secondary/5">
               <button
                 onClick={() => window.location.href = "/activities"}
-                className="w-full flex items-center justify-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-[#3ecf8e] transition-colors py-1"
+                className="w-full flex items-center justify-center gap-2 text-[10px] font-mono uppercase tracking-widest text-muted-foreground hover:text-[#3ecf8e] transition-colors py-1"
               >
                 Ver Agenda Completa <ChevronRight className="h-3 w-3" />
               </button>
@@ -449,23 +449,23 @@ function MyPanel() {
 
       {/* ── Modal: nova atividade ── */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="bg-card border border-border rounded-2xl p-0 overflow-hidden max-w-md">
+        <DialogContent className="bg-card border border-border rounded-2xl p-0 overflow-hidden max-w-md shadow-2xl">
           <div className="p-6 space-y-5">
             <DialogHeader>
-              <DialogTitle className="text-base font-semibold">Nova Atividade</DialogTitle>
+              <DialogTitle className="text-base font-medium font-mono uppercase tracking-widest">Nova Atividade</DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">Agende uma tarefa ou compromisso.</DialogDescription>
             </DialogHeader>
-            <form onSubmit={addActivity} className="space-y-4">
+            <form onSubmit={addActivity} className="space-y-5">
               <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Título *</Label>
+                <Label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-2 block">Título *</Label>
                 <Input required autoFocus value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
-                  placeholder="O que precisa ser feito?" className="h-9 bg-secondary border-border text-sm" />
+                  placeholder="O que precisa ser feito?" className="h-10 bg-background border-border/50 text-sm focus:border-[#3ecf8e]/50" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Tipo</Label>
+                  <Label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-2 block">Tipo</Label>
                   <Select value={form.type} onValueChange={v => setForm({ ...form, type: v })}>
-                    <SelectTrigger className="h-9 bg-secondary border-border text-sm"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-10 bg-background border-border/50 text-sm focus:border-[#3ecf8e]/50"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-card border-border">
                       <SelectItem value="tarefa">Tarefa</SelectItem>
                       <SelectItem value="ligacao">Ligação</SelectItem>
@@ -477,20 +477,20 @@ function MyPanel() {
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Prazo</Label>
+                  <Label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-2 block">Prazo</Label>
                   <Input type="datetime-local" value={form.due_date} onChange={e => setForm({ ...form, due_date: e.target.value })}
-                    className="h-9 bg-secondary border-border text-sm" />
+                    className="h-10 bg-background border-border/50 text-sm focus:border-[#3ecf8e]/50" />
                 </div>
               </div>
-              <div className="flex items-center gap-2.5 p-3 bg-secondary/50 border border-border rounded-lg">
+              <div className="flex items-center gap-3 p-4 bg-secondary/20 border border-border/50 rounded-xl">
                 <Checkbox id="is_public" checked={form.is_public} onCheckedChange={v => setForm({ ...form, is_public: !!v })}
                   className="border-border data-[state=checked]:bg-[#3ecf8e] data-[state=checked]:text-black" />
                 <Label htmlFor="is_public" className="text-xs text-muted-foreground cursor-pointer">Compartilhar com o time</Label>
               </div>
-              <DialogFooter className="gap-2 pt-1">
-                <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="flex-1 h-9 text-xs">Cancelar</Button>
-                <Button type="submit" disabled={busy} className="flex-[2] h-9 bg-[#3ecf8e] text-black font-semibold text-xs gap-2">
-                  {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+              <DialogFooter className="gap-2 pt-2 border-t border-border/40 mt-6">
+                <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)} className="flex-1 h-10 text-xs font-mono uppercase tracking-wider">Cancelar</Button>
+                <Button type="submit" disabled={busy} className="flex-[2] h-10 bg-[#3ecf8e] text-black font-semibold text-xs font-mono uppercase tracking-wider gap-2">
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                   Confirmar
                 </Button>
               </DialogFooter>

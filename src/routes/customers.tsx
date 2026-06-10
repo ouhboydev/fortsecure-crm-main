@@ -3,13 +3,17 @@ import { AppShell } from "@/components/layout/AppShell";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  Plus, Search, Loader2, User, Building2, Mail, Phone,
+  Plus, Search, Loader2, User, Users, Building2, Mail, Phone,
   MoreHorizontal, Pencil, Trash2,
   Briefcase, Calendar, ChevronRight, ArrowUpRight,
   TrendingUp, Activity, History, ListTodo, MessageSquare,
   ShieldCheck, Clock, Target, List, X, LayoutGrid,
+  Bold, Italic, ListOrdered, Download, Upload
 } from "lucide-react";
 import { cn, formatCurrencyBRL } from "@/lib/utils";
+import Papa from "papaparse";
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
@@ -23,7 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 export const Route = createFileRoute("/customers")({
   head: () => ({ meta: [{ title: "Clientes — FortSecure" }] }),
   component: () => <AppShell><CustomersPage /></AppShell>,
@@ -52,6 +56,47 @@ const ACTIVITY_TYPE_CONFIG: Record<string, { icon: any; color: string; label: st
   whatsapp: { icon: MessageSquare,color: "text-[#25D366] bg-[#25D366]/10",    label: "WhatsApp" },
 };
 
+// ─── Rich Text Editor ─────────────────────────────────────────────────────────
+
+const RichTextEditor = ({ content, onChange }: { content: string, onChange: (val: string) => void }) => {
+  const editor = useEditor({
+    extensions: [StarterKit],
+    content: content,
+    onUpdate: ({ editor }) => {
+      onChange(editor.getHTML());
+    },
+  });
+
+  useEffect(() => {
+    if (editor && content !== editor.getHTML()) {
+      editor.commands.setContent(content);
+    }
+  }, [content, editor]);
+
+  if (!editor) return null;
+
+  return (
+    <div className="border border-border rounded-md overflow-hidden bg-background">
+      <div className="flex items-center gap-1 border-b border-border p-1 bg-secondary/30">
+        <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={cn("p-1.5 rounded-md hover:bg-secondary", editor.isActive('bold') && "bg-secondary text-foreground")}>
+          <Bold className="h-3.5 w-3.5" />
+        </button>
+        <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={cn("p-1.5 rounded-md hover:bg-secondary", editor.isActive('italic') && "bg-secondary text-foreground")}>
+          <Italic className="h-3.5 w-3.5" />
+        </button>
+        <div className="w-px h-4 bg-border mx-1" />
+        <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()} className={cn("p-1.5 rounded-md hover:bg-secondary", editor.isActive('bulletList') && "bg-secondary text-foreground")}>
+          <List className="h-3.5 w-3.5" />
+        </button>
+        <button type="button" onClick={() => editor.chain().focus().toggleOrderedList().run()} className={cn("p-1.5 rounded-md hover:bg-secondary", editor.isActive('orderedList') && "bg-secondary text-foreground")}>
+          <ListOrdered className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <EditorContent editor={editor} className="p-3 min-h-[100px] text-sm max-h-[200px] overflow-y-auto prose prose-sm dark:prose-invert focus:outline-none" />
+    </div>
+  );
+};
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 function CustomersPage() {
@@ -61,7 +106,7 @@ function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<"grid" | "list">("list");
+  const [view, setView] = useState<"grid" | "list">("grid");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -124,6 +169,64 @@ function CustomersPage() {
   }
 
   useEffect(() => { load(); }, []);
+
+  const exportCSV = () => {
+    const csvData = customers.map(c => ({
+      Nome: c.name,
+      Empresa: c.company || "",
+      Email: c.email || "",
+      Telefone: c.phone || "",
+      Documento: c.document || "",
+      Notas: c.notes || ""
+    }));
+    const csv = Papa.unparse(csvData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `clientes_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        if (!user) return;
+        setBusy(true);
+        try {
+          const rows = results.data as any[];
+          const payload = rows.map(r => ({
+            owner_id: user.id,
+            name: r.Nome || r.name || r.NomeCompleto || "Sem Nome",
+            company: r.Empresa || r.company || "",
+            email: r.Email || r.email || "",
+            phone: r.Telefone || r.phone || "",
+            document: r.Documento || r.document || "",
+            notes: r.Notas || r.notes || "",
+            updated_at: new Date().toISOString()
+          }));
+          
+          const { error } = await supabase.from("customers" as any).insert(payload);
+          if (error) throw error;
+          
+          toast.success(`${payload.length} clientes importados com sucesso!`);
+          load();
+        } catch (err: any) {
+          toast.error("Erro na importação: " + err.message);
+        } finally {
+          setBusy(false);
+          if (e.target) e.target.value = '';
+        }
+      }
+    });
+  };
 
   const filtered = customers.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -217,6 +320,22 @@ function CustomersPage() {
                 <List className="h-3.5 w-3.5" />
               </button>
             </div>
+              <input type="file" accept=".csv" className="hidden" id="csv-upload" onChange={handleFileUpload} />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="h-9 px-2.5 text-xs border-border text-muted-foreground hover:text-foreground">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 bg-card border-border">
+                  <DropdownMenuItem onClick={() => document.getElementById('csv-upload')?.click()}>
+                    <Upload className="mr-2 h-4 w-4" /> Importar CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={exportCSV}>
+                    <Download className="mr-2 h-4 w-4" /> Exportar CSV
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             <Button onClick={openNew} className="h-9 bg-[#3ecf8e] hover:bg-[#3ecf8e]/90 text-black font-semibold text-xs gap-2">
               <Plus className="h-3.5 w-3.5" /> Novo Cliente
             </Button>
@@ -225,7 +344,44 @@ function CustomersPage() {
       </div>
 
       {/* ── Content ── */}
-      <div className="flex-1 overflow-y-auto px-6 lg:px-8 py-6 pb-8 max-w-[1600px] mx-auto w-full">
+      <div className="flex-1 overflow-y-auto px-6 lg:px-8 py-6 pb-8 max-w-[1600px] mx-auto w-full space-y-6">
+
+        {/* ── Metrics Panel ── */}
+        {!loading && customers.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-card border border-border rounded-xl p-5 flex items-center justify-between shadow-sm">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Total de Clientes</p>
+                <p className="text-2xl font-black mt-1 text-foreground">{customers.length}</p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-[#3ecf8e]/10 flex items-center justify-center">
+                <Users className="h-5 w-5 text-[#3ecf8e]" />
+              </div>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-5 flex items-center justify-between shadow-sm">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Negócios Ativos</p>
+                <p className="text-2xl font-black mt-1 text-foreground">
+                  {customers.reduce((acc, c) => acc + (c.opportunities?.filter((o:any)=>o.stage !== "ganho" && o.stage !== "perdido").length || 0), 0)}
+                </p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-[#1eaedb]/10 flex items-center justify-center">
+                <Briefcase className="h-5 w-5 text-[#1eaedb]" />
+              </div>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-5 flex items-center justify-between shadow-sm">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Em Negociação</p>
+                <p className="text-2xl font-black font-mono mt-1 text-foreground">
+                  {formatCurrency(customers.reduce((acc, c) => acc + (c.opportunities?.filter((o:any)=>o.stage !== "ganho" && o.stage !== "perdido").reduce((sum:number, o:any)=> sum + Number(o.value), 0) || 0), 0))}
+                </p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-[#f59e0b]/10 flex items-center justify-center">
+                <Activity className="h-5 w-5 text-[#f59e0b]" />
+              </div>
+            </div>
+          </div>
+        )}
         {loading ? (
           <div className="h-full flex items-center justify-center">
             <Loader2 className="h-5 w-5 animate-spin text-[#3ecf8e]" />
@@ -262,8 +418,7 @@ function CustomersPage() {
                     key={c.id}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="group relative bg-card border border-border rounded-2xl p-5 hover:border-opacity-60 transition-all cursor-pointer"
-                    style={{ borderColor: `${color}20` }}
+                    className="group relative bg-card/40 hover:bg-card border border-border/60 hover:border-border rounded-2xl p-5 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-md"
                     onClick={() => openDetail(c)}
                   >
                     {/* Actions menu */}
@@ -318,13 +473,13 @@ function CustomersPage() {
                     <div className="space-y-1.5 mb-4">
                       {c.email && (
                         <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-secondary/30 rounded-md px-2.5 py-1.5 border border-border/40">
-                          <Mail className="h-3 w-3 shrink-0" style={{ color }} />
+                          <Mail className="h-3 w-3 shrink-0 text-muted-foreground" />
                           <span className="truncate">{c.email}</span>
                         </div>
                       )}
                       {c.phone && (
                         <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-secondary/30 rounded-md px-2.5 py-1.5 border border-border/40">
-                          <Phone className="h-3 w-3 shrink-0" style={{ color }} />
+                          <Phone className="h-3 w-3 shrink-0 text-muted-foreground" />
                           <span>{c.phone}</span>
                         </div>
                       )}
@@ -338,7 +493,7 @@ function CustomersPage() {
                       </div>
                       <div className="text-right">
                         <p className="text-[9px] text-muted-foreground uppercase tracking-widest font-bold">Valor Total</p>
-                        <p className="text-sm font-black font-mono" style={{ color }}>{formatCurrency(totalValue)}</p>
+                        <p className="text-sm font-black font-mono text-foreground">{formatCurrency(totalValue)}</p>
                       </div>
                     </div>
                   </motion.div>
@@ -348,9 +503,9 @@ function CustomersPage() {
           </div>
         ) : (
           /* List view */
-          <div className="bg-card border border-border rounded-2xl overflow-hidden">
+          <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
             <table className="w-full text-left border-collapse">
-              <thead className="border-b border-border bg-secondary/20">
+              <thead className="border-b border-border bg-secondary/30 sticky top-0 z-10 backdrop-blur-md">
                 <tr>
                   <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Cliente</th>
                   <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Empresa</th>
@@ -406,7 +561,7 @@ function CustomersPage() {
                           </span>
                         </td>
                         <td className="px-5 py-3.5 text-right">
-                          <span className="text-sm font-black font-mono" style={{ color: avatarColor(c.name) }}>
+                          <span className="text-sm font-black font-mono text-foreground">
                             {formatCurrency(totalValue)}
                           </span>
                         </td>
@@ -479,7 +634,7 @@ function CustomersPage() {
             </div>
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Observações</Label>
-              <Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="bg-background border-border min-h-[80px] resize-none text-sm" placeholder="Notas sobre o cliente..." />
+              <RichTextEditor content={form.notes} onChange={val => setForm({ ...form, notes: val })} />
             </div>
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)} className="h-9 text-xs">Cancelar</Button>
@@ -492,9 +647,9 @@ function CustomersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Detail Modal ── */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-4xl bg-card border-border p-0 overflow-hidden rounded-2xl h-[85vh] flex flex-col">
+      {/* ── Detail Slide-over ── */}
+      <Sheet open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+        <SheetContent className="sm:max-w-3xl bg-card border-l border-border p-0 overflow-hidden flex flex-col gap-0 w-full sm:w-[800px]">
           {selectedCustomer && (() => {
             const color = avatarColor(selectedCustomer.name);
             const totalValue = selectedCustomer.opportunities?.reduce((acc: number, o: any) => acc + Number(o.value), 0) || 0;
@@ -567,7 +722,7 @@ function CustomersPage() {
                       <div className="space-y-2">
                         <div className="p-3 bg-secondary/30 border border-border/50 rounded-xl">
                           <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Volume Total</p>
-                          <p className="text-xl font-black font-mono mt-0.5" style={{ color }}>{formatCurrency(totalValue)}</p>
+                          <p className="text-xl font-black font-mono mt-0.5 text-foreground">{formatCurrency(totalValue)}</p>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                           <div className="p-3 bg-secondary/30 border border-border/50 rounded-xl">
@@ -632,9 +787,11 @@ function CustomersPage() {
                         {/* Notes */}
                         <div className="p-4 bg-secondary/20 border border-border/50 rounded-xl">
                           <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Observações</h4>
-                          <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
-                            {selectedCustomer.notes || "Sem observações registradas."}
-                          </p>
+                          {selectedCustomer.notes ? (
+                            <div className="text-xs text-foreground leading-relaxed prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: selectedCustomer.notes }} />
+                          ) : (
+                            <p className="text-xs text-foreground leading-relaxed">Sem observações registradas.</p>
+                          )}
                         </div>
 
                         {/* Activity timeline */}
@@ -709,8 +866,8 @@ function CustomersPage() {
               </>
             );
           })()}
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
