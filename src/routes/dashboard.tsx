@@ -73,6 +73,7 @@ function Dashboard() {
   const [products, setProducts] = useState<any[]>([]);
   const [focoClientSearch, setFocoClientSearch] = useState("");
   const [focoProductFilter, setFocoProductFilter] = useState("all");
+  const [focoTagFilter, setFocoTagFilter] = useState("all");
   const [focoMonthFilter, setFocoMonthFilter] = useState<string[]>(["quarter"]);
   const getQuarterIndex = (month: number) => Math.floor(month / 3);
   const [selectedPeriod, setSelectedPeriod] = useState(getQuarterIndex(new Date().getMonth()).toString());
@@ -703,6 +704,16 @@ function Dashboard() {
                     ))}
                   </SelectContent>
                 </Select>
+                <Select value={focoTagFilter} onValueChange={setFocoTagFilter}>
+                  <SelectTrigger className="h-8 text-xs bg-background/50 border-border max-w-[120px] w-full">
+                    <SelectValue placeholder="Tag" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    <SelectItem value="all">Todas as tags</SelectItem>
+                    <SelectItem value="New">New</SelectItem>
+                    <SelectItem value="Renew">Renew</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="h-8 text-xs bg-background/50 border-border max-w-[150px] w-full justify-between font-normal px-3">
@@ -725,7 +736,7 @@ function Dashboard() {
                               onCheckedChange={() => setFocoMonthFilter(["quarter"])}
                             />
                             <label htmlFor="filter-quarter" className="text-xs font-medium leading-none cursor-pointer">
-                              Trimestre Atual
+                               Trimestre Atual
                             </label>
                           </div>
                           <div className="flex items-center space-x-2">
@@ -735,7 +746,7 @@ function Dashboard() {
                               onCheckedChange={() => setFocoMonthFilter(["year"])}
                             />
                             <label htmlFor="filter-year" className="text-xs font-medium leading-none cursor-pointer">
-                              Ano Inteiro
+                               Ano Inteiro
                             </label>
                           </div>
                         </div>
@@ -779,6 +790,7 @@ function Dashboard() {
                   .filter(o => {
                     const matchesClient = !focoClientSearch || o.client_name.toLowerCase().includes(focoClientSearch.toLowerCase());
                     const matchesProduct = focoProductFilter === "all" || o.metadata?.product_id === focoProductFilter;
+                    const matchesTag = focoTagFilter === "all" || o.metadata?.tag === focoTagFilter;
                     
                     if (stageKey === "ganho") {
                       if (!focoMonthFilter.includes("quarter") && !focoMonthFilter.includes("year")) {
@@ -796,7 +808,7 @@ function Dashboard() {
                       }
                     }
 
-                    return matchesClient && matchesProduct;
+                    return matchesClient && matchesProduct && matchesTag;
                   });
 
                 return (
@@ -830,9 +842,21 @@ function Dashboard() {
                               <span className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.1em] truncate">
                                 Cliente
                               </span>
-                              <p className="text-[11px] font-bold text-foreground truncate leading-snug">
-                                {o.client_name}
-                              </p>
+                              <div className="flex items-center gap-1.5 justify-between">
+                                <p className="text-[11px] font-bold text-foreground truncate leading-snug">
+                                  {o.client_name}
+                                </p>
+                                {o.metadata?.tag && (
+                                  <Badge variant="outline" className={cn(
+                                    "h-4 px-1 text-[8px] font-bold uppercase shrink-0",
+                                    o.metadata.tag === "Renew"
+                                      ? "bg-purple-500/10 border-purple-500/20 text-purple-400"
+                                      : "bg-teal-500/10 border-teal-500/20 text-teal-400"
+                                  )}>
+                                    {o.metadata.tag}
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
 
                             {prod && (

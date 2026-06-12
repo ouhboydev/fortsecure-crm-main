@@ -79,7 +79,8 @@ function SalesPipeline() {
     contact_phone: "",
     description: "",
     owner_id: "",
-    closed_at: ""
+    closed_at: "",
+    tag: ""
   });
   const [sellers, setSellers] = useState<any[]>([]);
   const [selectedSellerId, setSelectedSellerId] = useState<string>("all");
@@ -291,6 +292,7 @@ function SalesPipeline() {
           product_id: form.product_id,
           contact_email: form.contact_email,
           contact_phone: form.contact_phone,
+          tag: form.tag || null,
         },
         closed_at: (form.stage === 'ganho' || form.stage === 'perdido') 
           ? (form.closed_at ? new Date(form.closed_at).toISOString() : new Date().toISOString()) 
@@ -309,7 +311,7 @@ function SalesPipeline() {
 
       setIsModalOpen(false);
       setEditingId(null);
-      setForm({ client_name: "", customer_id: "", title: "", value: "", stage: "prospect", probability: 20, expected_closing: "", source: "Direto", product_id: "", contact_email: "", contact_phone: "", description: "", owner_id: "", closed_at: "" });
+      setForm({ client_name: "", customer_id: "", title: "", value: "", stage: "prospect", probability: 20, expected_closing: "", source: "Direto", product_id: "", contact_email: "", contact_phone: "", description: "", owner_id: "", closed_at: "", tag: "" });
       load();
     } catch (err: any) {
       toast.error(err.message);
@@ -320,7 +322,7 @@ function SalesPipeline() {
 
   const openNew = () => {
     setEditingId(null);
-    setForm({ client_name: "", customer_id: "", title: "", value: "", stage: "prospect", probability: 20, expected_closing: "", source: "Direto", product_id: "", contact_email: "", contact_phone: "", description: "", owner_id: user?.id || "", closed_at: "" });
+    setForm({ client_name: "", customer_id: "", title: "", value: "", stage: "prospect", probability: 20, expected_closing: "", source: "Direto", product_id: "", contact_email: "", contact_phone: "", description: "", owner_id: user?.id || "", closed_at: "", tag: "" });
     setOppActivities([]);
     setIsModalOpen(true);
   };
@@ -342,6 +344,7 @@ function SalesPipeline() {
       description: o.description || "",
       owner_id: o.owner_id || "",
       closed_at: o.closed_at ? o.closed_at.split('T')[0] : "",
+      tag: o.metadata?.tag || "",
     });
     setLogNotes("");
     setLogOutcome("");
@@ -562,6 +565,16 @@ function SalesPipeline() {
                                         </Badge>
                                       ) : null;
                                     })()}
+                                    {o.metadata?.tag && (
+                                      <Badge variant="outline" className={cn(
+                                        "h-5 px-1.5 text-[9px] font-bold uppercase tracking-wider",
+                                        o.metadata.tag === "Renew"
+                                          ? "bg-purple-500/10 border-purple-500/20 text-purple-400"
+                                          : "bg-teal-500/10 border-teal-500/20 text-teal-400"
+                                      )}>
+                                        {o.metadata.tag}
+                                      </Badge>
+                                    )}
                                   </div>
 
                                   <div className="space-y-1.5">
@@ -717,6 +730,16 @@ function SalesPipeline() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-5">
+                    <div className="col-span-2 space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Nome do Lead / Título do Negócio</Label>
+                      <Input 
+                        required 
+                        value={form.title} 
+                        onChange={e => setForm({ ...form, title: e.target.value })} 
+                        className="h-10 bg-background/50 border-border text-sm focus-visible:ring-[#3ecf8e]/20" 
+                        placeholder="Ex: Licenciamento de Software ou Renovação de Suporte"
+                      />
+                    </div>
                     <div className="space-y-2">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Vendedor Responsável</Label>
                       <Select 
@@ -731,6 +754,22 @@ function SalesPipeline() {
                           {sellers.map(s => (
                             <SelectItem key={s.id} value={s.id} className="text-xs">{s.full_name}</SelectItem>
                           ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 ml-1">Tipo de Venda (Tag)</Label>
+                      <Select 
+                        value={form.tag || "none"} 
+                        onValueChange={v => setForm({ ...form, tag: v === "none" ? "" : v })}
+                      >
+                        <SelectTrigger className="h-10 bg-background/50 border-border text-xs focus:ring-[#3ecf8e]/20">
+                          <SelectValue placeholder="Selecione a Tag..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border">
+                          <SelectItem value="none" className="text-xs italic font-medium text-muted-foreground">Sem tag</SelectItem>
+                          <SelectItem value="New" className="text-xs">New (Nova Venda)</SelectItem>
+                          <SelectItem value="Renew" className="text-xs">Renew (Renovação)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -854,7 +893,12 @@ function SalesPipeline() {
                       const linkedProd = products.find(p => p.id === form.product_id);
                       if (!linkedProd) return null;
                       const hasGoal = !!linkedProd.metadata?.goal_active;
-                      const hasGoalValue = !!linkedProd.metadata?.goal;
+                      const currentQuarter = Math.floor(new Date().getMonth() / 3) + 1;
+                      const qKey = `goal_q${currentQuarter}`;
+                      const goalValue = linkedProd.metadata?.[qKey] ? Number(linkedProd.metadata[qKey]) : 0;
+                      const hasGoalValue = goalValue > 0 || !!(linkedProd.metadata?.goal_q1 || linkedProd.metadata?.goal_q2 || linkedProd.metadata?.goal_q3 || linkedProd.metadata?.goal_q4);
+                      const displayGoalValue = goalValue || Number(linkedProd.metadata?.goal_q1 || linkedProd.metadata?.goal_q2 || linkedProd.metadata?.goal_q3 || linkedProd.metadata?.goal_q4 || 0);
+
                       return (
                         <div className={cn(
                           "flex items-start gap-4 p-4 rounded-xl border transition-all",
@@ -877,7 +921,7 @@ function SalesPipeline() {
                             </p>
                             <p className="text-[10px] text-muted-foreground leading-relaxed">
                               {hasGoal && hasGoalValue
-                                ? <>Esta venda contribuirá para o atingimento da meta de <span className="font-bold text-foreground">{Number(linkedProd.metadata.goal).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span> deste produto.</>
+                                ? <>Esta venda contribuirá para o atingimento da meta de <span className="font-bold text-foreground">{displayGoalValue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span> deste produto.</>
                                 : hasGoal
                                   ? "O produto tem meta habilitada, mas o valor do objetivo não foi definido nas configurações."
                                   : "Este produto não possui monitoramento de metas ativo. As vendas não aparecerão nos rankings de produtos do dashboard."}
@@ -918,7 +962,6 @@ function SalesPipeline() {
                       <History className="h-4 w-4 text-[#3ecf8e]" />
                       <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">Registro & Histórico</h3>
                     </div>
-                    <Badge variant="outline" className="text-[10px] border-[#3ecf8e]/20 text-[#3ecf8e]">Exact Style</Badge>
                   </div>
 
                   {/* Form de Registrar Nova Atividade */}
